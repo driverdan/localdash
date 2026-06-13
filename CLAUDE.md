@@ -1,0 +1,138 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+LocalDash stores, serves, and views **time-series geolocation data** in a web dashboard. The first
+(and currently only) source is **active 911 incidents** for Hamilton County, TN. The whole stack is
+deliberately source-agnostic so APRS / weather / other geo feeds can be added without schema changes.
+
+## Tech stack & why
+
+**Data store — Postgres + PostGIS + TimescaleDB** (one image: `timescale/timescaledb-ha:pg16`).
+- *PostgreSQL*: relational base with strong JSONB support, which the schema leans on for
+  source-specific fields (no per-source migrations).
+- *PostGIS*: real geospatial types + indexes; the API does bbox / `ST_Intersects` / `ST_X` queries
+  rather than filtering points in Python.
+- *TimescaleDB*: turns `observations` into a hypertable partitioned on `observed_at`, giving the
+  time-series side scalable inserts/scans and easy retention policies as history grows. The HA image
+  bundles PostGIS + TimescaleDB so a single container covers both.
+
+**Web layer — FastAPI + Uvicorn.** Chosen because the app is fundamentally async (concurrent source
+polling, an HTTP client, and a push WebSocket). FastAPI's native async, dependency injection (used for
+DB sessions), Pydantic integration, and first-class WebSocket support fit that model with little glue.
+
+**ORM / DB drivers — SQLAlchemy 2.0 (async) + asyncpg, plus psycopg for Alembic.**
+- *SQLAlchemy 2.0 async* for the app's queries; *asyncpg* is the fastest async Postgres driver.
+- *GeoAlchemy2* maps PostGIS geometry columns into SQLAlchemy.
+- *psycopg (v3, binary)* is a **second, synchronous** driver used only by Alembic (migrations run
+  synchronously). This is why `config.py` derives a sync URL from the async one — see the
+  "Two DB drivers" note below.
+
+**Migrations — Alembic**, but with **hand-written raw SQL** because PostGIS extensions, the
+`create_hypertable()` call, and GIST indexes don't round-trip through autogenerate.
+
+**Scheduling — APScheduler (AsyncIOScheduler).** An in-process async scheduler runs the poll loop inside
+the FastAPI event loop. Deliberately avoids a separate worker + broker (Celery/Redis): at this scale
+(one source, 60s cadence) a background task is simpler and has no extra moving parts.
+
+**HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
+same library FastAPI's TestClient builds on).
+
+**Config / validation — Pydantic v2 + pydantic-settings.** Typed settings loaded from env/`.env`, and
+`NormalizedObservation` is a Pydantic model so collector output is validated at the boundary.
+
+**Frontend — vanilla JS + Leaflet + Leaflet.markercluster, loaded from a CDN.** No build step / no
+framework on purpose: it keeps the repo toolchain-free and mirrors the source site's own Leaflet stack.
+Marker icons are CSS `divIcon`s, so there are no image assets to manage.
+
+**Packaging / runtime — Docker Compose.** One command brings up DB + app; the app container waits on the
+DB healthcheck, runs migrations, then serves. Keeps "works on my machine" out of the loop.
+
+## Commands
+
+**Run the full stack (app + Postgres) in Docker:**
+```bash
+docker compose up --build        # app waits for DB health, runs migrations, then serves :8000
+```
+Dashboard at http://localhost:8000/.
+
+**Local dev (Dockerized DB, app from venv with --reload):**
+```bash
+docker compose up -d db
+source .venv/bin/activate         # venv already exists with deps installed
+pip install -e ".[dev]"           # if recreating the env
+cp .env.example .env              # DATABASE_URL -> localhost:5432
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+**Tests:**
+```bash
+pytest                                            # full suite
+pytest tests/test_ingest.py::test_state_changed_status_transition   # single test
+```
+Most tests are pure/offline. The one DB-backed test (`tests/test_ingest.py::test_ingest_full_lifecycle`)
+**auto-skips** unless `DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db`
+to make it run.
+
+**Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
+TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
+`alembic/versions/0001_initial.py`).
+
+## Architecture — the big picture
+
+### The central idea: snapshot → time-series
+The upstream 911 endpoint (`hc911server.com/api/calls`) returns only a **snapshot of currently-active
+calls**, not history. LocalDash *constructs* the time-series itself. Understanding this requires reading
+`collectors/`, `ingest.py`, and `scheduler.py` together:
+
+1. **`scheduler.py`** polls each source on an interval (APScheduler, started in `main.py`'s lifespan).
+2. **`collectors/`** fetch + normalize one source's payload into source-agnostic
+   `NormalizedObservation`s. `ingest.py` never knows about source specifics.
+3. **`ingest.py`** reconciles each batch against stored state:
+   - upsert the `entity` (keyed by `source_key` + `external_id`; for 911, `external_id` =
+     `master_incident_id`),
+   - **append an `observation` only when state changed** (status moved or position moved > epsilon) —
+     this is what avoids one duplicate row per poll, and is the core of the time-series,
+   - **closure sweep**: entities that were active but are absent from this payload are flipped
+     `is_active=false` with a final `Closed` observation.
+   - returns a `Diff` (`new`/`updated`/`closed`).
+4. The scheduler broadcasts that `Diff` over the **`/api/ws/live` WebSocket** (`ws.py`); the frontend
+   applies it incrementally.
+
+### Non-obvious decisions
+- **`observed_at` is the poll time, not the source's timestamp.** The feed uses a `1900-01-01` sentinel
+  for missing `statusdatetime`, which would corrupt the series. Source timestamps are preserved inside
+  `properties` (and `NormalizedObservation.source_time`). If you ever key the hypertable off source time,
+  this is the thing to change (`ingest.py`).
+- **Two DB drivers.** The app uses async `asyncpg`; Alembic uses sync `psycopg`. `config.py`'s
+  `database_url_sync` derives the sync URL by string-swapping the driver. `DATABASE_URL` is always the
+  **async** form.
+- **`observations` is a TimescaleDB hypertable** on `observed_at`; its primary key is
+  `(entity_id, observed_at)` because Timescale requires the partition column in the PK.
+
+### Source-agnostic data model (`models.py`)
+- `sources` — one row per registered source + last-run telemetry (written by `scheduler._record_run`).
+- `entities` — one tracked thing per source; latest snapshot, `is_active`, `last_geom`,
+  `latest_properties`. Unique on `(source_key, external_id)`.
+- `observations` — the hypertable; PostGIS `geom` point + JSONB `properties`. Source-specific fields
+  live in JSONB so new sources need no migration.
+
+### Adding a data source
+Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async `fetch()` and pure
+`normalize()`), then register it in `app/collectors/__init__.py`'s `build_collectors()`. Nothing else
+changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic.
+
+### API / frontend conventions
+- All geographic responses are **GeoJSON FeatureCollections** (`geojson.py`). `bbox` params are
+  `minLon,minLat,maxLon,maxLat`.
+- Routes live in `app/api/routes.py` under the `/api` prefix; `main.py` mounts `static/` at `/` last so
+  `/api` wins. The frontend (`static/`) is plain vanilla JS + Leaflet (no build step) — it loads
+  `/api/active`, then opens the WebSocket and applies diffs.
+
+## Config
+All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911
+token/origin, tile layer, poll interval, retention. There is no `.env` by default; the code runs on the
+defaults in `config.py`. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
