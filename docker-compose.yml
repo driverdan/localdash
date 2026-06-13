@@ -1,0 +1,36 @@
+services:
+  db:
+    # TimescaleDB image that bundles PostGIS — gives us hypertables + spatial types together.
+    image: timescale/timescaledb-ha:pg16
+    container_name: localdash-db
+    environment:
+      POSTGRES_USER: localdash
+      POSTGRES_PASSWORD: localdash
+      POSTGRES_DB: localdash
+    ports:
+      - "5432:5432"
+    volumes:
+      - localdash_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U localdash"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: localdash-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Inside the compose network the database is reached at host "db".
+      DATABASE_URL: postgresql+asyncpg://localdash:localdash@db:5432/localdash
+    # Optionally override source tokens / tile layer here or via a .env file:
+    # env_file: .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  localdash_pgdata:
