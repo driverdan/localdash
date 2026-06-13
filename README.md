@@ -24,6 +24,9 @@ LocalDash builds the **time-series** itself: a background scheduler polls every
 whenever its status or position changes, and marks it closed when it drops out of
 the feed.
 
+The upstream feed is documented in [`docs/hc911-api.md`](docs/hc911-api.md)
+(endpoint, headers, field reference, and behavioral caveats).
+
 ### Data model (Postgres + PostGIS + TimescaleDB)
 
 - **`sources`** — one row per registered source + last-run telemetry.
