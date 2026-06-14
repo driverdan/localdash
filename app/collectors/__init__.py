@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app.collectors.base import BaseCollector
 from app.collectors.hc911 import HC911Collector
+from app.collectors.tdot import TdotCollector
 from app.config import Settings
 
 
@@ -16,6 +17,9 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
 
     if settings.hc911_enabled:
         collectors.append(HC911Collector(settings))
+
+    if settings.tdot_enabled:
+        collectors.append(TdotCollector(settings))
 
     # Future sources, e.g.:
     #   collectors.append(AprsCollector(settings))

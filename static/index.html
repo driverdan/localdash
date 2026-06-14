@@ -19,7 +19,10 @@
     <aside id="sidebar">
       <section class="filters">
         <h2>Filters</h2>
-        <label>Agency
+        <label>Sources
+          <div id="source-filters" class="checks"></div>
+        </label>
+        <label>Category
           <div id="category-filters" class="checks"></div>
         </label>
         <label>Status
@@ -31,13 +34,25 @@
         <label>Search
           <input id="search" type="text" placeholder="type, location…" />
         </label>
+        <label class="inline">
+          <input id="show-closed" type="checkbox" />
+          Show recently closed
+        </label>
+        <label id="closed-window-row" class="hidden">Closed within
+          <select id="closed-window">
+            <option value="30">30 min</option>
+            <option value="60" selected>1 hour</option>
+            <option value="180">3 hours</option>
+            <option value="720">12 hours</option>
+          </select>
+        </label>
       </section>
 
       <section class="table-wrap">
-        <h2>Active incidents (<span id="count">0</span>)</h2>
+        <h2>Active (<span id="count">0</span>)</h2>
         <table id="incident-table">
           <thead>
-            <tr><th>Agency</th><th>Status</th><th>Type</th><th>Location</th></tr>
+            <tr><th>Source</th><th>Category</th><th>Status</th><th>Type</th><th>Location</th></tr>
           </thead>
           <tbody></tbody>
         </table>

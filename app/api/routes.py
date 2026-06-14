@@ -1,10 +1,10 @@
 """REST + WebSocket endpoints. All geo responses are GeoJSON FeatureCollections."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -57,14 +57,27 @@ async def active(
     source: str | None = None,
     category: str | None = None,
     bbox: str | None = None,
+    include_closed: bool = False,
+    closed_within_minutes: int = Query(60, ge=0, le=10080),
     session: AsyncSession = Depends(get_session),
 ):
-    """Currently-active entities as a GeoJSON FeatureCollection."""
+    """Active entities as a GeoJSON FeatureCollection.
+
+    With `include_closed=true`, recently-closed entities (inactive, last seen
+    within `closed_within_minutes`) are included too. Each feature's properties
+    carry `active` so clients can style closed incidents differently.
+    """
     q = select(
         Entity.id, Entity.source_key, Entity.external_id, Entity.category,
-        Entity.label, Entity.last_seen_at, Entity.latest_properties,
+        Entity.label, Entity.last_seen_at, Entity.is_active, Entity.latest_properties,
         func.ST_X(Entity.last_geom), func.ST_Y(Entity.last_geom),
-    ).where(Entity.is_active.is_(True))
+    )
+
+    if include_closed:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=closed_within_minutes)
+        q = q.where(or_(Entity.is_active.is_(True), Entity.last_seen_at >= cutoff))
+    else:
+        q = q.where(Entity.is_active.is_(True))
 
     if source:
         q = q.where(Entity.source_key == source)
@@ -76,14 +89,17 @@ async def active(
 
     rows = (await session.execute(q)).all()
     feats = []
-    for eid, skey, ext, cat, label, last_seen, props, lon, lat in rows:
+    for eid, skey, ext, cat, label, last_seen, is_active, props, lon, lat in rows:
         feats.append(
             feature(
                 lon, lat,
                 {
+                    # raw source fields first, then our authoritative keys override them.
+                    **(props or {}),
                     "id": eid, "source": skey, "external_id": ext, "category": cat,
                     "label": label, "last_seen_at": last_seen.isoformat() if last_seen else None,
-                    "status": (props or {}).get("status"), **(props or {}),
+                    "active": is_active,
+                    "status": "Closed" if not is_active else (props or {}).get("status"),
                 },
                 fid=eid,
             )

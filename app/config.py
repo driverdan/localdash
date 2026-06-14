@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     hc911_poll_interval: int = 60
     hc911_enabled: bool = True
 
+    # TDOT SmartWay source (Tennessee statewide roadway events).
+    # Base URL + static app key are served to every SmartWay browser via the site's
+    # runtime config.prod.json; see docs/tdot-smartway-api.md. Endpoints are the
+    # event-style layers (they share one schema and are merged into this source).
+    tdot_api_base_url: str = "https://www.tdot.tn.gov/opendata/api/public/"
+    tdot_api_key: str = "8d3b7a82635d476795c09b2c41facc60"
+    tdot_endpoints: str = "RoadwayIncidents,RoadwayOperations,RoadwaySpecialEvents,RoadwaySevereImpact"
+    tdot_poll_interval: int = 120
+    tdot_enabled: bool = True
+
     user_agent: str = "LocalDash/0.1"
 
     # Frontend map config (served to the browser via /api/config).

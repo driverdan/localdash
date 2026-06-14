@@ -1,9 +1,10 @@
 # LocalDash
 
-Store, serve, and view **time-series geolocation data** in a web dashboard. The
-first data source is **active 911 incidents** for Hamilton County, TN; the design
-is source-agnostic so APRS, weather, and other real-time/historical geo feeds can
-be added by writing one small collector class.
+Store, serve, and view **time-series geolocation data** in a web dashboard. Built-in
+sources are **active 911 incidents** for Hamilton County, TN and **TDOT SmartWay**
+roadway events (incidents / construction / special events / severe-impact across
+Tennessee). The design is source-agnostic so APRS, weather, and other
+real-time/historical geo feeds can be added by writing one small collector class.
 
 ## How it works
 
@@ -24,8 +25,11 @@ LocalDash builds the **time-series** itself: a background scheduler polls every
 whenever its status or position changes, and marks it closed when it drops out of
 the feed.
 
-The upstream feed is documented in [`docs/hc911-api.md`](docs/hc911-api.md)
-(endpoint, headers, field reference, and behavioral caveats).
+Each upstream feed is a snapshot too, so every source is built the same way. The
+feeds are documented in [`docs/hc911-api.md`](docs/hc911-api.md) and
+[`docs/tdot-smartway-api.md`](docs/tdot-smartway-api.md) (endpoints, auth, field
+reference, and behavioral caveats). The frontend has a **Source** selector to switch
+between them.
 
 ### Data model (Postgres + PostGIS + TimescaleDB)
 
@@ -77,7 +81,7 @@ uvicorn app.main:app --reload
 | --- | --- | --- |
 | GET | `/api/config` | Frontend bootstrap (map tiles) |
 | GET | `/api/sources` | Registered sources + last-run status |
-| GET | `/api/active?source=&category=&bbox=` | Active entities as GeoJSON |
+| GET | `/api/active?source=&category=&bbox=&include_closed=&closed_within_minutes=` | Active entities as GeoJSON. With `include_closed=true`, also returns entities closed within `closed_within_minutes` (default 60); each feature's `properties.active` flags live vs. closed |
 | GET | `/api/entities/{id}` | Entity snapshot + full observation track |
 | GET | `/api/observations?source=&start=&end=&bbox=&category=&limit=` | Historical query (GeoJSON) |
 | POST | `/api/sources/{key}/refresh` | Trigger one collection cycle now |

@@ -99,6 +99,29 @@ async def test_ingest_full_lifecycle(db_session):
     assert ent2.is_active is True
 
 
+async def test_active_endpoint_include_closed(db_session):
+    from app.api.routes import active
+
+    # #1 stays active, #2 gets closed on the second poll.
+    await ingest(db_session, "test", [_obs("1", "Queued"), _obs("2", "Enroute")])
+    await ingest(db_session, "test", [_obs("1", "Queued")])
+
+    # Default: only active entities.
+    fc = await active(source="test", session=db_session)
+    assert {f["properties"]["external_id"] for f in fc["features"]} == {"1"}
+
+    # include_closed=True: closed entity returned, flagged inactive + status "Closed".
+    fc = await active(source="test", include_closed=True, closed_within_minutes=60, session=db_session)
+    by_ext = {f["properties"]["external_id"]: f["properties"] for f in fc["features"]}
+    assert set(by_ext) == {"1", "2"}
+    assert by_ext["1"]["active"] is True and by_ext["1"]["status"] == "Queued"
+    assert by_ext["2"]["active"] is False and by_ext["2"]["status"] == "Closed"
+
+    # A zero-minute window excludes anything closed before "now".
+    fc = await active(source="test", include_closed=True, closed_within_minutes=0, session=db_session)
+    assert {f["properties"]["external_id"] for f in fc["features"]} == {"1"}
+
+
 async def _count(session, model) -> int:
     return (
         await session.execute(

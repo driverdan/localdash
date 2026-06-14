@@ -39,6 +39,15 @@ tbody tr:hover { background: #eef3f9; }
   width: 16px; height: 16px; border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4);
 }
+.marker-pin.closed { opacity: .4; border-style: dashed; }
+
+.filters label.inline { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.filters label.hidden { display: none; }
+
+tr.closed-row td { color: #98a2b0; font-style: italic; }
+.dot.cat-closed { background: #98a2b0; }
+.badge-closed { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #98a2b0; border: 1px solid #c4ccd6; border-radius: 4px; padding: 0 4px; }
+.popup-src { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #5a6573; font-weight: 700; }
 
 .detail {
   position: fixed; top: 60px; right: 16px; width: 360px; max-height: 80vh; overflow-y: auto;
