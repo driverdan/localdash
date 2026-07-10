@@ -33,11 +33,22 @@ class Settings(BaseSettings):
     tdot_poll_interval: int = 120
     tdot_enabled: bool = True
 
+    # EPB (Chattanooga) electric + fiber outages. The outage-storm-center map loads from
+    # an unauthenticated public API at api.epb.com; one snapshot endpoint per service is
+    # polled at {base}/{service}/incidents. See docs/epb-outage-api.md.
+    epb_api_base_url: str = "https://api.epb.com/web/api/v2/outages"
+    epb_services: str = "energy,fiber"
+    epb_poll_interval: int = 60
+    epb_enabled: bool = True
+
     user_agent: str = "LocalDash/0.1"
 
-    # Frontend map config (served to the browser via /api/config).
-    tile_url: str = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-    tile_attribution: str = "Tiles &copy; Esri"
+    # Frontend map config (served to the browser via /api/config). EPB's outage map
+    # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
+    # but their key is domain-locked. CARTO Voyager is the closest no-key match and
+    # keeps colored incident markers legible.
+    tile_url: str = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+    tile_attribution: str = "&copy; OpenStreetMap &copy; CARTO"
 
     retention_days: int = 0
 

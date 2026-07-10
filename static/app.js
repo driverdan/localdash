@@ -1,5 +1,20 @@
 "use strict";
 
+// EPB outage status -> marker color, matching epb.com/outage-storm-center's map.
+const EPB_STATUS_COLORS = {
+  OUTAGE_REPORTED: "#E10101",    // Outage Reported (red)
+  EN_ROUTE: "#F97B06",           // Crew En Route (orange)
+  REPAIR_IN_PROGRESS: "#0392CF", // Repair in Progress (blue)
+  RESTORED: "#76A84F",           // Restored (green)
+  Closed: "#76A84F",             // dropped from the feed == service restored
+};
+// EPB scales each marker by customers affected (16 + n*0.024, bucketed), like its map.
+function epbMarkerSize(p) {
+  const n = Number(p.customer_quantity);
+  const s = 16 + (Number.isFinite(n) ? n * 0.024 : 0);
+  return s >= 40 ? 40 : s >= 32 ? 32 : s >= 24 ? 24 : 16;
+}
+
 // ---- per-source config -------------------------------------------------------
 // The backend is source-agnostic; the only source-specific knowledge is here:
 // each source's categories, their colors, and how to pull a title / location /
@@ -37,6 +52,24 @@ const SOURCES = {
       ["Description", p.description],
     ],
   },
+  epb: {
+    name: "EPB Outages",
+    short: "EPB",
+    categories: ["energy", "fiber"],
+    colors: { energy: "#d97706", fiber: "#0891b2" },
+    // EPB's map colors a marker by outage status and sizes it by customers affected,
+    // shown as a round dot rather than the default teardrop pin.
+    round: true,
+    markerColor: (p) => EPB_STATUS_COLORS[p.status] || "#666666",
+    markerSize: epbMarkerSize,
+    title: (p) => p.label || (p.service === "fiber" ? "Fiber Outage" : "Energy Outage"),
+    location: (p) => "",
+    jurisdiction: (p) => cap(p.service || ""),
+    detail: (p, d) => [
+      ["Status", catLabel(p.status)], ["Service", cap(p.service || "")],
+      ["Customers affected", p.customer_quantity], ["Active", String(d.is_active)],
+    ],
+  },
 };
 const tdotCounty = (p) => (p.locations && p.locations[0] && p.locations[0].countyName) || "";
 
@@ -49,7 +82,7 @@ const FALLBACK = {
 };
 const cfgFor = (key) => SOURCES[key] || FALLBACK;
 
-const DEFAULT_VIEW = { center: [35.8, -86.2], zoom: 7 };  // Tennessee — fits all sources
+const DEFAULT_VIEW = { center: [35.0456, -85.3097], zoom: 11 };  // Chattanooga, TN area
 
 // ---- state -------------------------------------------------------------------
 const selectedSources = new Set(Object.keys(SOURCES));  // all sources on by default
@@ -61,6 +94,12 @@ const filters = { categories: new Set(), status: "", jurisdiction: "", search: "
 const isClosed = (f) => f.properties.active === false;
 const catLabel = (cat) => cap(String(cat || "").replace(/_/g, " "));
 const colorFor = (sourceKey, cat) => cfgFor(sourceKey).colors[cat] || "#6b7280";
+// A feature's display color: a source may color by status/properties (e.g. EPB
+// outage status); otherwise fall back to its category color.
+const featureColor = (f) => {
+  const cfg = cfgFor(f.properties.source);
+  return cfg.markerColor ? cfg.markerColor(f.properties) : colorFor(f.properties.source, f.properties.category);
+};
 
 // Categories across the currently-selected sources, de-duped by name.
 function selectedCategories() {
@@ -86,16 +125,50 @@ async function initMap() {
   const cfg = await fetch("/api/config").then((r) => r.json());
   map = L.map("map").setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
   L.tileLayer(cfg.tile_url, { attribution: cfg.tile_attribution, maxZoom: 18 }).addTo(map);
-  cluster = L.markerClusterGroup({ maxClusterRadius: 45 });
+  // Only group markers that share the same location (coincident points); every
+  // distinct outage is shown individually. A 1px radius means nothing clusters
+  // unless the points overlap, and identical coordinates can still be spiderfied.
+  cluster = L.markerClusterGroup({ maxClusterRadius: 1 });
   map.addLayer(cluster);
   trackLayer = L.layerGroup().addTo(map);
+  addStatusLegend();
+}
+
+// EPB-style status legend (matches the outage-status marker colors).
+function addStatusLegend() {
+  const legend = L.control({ position: "bottomright" });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create("div", "map-legend");
+    div.innerHTML = "<b>EPB Outage Status</b>" + [
+      ["Outage Reported", EPB_STATUS_COLORS.OUTAGE_REPORTED],
+      ["Crew En Route", EPB_STATUS_COLORS.EN_ROUTE],
+      ["Repair in Progress", EPB_STATUS_COLORS.REPAIR_IN_PROGRESS],
+      ["Restored", EPB_STATUS_COLORS.RESTORED],
+    ].map(([t, c]) => `<div><span class="lg-dot" style="background:${c}"></span>${t}</div>`).join("");
+    return div;
+  };
+  legend.addTo(map);
 }
 
 function markerIcon(f) {
   const p = f.properties;
+  const cfg = cfgFor(p.source);
+  const closed = isClosed(f);
+  const color = featureColor(f);
+  // Round dot (sized per-source) for sources like EPB; teardrop pin otherwise.
+  if (cfg.round) {
+    const size = cfg.markerSize ? cfg.markerSize(p) : 16;
+    return L.divIcon({
+      className: "",
+      html: `<div class="marker-dot${closed ? " closed" : ""}" style="width:${size}px;height:${size}px;background:${color}"></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -(size / 2) - 2],
+    });
+  }
   return L.divIcon({
     className: "",
-    html: `<div class="marker-pin${isClosed(f) ? " closed" : ""}" style="background:${colorFor(p.source, p.category)}"></div>`,
+    html: `<div class="marker-pin${closed ? " closed" : ""}" style="background:${color}"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 16],
     popupAnchor: [0, -16],
@@ -183,7 +256,7 @@ function renderTable() {
     if (closed) tr.classList.add("closed-row");
     const dot = closed
       ? `<span class="dot cat-closed"></span>`
-      : `<span class="dot" style="background:${colorFor(p.source, p.category)}"></span>`;
+      : `<span class="dot" style="background:${featureColor(f)}"></span>`;
     const statusCell = closed ? `<span class="badge-closed">Closed</span>` : esc(p.status || "");
     tr.innerHTML = `<td>${esc(cfg.short)}</td>
       <td>${dot} ${esc(catLabel(p.category))}</td>
