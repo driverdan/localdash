@@ -12,3 +12,4 @@ pgdata/
 *_pgdata/
 docker-data/
 volumes/
+.claude/settings.local.json
