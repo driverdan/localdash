@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes import _bbox_filter
+from app.api.timeseries import _bbox_filter
 from app.models import Entity
 
 

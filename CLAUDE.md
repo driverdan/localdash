@@ -73,9 +73,10 @@ uvicorn app.main:app --reload
 pytest                                            # full suite
 pytest tests/test_ingest.py::test_state_changed_status_transition   # single test
 ```
-Most tests are pure/offline. The one DB-backed test (`tests/test_ingest.py::test_ingest_full_lifecycle`)
-**auto-skips** unless `DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db`
-to make it run.
+Most tests are pure/offline. The DB-backed tests (`tests/test_ingest.py::test_ingest_full_lifecycle`
+and `tests/test_api_timeseries.py`, via the shared `db_session` fixture in `conftest.py`) **auto-skip**
+unless `DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db` to make
+them run.
 
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
@@ -99,8 +100,8 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
    - **closure sweep**: entities that were active but are absent from this payload are flipped
      `is_active=false` with a final `Closed` observation.
    - returns a `Diff` (`new`/`updated`/`closed`).
-4. The scheduler broadcasts that `Diff` over the **`/api/ws/live` WebSocket** (`ws.py`); the frontend
-   applies it incrementally.
+4. The scheduler broadcasts that `Diff` over the **`/api/v1/timeseries/ws` WebSocket** (`ws.py`); the
+   frontend applies it incrementally.
 
 ### Non-obvious decisions
 - **`observed_at` is the poll time, not the source's timestamp.** The feed uses a `1900-01-01` sentinel
@@ -126,11 +127,20 @@ Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async 
 changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic.
 
 ### API / frontend conventions
+- The API is **versioned and feature-namespaced**: every feature owns a namespace under
+  `/api/v1/<feature>/` (currently only `timeseries`), and feature-agnostic app-shell endpoints
+  (`/api/v1/config`) sit directly under `/api/v1`. Each feature is one `APIRouter` module in
+  `app/api/` (`timeseries.py`, `root.py` for app-shell), composed in `main.py` — adding a feature is
+  a new router module + one `include_router` line. `main.py` mounts `static/` at `/` last so `/api`
+  always wins.
 - All geographic responses are **GeoJSON FeatureCollections** (`geojson.py`). `bbox` params are
   `minLon,minLat,maxLon,maxLat`.
-- Routes live in `app/api/routes.py` under the `/api` prefix; `main.py` mounts `static/` at `/` last so
-  `/api` wins. The frontend (`static/`) is plain vanilla JS + Leaflet (no build step) — it loads
-  `/api/active`, then opens the WebSocket and applies diffs.
+- Timeseries routes are resource-shaped: `GET /api/v1/timeseries/entities` (filters: `active`
+  [default true], `source`, `category`, `bbox`, `closed_within` minutes), `/entities/{id}` (snapshot
+  only), `/entities/{id}/track` (history), `/observations`, `/sources`, `POST /sources/{key}/refresh`,
+  and the `/ws` WebSocket.
+- The frontend (`static/`) is plain vanilla JS + Leaflet (no build step) — it loads
+  `/api/v1/timeseries/entities`, then opens the WebSocket and applies diffs.
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911
