@@ -122,7 +122,7 @@ let map, cluster, trackLayer, socket;
 
 // ---- map setup ---------------------------------------------------------------
 async function initMap() {
-  const cfg = await fetch("/api/config").then((r) => r.json());
+  const cfg = await fetch("/api/v1/config").then((r) => r.json());
   map = L.map("map").setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
   L.tileLayer(cfg.tile_url, { attribution: cfg.tile_attribution, maxZoom: 18 }).addTo(map);
   // Only group markers that share the same location (coincident points); every
@@ -300,7 +300,11 @@ async function showDetail(id) {
   body.innerHTML = "Loading…";
   panel.classList.remove("hidden");
 
-  const d = await fetch(`/api/entities/${id}`).then((r) => r.json());
+  // Snapshot and history are separate resources; fetch them concurrently.
+  const [d, track] = await Promise.all([
+    fetch(`/api/v1/timeseries/entities/${id}`).then((r) => r.json()),
+    fetch(`/api/v1/timeseries/entities/${id}/track`).then((r) => r.json()),
+  ]);
   const cfg = cfgFor(d.source);
   const p = d.latest_properties || {};
   const rows = [["Source", cfg.name], ...cfg.detail(p, d)].filter(([, v]) => v != null && v !== "");
@@ -308,13 +312,13 @@ async function showDetail(id) {
   body.innerHTML =
     `<h3>${esc(d.label || cfg.title(p))}</h3>` +
     rows.map(([k, v]) => `<div class="kv"><b>${esc(k)}</b>${esc(String(v))}</div>`).join("") +
-    `<h2>History (${d.track.length})</h2>` +
+    `<h2>History (${track.length})</h2>` +
     `<ul class="track">` +
-    d.track.slice().reverse().map((t) =>
+    track.slice().reverse().map((t) =>
       `<li><span class="t">${fmt(t.observed_at)}</span> — ${esc(t.status || "")}</li>`).join("") +
     `</ul>`;
 
-  drawTrack(d.track);
+  drawTrack(track);
 }
 
 function drawTrack(track) {
@@ -331,8 +335,8 @@ function drawTrack(track) {
 
 // ---- data loading + live updates ---------------------------------------------
 async function fetchSourceInto(key) {
-  let url = `/api/active?source=${key}`;
-  if (filters.showClosed) url += `&include_closed=true&closed_within_minutes=${filters.closedWindow}`;
+  let url = `/api/v1/timeseries/entities?source=${key}`;
+  if (filters.showClosed) url += `&closed_within=${filters.closedWindow}`;
   const fc = await fetch(url).then((r) => r.json());
   for (const f of fc.features) features.set(f.id, f);
 }
@@ -349,7 +353,7 @@ async function loadActive() {
 function connectWs() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   // No source filter: subscribe to every source and filter client-side by selectedSources.
-  socket = new WebSocket(`${proto}://${location.host}/api/ws/live`);
+  socket = new WebSocket(`${proto}://${location.host}/api/v1/timeseries/ws`);
   const bar = document.getElementById("status-bar");
   socket.onopen = () => { bar.textContent = "live"; bar.className = "status-bar ok"; };
   socket.onclose = () => {

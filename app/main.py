@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from starlette.types import Scope
 
-from app.api.routes import router
+from app.api import root, timeseries
 from app.scheduler import build_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -46,7 +46,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LocalDash", version="0.1.0", lifespan=lifespan)
-app.include_router(router, prefix="/api")
+# Each feature owns a namespace under /api/v1/<feature>/; app-shell routes
+# (feature-agnostic, e.g. /config) sit directly under /api/v1.
+app.include_router(timeseries.router, prefix="/api/v1/timeseries")
+app.include_router(root.router, prefix="/api/v1")
 
 # Serve the dashboard at / (mounted last so /api wins).
 app.mount("/", NoCacheStaticFiles(directory=STATIC_DIR, html=True), name="static")

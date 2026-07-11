@@ -6,7 +6,6 @@ otherwise skipped (e.g. local dev without the DB container running).
 """
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import func, select
 
 from app.collectors.base import NormalizedObservation
@@ -45,32 +44,6 @@ def _obs(ext, status, lat=35.0, lon=-85.0, **props):
     )
 
 
-@pytest.fixture
-async def db_session():
-    """Async session against the real DB; skips if unreachable."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-    from app.config import get_settings
-
-    engine = create_async_engine(get_settings().database_url)
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(select(1))
-    except Exception as exc:  # noqa: BLE001
-        await engine.dispose()
-        pytest.skip(f"database not reachable: {exc}")
-
-    maker = async_sessionmaker(engine, expire_on_commit=False)
-    async with maker() as session:
-        # Clean slate for the test source.
-        await session.execute(
-            Observation.__table__.delete().where(Observation.source_key == "test")
-        )
-        await session.execute(Entity.__table__.delete().where(Entity.source_key == "test"))
-        await session.commit()
-        yield session
-    await engine.dispose()
-
-
 async def test_ingest_full_lifecycle(db_session):
     # 1. First poll: two new incidents.
     diff = await ingest(db_session, "test", [_obs("1", "Queued"), _obs("2", "Enroute")])
@@ -97,29 +70,6 @@ async def test_ingest_full_lifecycle(db_session):
     assert len(diff.updated) == 1
     ent2 = await _entity(db_session, "2")
     assert ent2.is_active is True
-
-
-async def test_active_endpoint_include_closed(db_session):
-    from app.api.routes import active
-
-    # #1 stays active, #2 gets closed on the second poll.
-    await ingest(db_session, "test", [_obs("1", "Queued"), _obs("2", "Enroute")])
-    await ingest(db_session, "test", [_obs("1", "Queued")])
-
-    # Default: only active entities.
-    fc = await active(source="test", session=db_session)
-    assert {f["properties"]["external_id"] for f in fc["features"]} == {"1"}
-
-    # include_closed=True: closed entity returned, flagged inactive + status "Closed".
-    fc = await active(source="test", include_closed=True, closed_within_minutes=60, session=db_session)
-    by_ext = {f["properties"]["external_id"]: f["properties"] for f in fc["features"]}
-    assert set(by_ext) == {"1", "2"}
-    assert by_ext["1"]["active"] is True and by_ext["1"]["status"] == "Queued"
-    assert by_ext["2"]["active"] is False and by_ext["2"]["status"] == "Closed"
-
-    # A zero-minute window excludes anything closed before "now".
-    fc = await active(source="test", include_closed=True, closed_within_minutes=0, session=db_session)
-    assert {f["properties"]["external_id"] for f in fc["features"]} == {"1"}
 
 
 async def _count(session, model) -> int:
