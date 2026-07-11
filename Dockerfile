@@ -1,3 +1,13 @@
+# Frontend build stage: Node is needed only here, never in the runtime image.
+FROM node:22-slim AS frontend
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# vite.config.ts builds to ../static -> /static in this stage.
+RUN npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -12,7 +22,7 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-COPY static ./static
+COPY --from=frontend /static ./static
 RUN pip install .
 
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh

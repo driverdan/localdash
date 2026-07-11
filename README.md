@@ -16,7 +16,7 @@ collector.fetch() ── raw payload
    ingest() ─────── upsert entity · append observation on change · close on absence
         │
    ┌────┴─────┐
- REST API   WebSocket diffs ──► Leaflet dashboard (map + filters + live table)
+ REST API   WebSocket diffs ──► Svelte + Leaflet dashboard (map + filters + live table)
 ```
 
 The upstream 911 endpoint returns only a **snapshot** of currently-active calls.
@@ -73,6 +73,11 @@ alembic upgrade head
 
 # 4. Run
 uvicorn app.main:app --reload
+
+# 5. Frontend (Svelte + Vite; source in frontend/, builds into static/)
+cd frontend && npm install
+npm run build        # one-off build served by uvicorn at :8000
+npm run dev          # or: hot-reload dev server at :5173, proxies /api to :8000
 ```
 
 ## API
