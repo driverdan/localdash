@@ -43,9 +43,21 @@ same library FastAPI's TestClient builds on).
 **Config / validation — Pydantic v2 + pydantic-settings.** Typed settings loaded from env/`.env`, and
 `NormalizedObservation` is a Pydantic model so collector output is validated at the boundary.
 
-**Frontend — vanilla JS + Leaflet + Leaflet.markercluster, loaded from a CDN.** No build step / no
-framework on purpose: it keeps the repo toolchain-free and mirrors the source site's own Leaflet stack.
-Marker icons are CSS `divIcon`s, so there are no image assets to manage.
+**Frontend — Svelte 5 + TypeScript + Leaflet, built by plain Vite (not SvelteKit).** Source lives in
+`frontend/`; `vite build` outputs into `static/`, which is a **gitignored build artifact** served by
+FastAPI's existing mount (never edit `static/` by hand). Svelte's runes replace the old vanilla-JS
+state↔DOM plumbing; SvelteKit was rejected because FastAPI is the server and the app is one static
+SPA. Leaflet + markercluster are npm deps (typed, bundled — no CDN); the map is driven imperatively
+inside `MapView.svelte`, not through marker components. Marker icons are CSS `divIcon`s, so there are
+no image assets to manage. Node is needed only to build the frontend, never at runtime (multi-stage
+Dockerfile).
+
+The frontend mirrors the API's feature-namespace convention: each feature owns
+`frontend/src/features/<feature>/` (currently only `timeseries`, which also owns the Leaflet map),
+composed by `App.svelte`; feature-agnostic shell code lives in `frontend/src/lib/`. **Import rules:**
+features import from `lib/` and themselves, never from another feature; the shell imports only each
+feature's `index.ts`; `lib/` imports from no feature. Adding a frontend feature = new folder +
+one mount in `App.svelte` — the counterpart of "new router + one `include_router` line".
 
 **Packaging / runtime — Docker Compose.** One command brings up DB + app; the app container waits on the
 DB healthcheck, runs migrations, then serves. Keeps "works on my machine" out of the loop.
@@ -77,6 +89,17 @@ cp .env.example .env              # DATABASE_URL -> localhost:5432
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+**Frontend (source in `frontend/`, builds into gitignored `static/`):**
+```bash
+cd frontend
+npm install                       # once
+npm run dev                       # hot-reload dev server :5173, proxies /api (+ WS) to :8000
+npm run build                     # build into ../static (what uvicorn/Docker serve)
+npm run check                     # svelte-check: strict TypeScript gate, must stay at 0 errors
+```
+The Docker image builds the frontend itself (multi-stage); local `uvicorn` serves whatever
+`static/` build is present, so run `npm run build` after frontend changes when not using `npm run dev`.
 
 **Tests:**
 ```bash
@@ -149,8 +172,9 @@ changes — scheduler, ingest, API, WebSocket, and the frontend are all source-a
   [default true], `source`, `category`, `bbox`, `closed_within` minutes), `/entities/{id}` (snapshot
   only), `/entities/{id}/track` (history), `/observations`, `/sources`, `POST /sources/{key}/refresh`,
   and the `/ws` WebSocket.
-- The frontend (`static/`) is plain vanilla JS + Leaflet (no build step) — it loads
-  `/api/v1/timeseries/entities`, then opens the WebSocket and applies diffs.
+- The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
+  `src/features/timeseries/` loads `/api/v1/timeseries/entities`, then opens the WebSocket and
+  applies diffs into a runes store; `src/lib/` holds the feature-agnostic shell code.
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911

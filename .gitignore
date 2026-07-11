@@ -6,6 +6,10 @@ __pycache__/
 *.egg-info/
 .DS_Store
 
+# Frontend: static/ is the Vite build output; source lives in frontend/.
+static/
+frontend/node_modules/
+
 # Docker — named volumes live under /var/lib/docker and are never in the repo.
 # These ignore any local bind-mount data dirs if the compose file is changed to use them.
 pgdata/

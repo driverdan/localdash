@@ -7,3 +7,7 @@ __pycache__/
 *.egg-info/
 tests/
 .DS_Store
+# static/ is produced inside the frontend build stage, not copied from the host.
+static/
+frontend/node_modules/
+openspec/
