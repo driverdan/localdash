@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     events_meetup_query: str = ""  # optional Meetup keyword filter
     # Nominatim's usage policy requires a descriptive User-Agent.
     events_geocoder_user_agent: str = "LocalDash/0.1 (events geocoder)"
+    # Nominatim's usage policy caps clients at 1 request/second; <= 0 disables
+    # the throttle (e.g. for a self-hosted instance).
+    events_geocoder_min_interval_seconds: float = 1.0
 
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),

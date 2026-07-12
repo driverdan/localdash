@@ -25,7 +25,10 @@ async def refresh() -> dict:
     settings = get_settings()
     async with _refresh_lock:
         sources = build_sources(settings)
-        geocoder = NominatimGeocoder(user_agent=settings.events_geocoder_user_agent)
+        geocoder = NominatimGeocoder(
+            user_agent=settings.events_geocoder_user_agent,
+            min_interval=settings.events_geocoder_min_interval_seconds,
+        )
         async with SessionLocal() as session:
             stats = await run_sources(session, sources, geocoder)
         log.info(
