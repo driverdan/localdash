@@ -2,7 +2,7 @@
 
 ### Requirement: Configurable ingest radius filter
 Ingest SHALL drop a new event — storing no event row, tags, or link — when its address geocodes
-to coordinates farther than a configurable radius (`events_ingest_max_miles`, default 50, miles
+to coordinates farther than a configurable radius (`events_ingest_max_miles`, default 100, miles
 from the Chattanooga center at 35.0456, -85.3097) using a haversine distance computed at ingest
 time. A non-positive setting value SHALL disable the filter entirely. Events with no address,
 whose geocoding fails, or whose failure is already cached SHALL be kept and stored with a null
@@ -13,12 +13,12 @@ SHALL report the number of dropped events as a `skipped_far` count alongside `cr
 `merged` (present and zero when the filter is disabled), and dropped events SHALL be logged.
 
 #### Scenario: Far event is dropped and counted
-- **WHEN** the filter is set to 50 miles and a source reports a new event whose address
+- **WHEN** the filter is set to 100 miles and a source reports a new event whose address
   geocodes to Memphis (roughly 300 miles from the Chattanooga center)
 - **THEN** no event, tags, or link are stored and the batch stats report it in `skipped_far`
 
 #### Scenario: Nearby event passes the filter
-- **WHEN** the filter is set to 50 miles and a source reports a new event whose address
+- **WHEN** the filter is set to 100 miles and a source reports a new event whose address
   geocodes to downtown Chattanooga
 - **THEN** the event is created with its location, exactly as without the filter
 

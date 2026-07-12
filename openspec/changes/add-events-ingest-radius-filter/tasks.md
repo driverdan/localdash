@@ -1,6 +1,6 @@
 ## 1. Config
 
-- [ ] 1.1 Add `events_ingest_max_miles: float = 50` to `app/config.py` beside the other
+- [ ] 1.1 Add `events_ingest_max_miles: float = 100` to `app/config.py` beside the other
       `events_*` settings, with a comment stating that a non-positive value disables the
       ingest radius filter
 

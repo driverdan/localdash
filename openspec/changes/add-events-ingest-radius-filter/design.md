@@ -25,8 +25,9 @@ Constraints:
 **Goals:**
 - Drop new events whose geocoded location is farther than a configurable radius from the
   Chattanooga center, before they are inserted.
-- Keep the default deployment behavior sensible (50 mi, matching `MEETUP_RADIUS_MILES`) while
-  letting a deployment disable the gate (`events_ingest_max_miles=0`).
+- Keep the default deployment behavior sensible (100 mi, covering the greater Chattanooga
+  region while still cutting off the far-flung statewide entries that motivated this filter)
+  while letting a deployment disable the gate (`events_ingest_max_miles=0`).
 - Make drops observable: a `skipped_far` stats count and a log line.
 
 **Non-Goals:**
@@ -63,13 +64,17 @@ exactly as today. Rationale: we cannot prove such an event is far, and the read 
 excludes unlocated events whenever a `max_miles` bound is applied. Dropping them would silently
 lose genuinely local events with sloppy venue strings.
 
-### 3. Configuration: `events_ingest_max_miles: float = 50` with `0` = disabled
+### 3. Configuration: `events_ingest_max_miles: float = 100` with `0` = disabled
 
 New pydantic-settings field in `app/config.py` next to the other `events_*` knobs. `0` (or any
 non-positive value) disables filtering — chosen over `None` because env-var plumbing of "unset
 vs empty" through pydantic-settings is noisier than a numeric sentinel, and 0 miles is
-meaningless as a real radius. Default 50 mirrors `MEETUP_RADIUS_MILES = 50`, the feature's
-existing notion of "the area".
+meaningless as a real radius. Default 100 is deliberately broader than the fetch-time
+`MEETUP_RADIUS_MILES = 50` (the Meetup source's own API search radius, which stays unchanged):
+the ingest gate is a backstop for sources whose fetch returns statewide results, so a wider
+catchment than the per-source fetch radius is intentional — it admits the greater Chattanooga
+region (Cleveland, Dalton, …) while still rejecting the Memphis/Clarksville/Nashville entries
+that motivated this change.
 
 Plumbing: `upsert_raw_events()` and `run_sources()` gain a `max_miles: float = 0` keyword
 (default = disabled, so existing tests and direct callers are unaffected); `refresh()`
@@ -94,7 +99,7 @@ automatically.
 ## Risks / Trade-offs
 
 - [Bad geocode drops a genuinely local event] → Only events that *successfully* geocode far are
-  dropped; unlocated ones are kept. 50 mi default is generous relative to the read API's
+  dropped; unlocated ones are kept. 100 mi default is generous relative to the read API's
   typical `max_miles`. The address's `GeocodeCache` row records what Nominatim said, so the
   drop is diagnosable.
 - [Dropped events are re-evaluated every cycle] → Acceptable: the address hits `GeocodeCache`

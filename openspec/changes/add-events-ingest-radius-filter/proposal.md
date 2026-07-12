@@ -12,8 +12,10 @@ any future regional source.
 
 ## What Changes
 
-- New setting `events_ingest_max_miles` in `app/config.py` (default 50, matching the existing
-  `MEETUP_RADIUS_MILES`; `0` disables filtering entirely).
+- New setting `events_ingest_max_miles` in `app/config.py` (default 100, broad enough to
+  cover the greater Chattanooga region while still excluding the far-flung statewide entries
+  that motivated this filter; `0` disables filtering entirely). The fetch-time
+  `MEETUP_RADIUS_MILES` (50) is a separate, source-specific concern and is unchanged.
 - `upsert_raw_events()` in `app/events/ingest.py` drops a **new** raw event when its geocoded
   coordinates are farther than `events_ingest_max_miles` from `CHATTANOOGA_CENTER`
   (haversine in Python — the coords are already floats in hand).
