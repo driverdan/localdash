@@ -13,6 +13,19 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
     "community": ["market", "fair", "fundraiser", "volunteer", "meetup", "networking", "charity"],
     "education": ["class", "workshop", "lecture", "seminar", "course", "talk", "learn"],
     "nightlife": ["bar", "club", "nightlife", "party", "trivia", "happy hour"],
+    "cars": [
+        "car show",
+        "cruise-in",
+        "cruise in",
+        "cars and coffee",
+        "car meet",
+        "hot rod",
+        "classic car",
+        "corvette",
+        "mustang",
+        "camaro",
+        "auto show",
+    ],
 }
 
 

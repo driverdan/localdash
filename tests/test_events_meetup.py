@@ -3,6 +3,7 @@ import datetime as dt
 
 from app.config import Settings
 from app.events.sources import build_sources
+from app.events.sources.ical import ICalSource
 from app.events.sources.meetup import MeetupSource
 
 UTC = dt.timezone.utc
@@ -88,3 +89,20 @@ def test_build_sources_creates_one_ical_source_per_url():
 
 def test_build_sources_empty_when_nothing_configured():
     assert build_sources(_settings()) == []
+
+
+def test_build_sources_default_registers_tennessee_car_feed():
+    """A fresh install (no override) ingests the shipped default feed."""
+    sources = build_sources(Settings(_env_file=None))
+    ical_sources = [s for s in sources if isinstance(s, ICalSource)]
+    assert len(ical_sources) == 1
+    assert (
+        ical_sources[0].url
+        == "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"
+    )
+
+
+def test_build_sources_empty_ical_feeds_yields_no_ical_sources():
+    """Explicitly empty EVENTS_ICAL_FEEDS disables iCal ingestion entirely."""
+    sources = build_sources(_settings(events_ical_feeds=""))
+    assert not any(isinstance(s, ICalSource) for s in sources)

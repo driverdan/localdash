@@ -106,7 +106,14 @@ async def test_tags_endpoint_lists_known_tags_sorted(events_db_session):
     assert result["tags"] == sorted(result["tags"])
 
 
-async def test_refresh_endpoint_reports_counts(events_db_session):
-    # Nothing is configured by default, so a refresh ingests nothing.
+async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
+    # With iCal feeds explicitly cleared (and no Meetup token), a refresh
+    # ingests nothing.
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        "app.events.refresh.get_settings",
+        lambda: Settings(_env_file=None, events_ical_feeds=""),
+    )
     result = await refresh()
     assert result == {"created": 0, "merged": 0}
