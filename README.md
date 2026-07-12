@@ -125,6 +125,16 @@ fixture (`tests/fixtures/hc911_sample.json`). The full ingest lifecycle test
 (`test_ingest_full_lifecycle`) runs only when `DATABASE_URL` is reachable; it is
 skipped otherwise.
 
+## Git workflow
+
+All changes use git version control and follow a standard branch + pull request process:
+
+1. **Never commit directly to `main`.** Start every change on a new branch with a unique, semantic
+   name describing the change (e.g. `add-aprs-collector`, `fix-closure-sweep-race`).
+2. When the change is complete, **commit** it to that branch.
+3. **Push** the branch to GitHub.
+4. **Open a pull request** for the change.
+
 ## Notes
 
 - **Config / secrets** (`X-Frontend-Auth`, origin, DB URL, tile layer) come from

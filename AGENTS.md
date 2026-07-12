@@ -76,16 +76,6 @@ line".
 **Packaging / runtime — Docker Compose.** One command brings up DB + app; the app container waits on the
 DB healthcheck, runs migrations, then serves. Keeps "works on my machine" out of the loop.
 
-## Git workflow (required)
-
-All changes must use git version control and follow a standard branch + pull request process:
-
-1. **Never commit directly to `main`.** Start every change on a new branch with a unique, semantic
-   name describing the change (e.g. `add-aprs-collector`, `fix-closure-sweep-race`).
-2. When the change is complete, **commit** it to that branch.
-3. **Push** the branch to GitHub.
-4. **Open a pull request** for the change.
-
 ## Commands
 
 **Run the full stack (app + Postgres) in Docker:**
