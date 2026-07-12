@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.ingest import ingest
 from app.models import Source
+from app.events.refresh import refresh as events_refresh
 from app.news.refresh import refresh as news_refresh
 from app.ws import manager
 
@@ -29,6 +30,14 @@ async def run_news_refresh() -> None:
         await news_refresh()
     except Exception:  # noqa: BLE001
         log.exception("news refresh failed")
+
+
+async def run_events_refresh() -> None:
+    """One events fetch+upsert cycle; failures only log (next tick retries)."""
+    try:
+        await events_refresh()
+    except Exception:  # noqa: BLE001
+        log.exception("events refresh failed")
 
 
 async def run_collector(collector: BaseCollector) -> dict:
@@ -97,6 +106,16 @@ def build_scheduler() -> tuple[AsyncIOScheduler, dict[str, BaseCollector]]:
             "interval",
             minutes=settings.news_refresh_minutes,
             id="news_refresh",
+            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
+            max_instances=1,
+            coalesce=True,
+        )
+    if settings.events_enabled:
+        scheduler.add_job(
+            run_events_refresh,
+            "interval",
+            minutes=settings.events_refresh_minutes,
+            id="events_refresh",
             next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
             max_instances=1,
             coalesce=True,

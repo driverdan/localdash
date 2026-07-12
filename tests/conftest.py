@@ -51,6 +51,48 @@ async def db_session():
 
 
 @pytest.fixture
+async def events_db_session():
+    """Async session against the real DB for events tests; skips if unreachable.
+
+    Cleans events that have a link from a source named 'test-...' (links and
+    tag joins follow via ON DELETE CASCADE) and geocode_cache rows whose
+    address starts with 'test-'; real rows are left alone. Tests must prefix
+    their source names and addresses accordingly.
+    """
+    from sqlalchemy import delete, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.config import get_settings
+    from app.events.models import Event, EventLink, GeocodeCache
+
+    engine = create_async_engine(get_settings().database_url)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(select(1))
+    except Exception as exc:  # noqa: BLE001
+        await engine.dispose()
+        pytest.skip(f"database not reachable: {exc}")
+
+    async def _clean(session):
+        test_events = select(EventLink.event_id).where(EventLink.source_name.like("test-%"))
+        await session.execute(delete(Event).where(Event.id.in_(test_events)))
+        await session.execute(delete(GeocodeCache).where(GeocodeCache.address.like("test-%")))
+        await session.commit()
+
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    async with maker() as session:
+        try:
+            await _clean(session)
+        except Exception as exc:  # noqa: BLE001 — table missing = migration not applied
+            await engine.dispose()
+            pytest.skip(f"events tables unavailable (run alembic upgrade head): {exc}")
+        yield session
+        await session.rollback()
+        await _clean(session)
+    await engine.dispose()
+
+
+@pytest.fixture
 async def news_db_session():
     """Async session against the real DB for news tests; skips if unreachable.
 
