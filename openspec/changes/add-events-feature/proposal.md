@@ -21,14 +21,19 @@ deploy — and upgrades the PoC onto PostGIS and the async stack.
 - New API namespace `/api/v1/events/`: `GET /items` (filters: topic tags, distance from an origin
   defaulting to the Chattanooga center, upcoming-only default, title search), `GET /tags`,
   `POST /refresh` (asyncio-lock serialized with the scheduled job, like news).
-- New APScheduler refresh job polling all registered sources on an interval (new
-  `events_enabled` / `events_refresh_minutes` settings).
+- New APScheduler refresh job polling all configured sources on an interval (new
+  `events_enabled` / `events_refresh_minutes` settings, plus the source settings above).
 - New frontend feature `frontend/src/features/events/` on a new `/events` route: event list with
   topic chips, distance filter, title search, and per-source origin links (runes store, fetch +
   periodic reload, no WebSocket). Nav header gains an "Events" link.
-- **Out of scope:** concrete sources. The PoC's iCal/Meetup source implementations are NOT ported
-  here; no real feeds are registered, so the feature starts empty until a follow-up change adds
-  sources. Tests use fake/sample sources (per the PoC's `tests/sample_sources.py` pattern).
+- The PoC's two concrete sources are ported as well: a generic **iCal feed source** (any `.ics`
+  URL; feeds configured via a new `events_ical_feeds` setting, comma-separated, default empty) and
+  a **Meetup source** (Meetup GraphQL `keywordSearch` within a radius of the Chattanooga center;
+  registered only when `events_meetup_token` is set, with an optional `events_meetup_query`
+  keyword filter). Both emit addresses only — coordinates always come from the ingest geocoder.
+  Nothing is configured by default, so the feature starts empty until the operator sets feeds or a
+  token. Tests use fake/sample sources (per the PoC's `tests/sample_sources.py` pattern) plus
+  offline parse fixtures for iCal and Meetup.
 - Known PoC caveat carried over deliberately: the dedup key buckets by start *hour*, so the same
   event listed at 7:59 and 8:01 does not merge. Geocoding has no rate throttling beyond the
   permanent cache. Both are future improvements, not part of this change.
@@ -37,8 +42,9 @@ deploy — and upgrades the PoC onto PostGIS and the async stack.
 
 ### New Capabilities
 
-- `events`: backend event aggregation — source interface, dedup/merge ingest, topic tagging,
-  geocoding with cache, storage, scheduler job, and the `/api/v1/events/` API.
+- `events`: backend event aggregation — source interface with config-driven iCal and Meetup
+  sources, dedup/merge ingest, topic tagging, geocoding with cache, storage, scheduler job, and
+  the `/api/v1/events/` API.
 - `frontend-events`: the `/events` page — event list UI with topic/distance/search filtering and
   source links, following the feature-namespace and runes-store conventions.
 
@@ -54,8 +60,9 @@ deploy — and upgrades the PoC onto PostGIS and the async stack.
   `frontend/src/features/events/` folder + one route entry and nav link in `App.svelte`.
 - **Database:** migration `0003` adds five tables; no changes to existing tables. PostGIS is
   already installed (used by timeseries).
-- **Dependencies:** none expected — httpx, SQLAlchemy, APScheduler already present; ICS parsing
-  libs deferred to the sources change.
+- **Dependencies:** one new — `icalendar` for ICS parsing; httpx, SQLAlchemy, APScheduler already
+  present.
 - **External services:** OpenStreetMap Nominatim for geocoding (cached permanently per address;
-  subject to its usage policy — descriptive User-Agent required).
+  subject to its usage policy — descriptive User-Agent required); configured iCal feed hosts; the
+  Meetup GraphQL API when a token is configured.
 - **APIs:** additive only (`/api/v1/events/*`); no existing endpoint changes.

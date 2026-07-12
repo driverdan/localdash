@@ -13,8 +13,9 @@ Svelte 5 + TS). The news port established the playbook this change follows: feat
 `app/`, one router in `app/api/`, one scheduler job, raw-SQL migration, feature folder under
 `frontend/src/features/`, refresh serialized by an asyncio lock.
 
-Concrete sources (iCal feeds, Meetup, etc.) are explicitly deferred to a follow-up change; this
-change ships the pipeline, storage, API, and UI, with an empty source registry.
+The change ships the pipeline, storage, API, and UI together with the PoC's two concrete sources —
+generic iCal feeds and Meetup — both config-driven and off by default, so the feature starts empty
+until the operator configures feed URLs or a Meetup token.
 
 ## Goals / Non-Goals
 
@@ -23,10 +24,12 @@ change ships the pipeline, storage, API, and UI, with an empty source registry.
   `app/events/` on the async stack, preserving the PoC's behavior and porting its offline tests.
 - Store events in Postgres with a PostGIS geometry location; filter by distance in SQL.
 - Serve `/api/v1/events/` (items, tags, refresh) and an `/events` page in the SPA.
-- Keep the source interface pluggable so the follow-up sources change is additive only.
+- Port the PoC's iCal and Meetup sources, activated purely by configuration (no defaults), and
+  keep the source interface pluggable so further sources are additive only.
 
 **Non-Goals:**
-- No concrete sources (no iCal/Meetup port, no registered feeds — the feature starts empty).
+- No default/bundled feed list — a curated Chattanooga feed registry is future work; sources
+  activate only via explicit configuration.
 - No dedup improvements (hour-bucket key ported as-is) and no geocoding rate throttling beyond the
   permanent cache.
 - No retention/purge policy — events are kept indefinitely.
@@ -50,22 +53,31 @@ app/events/
   dedup.py       normalize_title, canonical_key   (pure — ported verbatim)
   tagging.py     TOPIC_KEYWORDS, tag_event        (pure — ported verbatim)
   geocoding.py   Geocoder ABC, NullGeocoder, NominatimGeocoder (httpx.AsyncClient)
-  sources.py     RawEvent dataclass, EventSource ABC, build_sources() -> []
+  sources/
+    base.py      RawEvent dataclass, EventSource ABC (async fetch())
+    ical.py      ICalSource — one instance per configured .ics URL
+    meetup.py    MeetupSource — Meetup GraphQL keywordSearch
+    __init__.py  build_sources(settings) — the registry, built from config
   ingest.py      upsert_raw_events / run_sources  (async port of PoC manager.py)
   refresh.py     asyncio-lock-serialized refresh cycle (mirrors news/refresh.py)
 app/api/events.py  router: GET /items, GET /tags, POST /refresh
 ```
-`build_sources()` returns `[]` in this change; the follow-up sources change registers
-implementations there (the counterpart of `build_collectors()` / the news registry).
+`build_sources()` is the counterpart of `build_collectors()` / the news registry: it creates one
+`ICalSource` per URL in `events_ical_feeds` and a `MeetupSource` iff `events_meetup_token` is set,
+returning `[]` when nothing is configured. Fixture/sample sources live only in the test suite (the
+PoC's rule: seed data can never reach production).
 
 ### 3. Sync→async port strategy
 - DB access: async SQLAlchemy sessions (`app.db.SessionLocal`), same as news. The PoC's ORM-heavy
   merge logic (lazy `event.links`, `event.tags` appends) is rewritten with explicit
   `selectinload`/awaited queries — lazy loading doesn't fly under asyncio.
-- HTTP: `EventSource.fetch()` becomes `async def`; the Nominatim geocoder uses
-  `httpx.AsyncClient`. (Nominatim is a simple JSON GET — no reason for the `to_thread` escape
-  hatch feedparser needed.)
-- Pure modules (`dedup`, `tagging`) stay synchronous and are ported with their tests.
+- HTTP: `EventSource.fetch()` becomes `async def`; the Nominatim geocoder, iCal feed fetches, and
+  the Meetup GraphQL POST all use `httpx.AsyncClient`. (No `to_thread` escape hatch needed — that
+  was for feedparser's network handling; `icalendar` only parses bytes we already fetched.)
+- Pure modules (`dedup`, `tagging`) stay synchronous and are ported with their tests, as are the
+  sources' pure `parse()` halves (the PoC's fetch/parse split is kept for offline testability).
+- Datetime coercion in the sources changes from the PoC's naive-UTC to timezone-aware UTC,
+  matching the `TIMESTAMPTZ` schema; date-only iCal starts still become local midnight.
 - Postgres-only: the PoC's SQLite dual-support (naive datetimes, Float coords) is dropped.
 
 ### 4. PostGIS geometry + SQL filtering (replaces floats + Python haversine)
@@ -120,10 +132,25 @@ through the same asyncio lock as the scheduled job and reports `{created, merged
 One APScheduler job (id `events_refresh`, `max_instances=1`, run-at-startup) added in
 `scheduler.py`'s startup path, gated by `events_enabled` (default true) with interval
 `events_refresh_minutes` (default 60, matching the PoC's hourly cadence). New settings in
-`config.py`: `events_enabled`, `events_refresh_minutes`, `events_geocoder_user_agent`. The
-Chattanooga center lives as a code constant in `app/events/` (not config), as in the PoC.
+`config.py`: `events_enabled`, `events_refresh_minutes`, `events_geocoder_user_agent`, plus the
+source knobs — `events_ical_feeds` (comma-separated `.ics` URLs, default empty),
+`events_meetup_token` (empty = Meetup source not registered), `events_meetup_query` (optional
+keyword filter). The Chattanooga center and the Meetup search radius (50 miles) live as code
+constants in `app/events/` (not config), as in the PoC.
 
-### 10. Frontend: `features/events/` mirroring `features/news/`
+### 10. iCal and Meetup sources ported with their fetch/parse split
+`ICalSource` fetches a `.ics` URL and parses `VEVENT`s with `icalendar` (new dependency): summary →
+title (fallback "Untitled event"), `DTSTART` required (undated components skipped; date-only values
+become midnight), `LOCATION` supplies both venue name and geocodable address, `UID` →
+source_event_id, per-event `URL` falling back to the feed URL. `MeetupSource` posts the PoC's
+`keywordSearch` GraphQL query (lat/lon/radius filter around the Chattanooga center, `first=50`)
+with the bearer token, keeps only `Event` results with an id and date, prefixes the group name onto
+the description, and builds the address string from venue address/city/state (falling back to the
+venue name). Both emit `RawEvent`s with addresses only — geocoding stays centralized in ingest.
+Each source's `parse()` is a pure function of fetched bytes/JSON, tested offline against fixtures
+(the PoC's tests port directly).
+
+### 11. Frontend: `features/events/` mirroring `features/news/`
 Runes store (`store.svelte.ts`) holding items/tags/filters + load status; API module; components
 for topic chips, distance select, search box, and the event list (each card shows time, venue,
 tags, and one link per source). Filters map to query params and trigger a server-side refetch (the
@@ -133,13 +160,17 @@ unchanged: the feature imports only itself and `lib/`.
 
 ## Risks / Trade-offs
 
-- [Nominatim has a 1 req/s usage policy and no throttling is implemented] → Zero sources are
-  registered in this change, so no live traffic occurs; the cache makes steady-state volume ~0.
-  The follow-up sources change MUST add throttling before registering a real source with many
-  events. Explicitly documented there as a prerequisite.
-- [Feature ships empty — no user-visible events until the sources change lands] → Accepted and
-  intentional (mirrors the PoC, which also starts empty). The UI shows an honest empty state; tests
-  exercise the pipeline with fake sources.
+- [Nominatim has a 1 req/s usage policy and no throttling is implemented (kept as-is per
+  decision)] → The permanent cache bounds steady-state volume near zero; the exposure is the
+  *first* ingest after configuring a feed with many unlocated events, which can burst requests.
+  Mitigations available today: enable feeds one at a time and let the cache warm. Proper
+  throttling remains flagged future work and should precede any large default feed registry.
+- [Feature ships empty unless configured — no feeds or token are set by default] → Accepted and
+  intentional (mirrors the PoC). The UI shows an honest empty state; tests exercise the pipeline
+  with fake sources and offline iCal/Meetup parse fixtures.
+- [Meetup GraphQL fetch is unpaginated (first=50, PoC behavior)] → Ported as-is; busy areas beyond
+  50 results are silently truncated. Acceptable for Chattanooga's volume; pagination is a small
+  follow-up if it ever binds.
 - [Hour-bucket dedup key misses near-boundary duplicates] → Known PoC caveat, ported deliberately;
   fixing it changes canonical keys (re-keying existing rows), so it's isolated as future work.
 - [ORM lazy-loading patterns from the PoC don't work under async sessions] → Merge logic is
@@ -147,7 +178,7 @@ unchanged: the feature imports only itself and `lib/`.
   guard behavioral parity.
 - [Failed geocodes are cached forever, so a transient Nominatim outage permanently null-locates an
   address] → Ported as-is (PoC behavior); rows can be deleted manually to retry. Revisit alongside
-  throttling in the sources change.
+  throttling as future work.
 
 ## Migration Plan
 
@@ -159,4 +190,5 @@ unchanged: the feature imports only itself and `lib/`.
 ## Open Questions
 
 None — decisions above were settled during exploration with the user (PostGIS: yes; retention:
-indefinite; route: `/items`; tags table: kept; sources: separate follow-up change).
+indefinite; route: `/items`; tags table: kept; iCal + Meetup sources: included, config-driven with
+no defaults).
