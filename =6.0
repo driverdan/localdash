@@ -1,0 +1,8 @@
+Collecting feedparser
+  Using cached feedparser-6.0.12-py3-none-any.whl.metadata (2.7 kB)
+Collecting sgmllib3k (from feedparser)
+  Using cached sgmllib3k-1.0.0-py3-none-any.whl
+Using cached feedparser-6.0.12-py3-none-any.whl (81 kB)
+Installing collected packages: sgmllib3k, feedparser
+
+Successfully installed feedparser-6.0.12 sgmllib3k-1.0.0

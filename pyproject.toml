@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.27",
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
+    "feedparser>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -32,4 +33,4 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.setuptools]
-packages = ["app", "app.collectors", "app.api"]
+packages = ["app", "app.collectors", "app.api", "app.news"]

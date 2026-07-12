@@ -43,6 +43,11 @@ class Settings(BaseSettings):
 
     user_agent: str = "LocalDash/0.1"
 
+    # News feature (RSS aggregation; outlets/feeds live in app/news/registry.py).
+    news_enabled: bool = True
+    news_refresh_minutes: int = 15
+    news_story_window_days: int = 7
+
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
     # but their key is domain-locked. CARTO Voyager is the closest no-key match and

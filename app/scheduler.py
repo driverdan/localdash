@@ -17,9 +17,18 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.ingest import ingest
 from app.models import Source
+from app.news.refresh import refresh as news_refresh
 from app.ws import manager
 
 log = logging.getLogger("localdash.scheduler")
+
+
+async def run_news_refresh() -> None:
+    """One news fetch+recluster cycle; failures only log (next tick retries)."""
+    try:
+        await news_refresh()
+    except Exception:  # noqa: BLE001
+        log.exception("news refresh failed")
 
 
 async def run_collector(collector: BaseCollector) -> dict:
@@ -78,6 +87,16 @@ def build_scheduler() -> tuple[AsyncIOScheduler, dict[str, BaseCollector]]:
             seconds=collector.poll_interval,
             args=[collector],
             id=collector.source_key,
+            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
+            max_instances=1,
+            coalesce=True,
+        )
+    if settings.news_enabled:
+        scheduler.add_job(
+            run_news_refresh,
+            "interval",
+            minutes=settings.news_refresh_minutes,
+            id="news_refresh",
             next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
             max_instances=1,
             coalesce=True,
