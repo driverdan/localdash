@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     news_refresh_minutes: int = 15
     news_story_window_days: int = 7
 
+    # Events feature (aggregation from configured sources; nothing is configured
+    # by default, so the feature starts empty until feeds/token are set).
+    events_enabled: bool = True
+    events_refresh_minutes: int = 60
+    events_ical_feeds: str = ""  # comma-separated .ics URLs
+    events_meetup_token: str = ""  # Meetup OAuth2 token; empty = source not registered
+    events_meetup_query: str = ""  # optional Meetup keyword filter
+    # Nominatim's usage policy requires a descriptive User-Agent.
+    events_geocoder_user_agent: str = "LocalDash/0.1 (events geocoder)"
+
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
     # but their key is domain-locked. CARTO Voyager is the closest no-key match and

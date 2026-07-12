@@ -2,10 +2,12 @@
   import { currentPath, navigate } from "./lib/router.svelte";
   import { TimeseriesDashboard, connectionState } from "./features/timeseries";
   import { NewsFeed } from "./features/news";
+  import { EventsPage } from "./features/events";
 
-  // Route table: "/" -> news, "/map" -> timeseries.
+  // Route table: "/" -> news, "/map" -> timeseries, "/events" -> events.
   const onMap = $derived(currentPath() === "/map");
   const onNews = $derived(currentPath() === "/");
+  const onEvents = $derived(currentPath() === "/events");
 
   // Timeseries-specific connection indicator; shown only on the map route.
   const label = $derived(
@@ -30,6 +32,7 @@
   <nav>
     <a href="/" class:active={onNews} onclick={(e) => go(e, "/")}>News</a>
     <a href="/map" class:active={onMap} onclick={(e) => go(e, "/map")}>Map</a>
+    <a href="/events" class:active={onEvents} onclick={(e) => go(e, "/events")}>Events</a>
   </nav>
   {#if onMap}
     <span class="status-bar {klass}">{label}</span>
@@ -40,6 +43,8 @@
   <TimeseriesDashboard />
 {:else if onNews}
   <NewsFeed />
+{:else if onEvents}
+  <EventsPage />
 {:else}
   <p class="not-found">
     Page not found — <a href="/" onclick={(e) => go(e, "/")}>go to the news feed</a>.
