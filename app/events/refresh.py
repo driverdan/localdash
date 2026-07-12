@@ -30,9 +30,11 @@ async def refresh() -> dict:
             min_interval=settings.events_geocoder_min_interval_seconds,
         )
         async with SessionLocal() as session:
-            stats = await run_sources(session, sources, geocoder)
+            stats = await run_sources(
+                session, sources, geocoder, max_miles=settings.events_ingest_max_miles
+            )
         log.info(
-            "events refresh done: %d sources, %d created, %d merged",
-            len(sources), stats["created"], stats["merged"],
+            "events refresh done: %d sources, %d created, %d merged, %d skipped far",
+            len(sources), stats["created"], stats["merged"], stats["skipped_far"],
         )
         return stats

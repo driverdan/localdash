@@ -6,10 +6,12 @@ without touching real rows.
 """
 import datetime as dt
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.events.ingest import run_sources, upsert_raw_events
+from app.events import CHATTANOOGA_CENTER
+from app.events.ingest import _haversine_miles, run_sources, upsert_raw_events
 from app.events.models import Event, EventLink, GeocodeCache
 from app.events.sources.base import RawEvent
 from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
@@ -17,6 +19,9 @@ from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
 UTC = dt.timezone.utc
 BROAD_ST = "test-1 Broad St, Chattanooga, TN"
 MARKET_ST = "test-100 Market St, Chattanooga, TN"
+BEALE_ST = "test-1 Beale St, Memphis, TN"
+MEMPHIS = (35.1495, -90.0490)
+DOWNTOWN_CHATTANOOGA = (35.0456, -85.3097)
 
 
 def make_raw(source, title="Jazz Night", **overrides):
@@ -49,7 +54,7 @@ async def test_duplicate_across_sources_merges_into_one_event(events_db_session)
         events_db_session, [make_raw("test-SourceA"), make_raw("test-SourceB")]
     )
 
-    assert stats == {"created": 1, "merged": 1}
+    assert stats == {"created": 1, "merged": 1, "skipped_far": 0}
     events = await _events(events_db_session)
     assert len(events) == 1
     assert {link.source_name for link in events[0].links} == {"test-SourceA", "test-SourceB"}
@@ -190,3 +195,79 @@ async def test_unresolvable_address_is_recorded_and_not_retried(events_db_sessio
         select(GeocodeCache).where(GeocodeCache.address == "test-Nowhere")
     )
     assert cached.latitude is None and cached.longitude is None
+
+
+def test_haversine_known_distance_and_zero():
+    assert _haversine_miles(CHATTANOOGA_CENTER, MEMPHIS) == pytest.approx(268, abs=10)
+    assert _haversine_miles(MEMPHIS, MEMPHIS) == 0
+
+
+async def test_far_new_event_is_dropped_and_counted(events_db_session):
+    geo = FakeGeocoder({BEALE_ST: MEMPHIS})
+    stats = await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BEALE_ST)], geo, max_miles=100
+    )
+
+    assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
+    assert await _events(events_db_session) == []
+    links = (
+        await events_db_session.scalars(
+            select(EventLink).where(EventLink.source_name == "test-SourceA")
+        )
+    ).all()
+    assert links == []
+
+
+async def test_nearby_new_event_passes_the_filter(events_db_session):
+    geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    stats = await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo, max_miles=100
+    )
+
+    assert stats == {"created": 1, "merged": 0, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert event.location is not None
+
+
+async def test_unlocated_events_are_kept_when_filter_is_on(events_db_session):
+    geo = FakeGeocoder({})  # every lookup fails
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw("test-SourceA", title="No Address"),
+            make_raw("test-SourceA", title="Bad Address", address="test-Nowhere Far"),
+        ],
+        geo,
+        max_miles=100,
+    )
+
+    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    events = await _events(events_db_session)
+    assert len(events) == 2
+    assert all(e.location is None for e in events)
+
+
+async def test_zero_max_miles_disables_the_filter(events_db_session):
+    geo = FakeGeocoder({BEALE_ST: MEMPHIS})
+    stats = await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BEALE_ST)], geo, max_miles=0
+    )
+
+    assert stats == {"created": 1, "merged": 0, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert event.location is not None
+
+
+async def test_merge_path_is_exempt_from_the_filter(events_db_session):
+    geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA, BEALE_ST: MEMPHIS})
+    await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo, max_miles=100
+    )
+    # Same canonical key from a second source, even with a far address, merges.
+    stats = await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceB", address=BEALE_ST)], geo, max_miles=100
+    )
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert {link.source_name for link in event.links} == {"test-SourceA", "test-SourceB"}

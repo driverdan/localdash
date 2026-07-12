@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # Nominatim's usage policy caps clients at 1 request/second; <= 0 disables
     # the throttle (e.g. for a self-hosted instance).
     events_geocoder_min_interval_seconds: float = 1.0
+    # Drop newly ingested events whose address geocodes farther than this many
+    # miles from the Chattanooga center; non-positive disables the filter.
+    events_ingest_max_miles: float = 100
 
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
