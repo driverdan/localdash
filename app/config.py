@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # by default, so the feature starts empty until feeds/token are set).
     events_enabled: bool = True
     events_refresh_minutes: int = 60
-    events_ical_feeds: str = ""  # comma-separated .ics URLs
+    events_ical_feeds: str = "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"  # comma-separated .ics URLs
     events_meetup_token: str = ""  # Meetup OAuth2 token; empty = source not registered
     events_meetup_query: str = ""  # optional Meetup keyword filter
     # Nominatim's usage policy requires a descriptive User-Agent.
