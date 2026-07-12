@@ -1,6 +1,13 @@
 <script lang="ts">
+  import { currentPath, navigate } from "./lib/router.svelte";
   import { TimeseriesDashboard, connectionState } from "./features/timeseries";
+  import { NewsFeed } from "./features/news";
 
+  // Route table: "/" -> news, "/map" -> timeseries.
+  const onMap = $derived(currentPath() === "/map");
+  const onNews = $derived(currentPath() === "/");
+
+  // Timeseries-specific connection indicator; shown only on the map route.
   const label = $derived(
     connectionState() === "live"
       ? "live"
@@ -11,11 +18,30 @@
   const klass = $derived(
     connectionState() === "live" ? "ok" : connectionState() === "connecting" ? "" : "err",
   );
+
+  function go(event: MouseEvent, to: string) {
+    event.preventDefault();
+    navigate(to);
+  }
 </script>
 
 <header>
   <h1>LocalDash</h1>
-  <span class="status-bar {klass}">{label}</span>
+  <nav>
+    <a href="/" class:active={onNews} onclick={(e) => go(e, "/")}>News</a>
+    <a href="/map" class:active={onMap} onclick={(e) => go(e, "/map")}>Map</a>
+  </nav>
+  {#if onMap}
+    <span class="status-bar {klass}">{label}</span>
+  {/if}
 </header>
 
-<TimeseriesDashboard />
+{#if onMap}
+  <TimeseriesDashboard />
+{:else if onNews}
+  <NewsFeed />
+{:else}
+  <p class="not-found">
+    Page not found — <a href="/" onclick={(e) => go(e, "/")}>go to the news feed</a>.
+  </p>
+{/if}

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
 
 from starlette.types import Scope
 
@@ -21,16 +22,27 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 class NoCacheStaticFiles(StaticFiles):
-    """Serve static assets with `Cache-Control: no-cache`.
+    """Serve static assets with `Cache-Control: no-cache`, plus an SPA fallback.
 
     The dashboard has no build step / content hashing, so a stale cached app.js
     after a redeploy silently runs old code. `no-cache` forces the browser to
     revalidate via ETag every load — unchanged files still return a cheap 304,
     but new code is always picked up.
+
+    The SPA has client-side routes (e.g. /map), so an extension-less path that
+    matches no file serves index.html and lets the router take over. Asset
+    paths (with an extension) still 404 loudly, and /api never falls back —
+    unmatched API paths land here because this mount catches everything.
     """
 
     async def get_response(self, path: str, scope: Scope):
-        response = await super().get_response(path, scope)
+        try:
+            response = await super().get_response(path, scope)
+        except HTTPException as exc:
+            # StaticFiles raises (not returns) its 404s.
+            if exc.status_code != 404 or path.startswith("api/") or "." in path.rsplit("/", 1)[-1]:
+                raise
+            response = await super().get_response("index.html", scope)
         response.headers["Cache-Control"] = "no-cache"
         return response
 

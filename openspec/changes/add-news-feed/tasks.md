@@ -40,23 +40,23 @@
 
 ## 4. Frontend: shell routing
 
-- [ ] 4.1 Create `frontend/src/lib/router.svelte.ts`: reactive current path, `navigate()` via
+- [x] 4.1 Create `frontend/src/lib/router.svelte.ts`: reactive current path, `navigate()` via
       `pushState`, `popstate` listener
-- [ ] 4.2 Rework `App.svelte`: nav header (News | Map), route table `/` → news, `/map` →
+- [x] 4.2 Rework `App.svelte`: nav header (News | Map), route table `/` → news, `/map` →
       timeseries; move the connection indicator so it renders only on the map route
-- [ ] 4.3 Extend `NoCacheStaticFiles` in `main.py` with the SPA fallback (extension-less non-`/api`
+- [x] 4.3 Extend `NoCacheStaticFiles` in `main.py` with the SPA fallback (extension-less non-`/api`
       404s serve `index.html`; asset 404s stay 404)
 
 ## 5. Frontend: news feature
 
-- [ ] 5.1 Create `frontend/src/features/news/` skeleton: `types.ts`, `api.ts` (stories/sources/
+- [x] 5.1 Create `frontend/src/features/news/` skeleton: `types.ts`, `api.ts` (stories/sources/
       refresh clients), `state.svelte.ts` (stories, categories, active tab, hours window,
       multi-source-only, sources, status text; 5-minute auto-reload), `index.ts`
-- [ ] 5.2 Components: `NewsFeed.svelte` (toolbar: window select, multi-source toggle, refresh
+- [x] 5.2 Components: `NewsFeed.svelte` (toolbar: window select, multi-source toggle, refresh
       button + status), `CategoryTabs.svelte` (All + present categories), `StoryCard.svelte`
       (badges, time-ago, headline link, summary, outlet pills), `SourcesFooter.svelte`
       (feed-health table); grouped-by-category All view; empty/error states
-- [ ] 5.3 Port ChattNews visual styling into the components (category badge, multi-source badge,
+- [x] 5.3 Port ChattNews visual styling into the components (category badge, multi-source badge,
       pill links) consistent with the existing app shell styles
 
 ## 6. Verify and cut over
