@@ -48,3 +48,40 @@ async def db_session():
         await session.commit()
         yield session
     await engine.dispose()
+
+
+@pytest.fixture
+async def news_db_session():
+    """Async session against the real DB for news tests; skips if unreachable.
+
+    Cleans news rows belonging to sources whose slug starts with 'test-'
+    (feeds/articles follow via ON DELETE CASCADE); real registry rows are
+    left alone.
+    """
+    from sqlalchemy import delete, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.config import get_settings
+    from app.news.models import NewsSource
+
+    engine = create_async_engine(get_settings().database_url)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(select(1))
+    except Exception as exc:  # noqa: BLE001
+        await engine.dispose()
+        pytest.skip(f"database not reachable: {exc}")
+
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    async with maker() as session:
+        try:
+            await session.execute(delete(NewsSource).where(NewsSource.slug.like("test-%")))
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001 — table missing = migration not applied
+            await engine.dispose()
+            pytest.skip(f"news tables unavailable (run alembic upgrade head): {exc}")
+        yield session
+        await session.rollback()
+        await session.execute(delete(NewsSource).where(NewsSource.slug.like("test-%")))
+        await session.commit()
+    await engine.dispose()
