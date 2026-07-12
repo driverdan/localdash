@@ -76,6 +76,68 @@ line".
 **Packaging / runtime — Docker Compose.** One command brings up DB + app; the app container waits on the
 DB healthcheck, runs migrations, then serves. Keeps "works on my machine" out of the loop.
 
+## Git workflow (OpenSpec, three PRs)
+
+Changes that are large enough to warrant a written plan use **OpenSpec**
+(`openspec/`) and land as **three sequential pull requests**, one per phase of
+the OpenSpec lifecycle. Never commit directly to `main`. Start every phase on a
+new branch with a semantic name.
+
+The change directory lives at `openspec/changes/<name>/` and is archived to
+`openspec/changes/archive/YYYY-MM-DD-<name>/` at the end. Each PR below owns one
+lifecycle phase; do not mix code into the proposal PR or planning artifacts into
+the implementation PR.
+
+### PR 1 — Proposal (planning artifacts only)
+
+Create the change and generate its artifacts, then open a PR that contains **only
+planning files** — no implementation code yet.
+
+1. `openspec new change "<name>"` (kebab-case, e.g. `add-aprs-collector`), then
+   drive each artifact to `done` with the openspec-propose flow
+   (`openspec status --change "<name>" --json`, `openspec instructions
+   <artifact-id> --change "<name>" --json`). Artifacts produced: `proposal.md`,
+   `design.md`, `tasks.md`, and delta `specs/`.
+2. On a branch named for the change (e.g. `add-aprs-collector`), commit the new
+   `openspec/changes/<name>/` directory and push.
+3. Open PR #1. **Review focus:** is the proposal sound, the design coherent, and
+   the task list complete? No code here — if the plan needs revising, use the
+   openspec-update-change flow and push more commits to this same PR before
+   merging.
+
+### PR 2 — Implementation (code review)
+
+After PR #1 merges, implement the tasks and open a PR that contains **only code**
+plus the checked-off task list.
+
+1. From `main`, branch again (e.g. `add-aprs-collector-impl`). Run the
+   openspec-apply-change flow (`openspec instructions apply --change "<name>"
+   --json`) and work through `tasks.md`, marking each `- [ ]` → `- [x]` as you
+   go. Keep changes minimal and scoped to each task.
+2. Commit code + the updated `tasks.md` checkbox state. Do **not** edit
+   `proposal.md` / `design.md` / `specs/` here — if implementation reveals a
+   plan gap, pause, revise artifacts on the proposal branch instead (see
+   openspec-update-change), and re-open or amend as needed.
+3. Open PR #2. **Review focus:** does the code match the agreed plan, and are all
+   tasks checked off? Merge only when `openspec status --change "<name>"` shows
+   all tasks complete.
+
+### PR 3 — Archive (finalize the change)
+
+After PR #2 merges, finalize the change: sync delta specs to the main specs and
+move the change directory into the archive.
+
+1. From `main`, branch (e.g. `add-aprs-collector-archive`). Run the
+   openspec-archive-change flow. If delta specs exist, sync them into
+   `openspec/specs/` (openspec-sync-specs) — this updates the canonical specs
+   and should land in this same PR. Then `openspec archive` (or the equivalent
+   move) relocates `openspec/changes/<name>/` →
+   `openspec/changes/archive/YYYY-MM-DD-<name>/`.
+2. Commit the spec updates + the archive move together and push.
+3. Open PR #3. **Review focus:** were the delta specs merged into the main specs
+   correctly, and was the change moved to the dated archive directory? Merge,
+   and the change is fully closed out.
+
 ## Commands
 
 **Run the full stack (app + Postgres) in Docker:**
