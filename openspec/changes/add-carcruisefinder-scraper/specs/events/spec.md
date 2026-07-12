@@ -1,10 +1,13 @@
 ## ADDED Requirements
 
-### Requirement: CarCruiseFinder scraper source (experimental)
-The system SHALL provide an experimental CarCruiseFinder source that scrapes the Chattanooga tag
-listing page (`https://carcruisefinder.com/car-shows/tag/chattanooga-tn/`), registered only when
-the `events_carcruisefinder_enabled` setting is true (default **false**, because the source is
-fragile: the site's machine endpoints are WAF-blocked and HTML scraping is the only route).
+### Requirement: CarCruiseFinder scraper source
+The system SHALL provide a CarCruiseFinder source that scrapes the Chattanooga tag
+listing page (`https://carcruisefinder.com/car-shows/tag/chattanooga-tn/`), registered
+unconditionally as a normal event source alongside the iCal and Meetup sources in
+`build_sources()` (no per-source config flag; the source is fragile — the site's machine
+endpoints are WAF-blocked and HTML scraping is the only route — but that fragility is contained
+by `run_sources()`'s existing per-source failure isolation, matching how iCal and Meetup are
+treated).
 Fetching SHALL send a realistic browser User-Agent (the site returns 403 to generic
 User-Agents), SHALL limit itself to the listing page plus a bounded number of event detail
 pages per run with a polite delay between requests, and SHALL NOT attempt to access the site's
@@ -17,9 +20,10 @@ identifier → source event id. Detail pages without a parseable start date SHAL
 failure fetching or parsing one detail page SHALL NOT abort the remaining pages, and a failure
 of the whole scrape SHALL NOT affect ingestion from other sources.
 
-#### Scenario: Flag gates registration
-- **WHEN** the application starts with `events_carcruisefinder_enabled` unset (default false)
-- **THEN** no CarCruiseFinder source is registered and no requests to carcruisefinder.com occur
+#### Scenario: Registered as a normal source
+- **WHEN** the application builds its event sources for a refresh cycle
+- **THEN** a CarCruiseFinder source is registered alongside the other configured event sources,
+  with no additional setting required to enable it
 
 #### Scenario: JSON-LD detail page becomes a raw event
 - **WHEN** a fetched detail page embeds a schema.org `Event` JSON-LD block with a name, start

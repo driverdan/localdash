@@ -26,7 +26,10 @@ has no HTML parser in `pyproject.toml`.
 **Goals:**
 
 - One new scraper source producing `RawEvent`s from the CarCruiseFinder Chattanooga tag listing.
-- Explicitly experimental: `events_carcruisefinder_enabled: bool = False` — off by default.
+- Treated as a normal source: registered unconditionally in `build_sources()` alongside the
+  iCal and Meetup sources — no per-source config flag. Fragility is contained by
+  `run_sources()`'s existing per-source failure isolation (a raising source is logged and
+  skipped, the cycle continues), which is how iCal and Meetup already behave.
 - Polite scraping: low request rate, small per-run page budget, browser UA (which the site
   demonstrably requires), delays between requests.
 - Extraction that degrades gracefully: JSON-LD first, HTML selectors as fallback, per-event
@@ -90,9 +93,12 @@ contents found via BS4 — no extra dependency (e.g. `extruct`) is warranted for
 - **Per-event resilience:** a detail page that fails to fetch or parse is logged and skipped;
   the run still returns the events that did parse. A listing-page failure raises, and
   `run_sources()`'s existing isolation confines it to this source.
-- **Default off:** `events_carcruisefinder_enabled: bool = False`. This is the honest posture
-  for a source that can break at any time (WAF policy change, theme/markup change) and whose
-  scraping an operator should consciously opt into.
+- **Normal source (no flag):** CarCruiseFinder is registered unconditionally in `build_sources()`,
+  matching the iCal and Meetup sources (neither of which has a per-source `*_enabled` flag
+  either — iCal is gated by its feed list, Meetup by its token, CarCruiseFinder by neither).
+  The source's fragility (WAF policy change, theme/markup change) is contained by
+  `run_sources()`'s per-source failure isolation rather than a default-off switch. If the
+  source breaks, it contributes zero events and logs; the code can be reverted to remove it.
 
 ### 4. Field mapping (JSON-LD path)
 
@@ -128,8 +134,8 @@ detail page, one no-JSON-LD detail page, one undated/broken page); no network in
 ## Risks / Trade-offs
 
 - **[Cloudflare starts 403-ing scraper traffic]** → Source fails, `run_sources()` logs and
-  continues; other sources unaffected. Flag stays available to turn it off permanently. No
-  escalation of evasion.
+  continues; other sources unaffected. The source contributes zero events until the block
+  lifts or the code is reverted; no escalation of evasion.
 - **[HTML/theme change breaks selectors]** → JSON-LD-first extraction minimizes exposure; the
   selector fallback is best-effort. Breakage manifests as zero events + logs, not corrupt data.
 - **[ToS/politeness]** → Default-off, ≤ ~26 requests/hour with delays, no blocked-endpoint
@@ -146,10 +152,10 @@ detail page, one no-JSON-LD detail page, one undated/broken page); no network in
 
 ## Migration Plan
 
-No migrations, no schema, no API changes. Deploy is: install new dependency, ship code; the flag
-defaults off so behavior is unchanged. Enable with `EVENTS_CARCRUISEFINDER_ENABLED=true`;
-rollback is unsetting the flag (or reverting the code — nothing persists except normally-ingested
-events, which are retained by design).
+No migrations, no schema, no API changes, no config changes. Deploy is: install new
+dependency, ship code; the source is registered immediately and runs on the existing
+`events_refresh_minutes` schedule. Rollback is reverting the code (nothing persists except
+normally-ingested events, which are retained by design).
 
 ## Open Questions
 

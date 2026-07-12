@@ -1,9 +1,9 @@
-## 1. Dependency & config
+## 1. Dependency
 
 - [ ] 1.1 Add `beautifulsoup4` to `pyproject.toml` dependencies (stdlib `html.parser` backend —
   no `lxml`)
-- [ ] 1.2 Add `events_carcruisefinder_enabled: bool = False` to `app/config.py` with a comment
-  marking the source experimental/fragile (WAF-blocked machine endpoints, scraping only)
+- [ ] 1.2 No `app/config.py` change — CarCruiseFinder is a normal source with no per-source
+  config flag (registered unconditionally in `build_sources()`, matching iCal/Meetup)
 
 ## 2. Fixtures (before parser code — parsers are written against these)
 
@@ -31,8 +31,9 @@
   budget of detail pages with `asyncio.sleep` delay between requests; log and skip a detail
   page that fails to fetch or parse; let a listing-page failure raise (contained by
   `run_sources()`)
-- [ ] 3.5 Register in `build_sources()` (`app/events/sources/__init__.py`) gated on
-  `settings.events_carcruisefinder_enabled`; add `app.events.sources` packaging is already
+- [ ] 3.5 Register in `build_sources()` (`app/events/sources/__init__.py`) unconditionally
+  as a normal event source alongside the iCal and Meetup sources (no config flag); add
+  `app.events.sources` packaging is already
   covered — verify no `pyproject.toml` packages change is needed
 
 ## 4. Tests (offline — no network)
@@ -45,13 +46,13 @@
   fixture returns `None`
 - [ ] 4.4 `fetch()` with mocked transport (httpx MockTransport): one failing detail page is
   skipped while others still yield events; assert the browser UA header is sent
-- [ ] 4.5 Registration test: default settings register no CarCruiseFinder source;
-  `events_carcruisefinder_enabled=True` registers exactly one
+- [ ] 4.5 Registration test: `build_sources()` with default settings registers exactly one
+  CarCruiseFinder source alongside the other configured sources
 
 ## 5. Verify
 
 - [ ] 5.1 Run `pytest` — full suite green, new tests pass offline
-- [ ] 5.2 With the flag off (default), confirm app startup makes no carcruisefinder.com
-  requests (source list unchanged); optionally enable the flag locally for a single manual
-  refresh to sanity-check live parsing, then disable
+- [ ] 5.2 Confirm app startup registers the CarCruiseFinder source (no flag required);
+  requests to carcruisefinder.com occur only during refresh cycles — run a single manual
+  refresh to sanity-check live parsing
 - [ ] 5.3 `openspec validate add-carcruisefinder-scraper` passes
