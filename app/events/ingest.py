@@ -6,11 +6,13 @@ eagerly (selectinload) — lazy loading does not work under async sessions.
 from __future__ import annotations
 
 import logging
+import math
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.events import CHATTANOOGA_CENTER
 from app.events.dedup import canonical_key
 from app.events.geocoding import Coords, Geocoder, NullGeocoder
 from app.events.models import Event, EventLink, GeocodeCache, Tag
@@ -18,6 +20,16 @@ from app.events.sources.base import EventSource, RawEvent
 from app.events.tagging import tag_event
 
 log = logging.getLogger("localdash.events")
+
+
+def _haversine_miles(a: Coords, b: Coords) -> float:
+    """Great-circle distance in miles between two (lat, lon) points."""
+    lat1, lon1, lat2, lon2 = map(math.radians, (*a, *b))
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    )
+    return 2 * 3958.8 * math.asin(math.sqrt(h))
 
 
 def _point(coords: Coords) -> str:
@@ -68,15 +80,19 @@ async def upsert_raw_events(
     session: AsyncSession,
     raws: list[RawEvent],
     geocoder: Geocoder | None = None,
+    max_miles: float = 0,
 ) -> dict[str, int]:
     """Insert or merge a batch of raw events.
 
-    New events are geocoded from their address. Returns counts of newly created
-    vs. merged (duplicate) events.
+    New events are geocoded from their address; when max_miles is positive, a
+    new event geocoding farther than that from the Chattanooga center is
+    dropped (merges are exempt). Returns counts of newly created vs. merged
+    (duplicate) events, plus how many were skipped as too far.
     """
     geocoder = geocoder or NullGeocoder()
     created = 0
     merged = 0
+    skipped_far = 0
     tag_cache: dict[str, Tag] = {}
     geo_cache: dict[str, Coords | None] = {}
 
@@ -90,6 +106,15 @@ async def upsert_raw_events(
 
         if event is None:
             coords = await _geocode(session, geocoder, raw.address, geo_cache)
+            if max_miles > 0 and coords is not None:
+                distance = _haversine_miles(CHATTANOOGA_CENTER, coords)
+                if distance > max_miles:
+                    skipped_far += 1
+                    log.debug(
+                        "skipping far event %r (%.0f mi > %.0f mi)",
+                        raw.title, distance, max_miles,
+                    )
+                    continue
             event = Event(
                 canonical_key=key,
                 title=raw.title,
@@ -135,13 +160,14 @@ async def upsert_raw_events(
         await session.flush()
 
     await session.commit()
-    return {"created": created, "merged": merged}
+    return {"created": created, "merged": merged, "skipped_far": skipped_far}
 
 
 async def run_sources(
     session: AsyncSession,
     sources: list[EventSource],
     geocoder: Geocoder | None = None,
+    max_miles: float = 0,
 ) -> dict[str, int]:
     """Fetch every source and persist the combined result.
 
@@ -153,4 +179,4 @@ async def run_sources(
             raws.extend(await source.fetch())
         except Exception:  # noqa: BLE001 — defensive against flaky feeds
             log.exception("event source %s failed", getattr(source, "name", source))
-    return await upsert_raw_events(session, raws, geocoder)
+    return await upsert_raw_events(session, raws, geocoder, max_miles=max_miles)

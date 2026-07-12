@@ -116,4 +116,4 @@ async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
         lambda: Settings(_env_file=None, events_ical_feeds=""),
     )
     result = await refresh()
-    assert result == {"created": 0, "merged": 0}
+    assert result == {"created": 0, "merged": 0, "skipped_far": 0}
