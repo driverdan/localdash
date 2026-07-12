@@ -61,12 +61,12 @@
 
 ## 6. Verify and cut over
 
-- [ ] 6.1 `npm run check` passes with 0 errors; `pytest` passes (DB tests against
+- [x] 6.1 `npm run check` passes with 0 errors; `pytest` passes (DB tests against
       `docker compose up -d db`)
-- [ ] 6.2 End-to-end: `docker compose up --build`, confirm migrations apply, feeds fetch (check
+- [x] 6.2 End-to-end: `docker compose up --build`, confirm migrations apply, feeds fetch (check
       `/api/v1/news/sources` statuses), stories cluster, homepage shows the feed, `/map` deep-link
       reloads correctly, nav + back button work, timeseries dashboard unchanged at `/map`
-- [ ] 6.3 Update `CLAUDE.md` (news feature, routes, new tables, feedparser, feed gotchas carried
+- [x] 6.3 Update `CLAUDE.md` (news feature, routes, new tables, feedparser, feed gotchas carried
       from ChattNews) and `README`/docs if present
-- [ ] 6.4 Decommission note: stop the standalone chattnews compose stack (manual, outside this
+- [x] 6.4 Decommission note: stop the standalone chattnews compose stack (manual, outside this
       repo); record in the PR description
