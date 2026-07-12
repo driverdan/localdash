@@ -14,13 +14,16 @@ The events feature SHALL define a pluggable source interface: a `RawEvent` value
 time, source name, source URL, plus optional description, end time, venue name, address, and
 source event id — an address only, never coordinates) and an `EventSource` base class whose async
 `fetch()` returns the source's current `RawEvent` list. Sources SHALL be registered in a single
-build function driven entirely by configuration — no sources are active by default, and no
-sample/fixture source SHALL be importable by the application (fixtures live in the test suite
-only). Adding a source MUST require only a new source class plus its registration — no changes to
-ingest, storage, API, or frontend.
+build function driven entirely by configuration — the shipped configuration defaults register
+exactly one source (the Tennessee car-events iCal feed, via the `events_ical_feeds` default), and
+every source remains overridable or removable through configuration alone. No sample/fixture
+source SHALL be importable by the application (fixtures live in the test suite only). Adding a
+source MUST require only a new source class plus its registration — no changes to ingest, storage,
+API, or frontend.
 
-#### Scenario: Unconfigured registry runs cleanly
-- **WHEN** a refresh cycle runs with no feeds or tokens configured
+#### Scenario: Explicitly emptied registry runs cleanly
+- **WHEN** a refresh cycle runs with `events_ical_feeds` set to an empty string and no tokens
+  configured
 - **THEN** the registry is empty and the cycle completes successfully with zero created and zero
   merged events
 
@@ -31,12 +34,25 @@ ingest, storage, API, or frontend.
 
 ### Requirement: iCal feed sources
 The system SHALL ingest any iCal/ICS feed listed in the `events_ical_feeds` setting
-(comma-separated URLs, default empty), creating one source per URL. Each fetch SHALL download the
-feed over HTTP and parse its `VEVENT` components: summary → title (with an "Untitled event"
+(comma-separated URLs), creating one source per URL. The setting SHALL default to the Tennessee
+car-events feed `https://carsandcoffeeevents.com/events/category/tennessee/?ical=1` so a fresh
+install ingests real events out of the box, and SHALL remain fully overridable via the
+environment (including overriding to empty to disable iCal ingestion). Each fetch SHALL download
+the feed over HTTP and parse its `VEVENT` components: summary → title (with an "Untitled event"
 fallback), description, `DTSTART` → start time (components without one are skipped; date-only
 values become midnight; datetimes are coerced to UTC), `DTEND` → end time, `LOCATION` → both venue
 name and geocodable address, `UID` → source event id, and the component `URL` (falling back to the
 feed URL) → the source link.
+
+#### Scenario: Default configuration registers the Tennessee car-events feed
+- **WHEN** the application runs without any `EVENTS_ICAL_FEEDS` override
+- **THEN** the source registry contains one iCal source for
+  `https://carsandcoffeeevents.com/events/category/tennessee/?ical=1`
+
+#### Scenario: Override replaces the default
+- **WHEN** `EVENTS_ICAL_FEEDS` is set to a different comma-separated URL list (or to empty)
+- **THEN** only the configured URLs (or no iCal sources at all) are registered — the default feed
+  is not added back
 
 #### Scenario: Configured feed is ingested
 - **WHEN** `events_ical_feeds` contains one `.ics` URL whose feed has two dated `VEVENT`s
@@ -98,12 +114,24 @@ one source SHALL NOT abort ingestion of the others.
 ### Requirement: Keyword topic tagging
 The system SHALL tag each newly created event by case-insensitive keyword matching of its title
 and description against a code-defined topic→keywords map (topics: music, food, arts, outdoors,
-family, sports, tech, community, education, nightlife). Tags SHALL be stored as rows in a `tags`
-table joined many-to-many to events, and an event may carry zero or many tags.
+family, sports, tech, community, education, nightlife, cars). The `cars` topic SHALL match
+automotive-event phrasing — at minimum the keywords "car show", "cruise-in", "cruise in",
+"cars and coffee", "car meet", "hot rod", "classic car", "corvette", "mustang", "camaro", and
+"auto show" — and SHALL NOT use the bare substring "car" (to avoid false positives such as
+"carnival"). Tags SHALL be stored as rows in a `tags` table joined many-to-many to events, and an
+event may carry zero or many tags.
 
 #### Scenario: Title keywords produce tags
 - **WHEN** an event titled "Live music and food trucks" is ingested
 - **THEN** it is tagged `music` and `food`
+
+#### Scenario: Car events are tagged cars
+- **WHEN** an event titled "Ooltewah Cruise In @ Cambridge Square" is ingested
+- **THEN** it is tagged `cars`
+
+#### Scenario: Bare "car" substrings do not tag
+- **WHEN** an event titled "Downtown Carnival" with no other automotive keywords is ingested
+- **THEN** it is not tagged `cars`
 
 #### Scenario: No keyword match means no tags
 - **WHEN** an ingested event's title and description match no topic keywords
