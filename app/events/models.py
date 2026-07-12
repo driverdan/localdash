@@ -83,9 +83,11 @@ class EventLink(Base):
 
 
 class GeocodeCache(Base):
-    """Persisted address -> coordinates lookups so we never geocode an address twice.
+    """Persisted address -> coordinates lookups so successes are never re-queried.
 
-    A row with null coordinates records an address we tried but could not resolve.
+    A row with null coordinates records an address we tried but could not
+    resolve; the refresh cycle's retry pass re-attempts such rows once their
+    last_attempted_at is older than the configured retry age.
     """
 
     __tablename__ = "geocode_cache"
@@ -95,3 +97,6 @@ class GeocodeCache(Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_attempted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

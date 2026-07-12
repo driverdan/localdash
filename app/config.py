@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     # Nominatim's usage policy caps clients at 1 request/second; <= 0 disables
     # the throttle (e.g. for a self-hosted instance).
     events_geocoder_min_interval_seconds: float = 1.0
+    # Re-attempt cached geocode failures once their last attempt is older than
+    # this many hours; non-positive disables the retry pass.
+    events_geocode_retry_hours: float = 24
+    # Max cached failures re-attempted per refresh cycle.
+    events_geocode_retry_batch: int = 25
     # Drop newly ingested events whose address geocodes farther than this many
     # miles from the Chattanooga center; non-positive disables the filter.
     events_ingest_max_miles: float = 100

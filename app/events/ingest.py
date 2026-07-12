@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import logging
 import math
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -70,6 +71,7 @@ async def _geocode(
                 address=address,
                 latitude=coords[0] if coords else None,
                 longitude=coords[1] if coords else None,
+                last_attempted_at=datetime.now(timezone.utc),
             )
         )
     cache[address] = coords
@@ -161,6 +163,49 @@ async def upsert_raw_events(
 
     await session.commit()
     return {"created": created, "merged": merged, "skipped_far": skipped_far}
+
+
+async def retry_failed_geocodes(
+    session: AsyncSession,
+    geocoder: Geocoder,
+    retry_hours: float,
+    batch: int,
+) -> dict[str, int]:
+    """Re-attempt cached geocode failures whose last attempt is stale.
+
+    Takes up to ``batch`` coordinate-less cache rows last attempted more than
+    ``retry_hours`` ago, oldest first. A success stores the coordinates and
+    backfills the location of every stored event with that address; a failure
+    just bumps last_attempted_at so the row waits out another age window.
+    A non-positive ``retry_hours`` disables the pass.
+    """
+    if retry_hours <= 0 or batch <= 0:
+        return {"retried": 0, "resolved": 0}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=retry_hours)
+    rows = (
+        await session.scalars(
+            select(GeocodeCache)
+            .where(GeocodeCache.latitude.is_(None), GeocodeCache.last_attempted_at < cutoff)
+            .order_by(GeocodeCache.last_attempted_at)
+            .limit(batch)
+        )
+    ).all()
+
+    resolved = 0
+    for row in rows:
+        coords = await geocoder.geocode(row.address)
+        row.last_attempted_at = datetime.now(timezone.utc)
+        if coords is not None:
+            row.latitude, row.longitude = coords
+            resolved += 1
+            await session.execute(
+                update(Event)
+                .where(Event.address == row.address, Event.location.is_(None))
+                .values(location=_point(coords))
+            )
+    await session.commit()
+    return {"retried": len(rows), "resolved": resolved}
 
 
 async def run_sources(
