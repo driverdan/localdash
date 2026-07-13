@@ -24,6 +24,14 @@ export async function loadItems(): Promise<void> {
 export async function loadTags(): Promise<void> {
   const data = await getJSON<TagsResponse>("/api/v1/events/tags");
   events.tags = data.tags;
+  // Restored topics may name tags that no longer exist; drop them and refetch
+  // so the list isn't filtered on chips the user can't even see.
+  const known = new Set(data.tags);
+  const kept = events.topics.filter((t) => known.has(t));
+  if (kept.length !== events.topics.length) {
+    events.topics = kept;
+    await loadItems();
+  }
 }
 
 /** Trigger a server-side fetch of all configured sources, then reload the view. */

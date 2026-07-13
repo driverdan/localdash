@@ -4,7 +4,7 @@
 
 <nav class="tabs">
   {#each news.tabs as [slug, label] (slug)}
-    <button class:active={slug === news.activeTab} onclick={() => (news.activeTab = slug)}>
+    <button class:active={slug === news.shownTab} onclick={() => (news.activeTab = slug)}>
       {label}
     </button>
   {/each}
