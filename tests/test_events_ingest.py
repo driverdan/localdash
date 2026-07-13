@@ -11,7 +11,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.events import CHATTANOOGA_CENTER
-from app.events.ingest import _haversine_miles, run_sources, upsert_raw_events
+from app.events.ingest import (
+    _haversine_miles,
+    retry_failed_geocodes,
+    run_sources,
+    upsert_raw_events,
+)
 from app.events.models import Event, EventLink, GeocodeCache
 from app.events.sources.base import RawEvent
 from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
@@ -271,3 +276,120 @@ async def test_merge_path_is_exempt_from_the_filter(events_db_session):
     assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
     (event,) = await _events(events_db_session)
     assert {link.source_name for link in event.links} == {"test-SourceA", "test-SourceB"}
+
+
+# --- geocode failure retry pass ---
+
+
+async def _age_cache_row(session, address, hours):
+    """Push a cache row's last attempt into the past to make it retry-eligible."""
+    from sqlalchemy import update
+
+    await session.execute(
+        update(GeocodeCache)
+        .where(GeocodeCache.address == address)
+        .values(last_attempted_at=dt.datetime.now(UTC) - dt.timedelta(hours=hours))
+    )
+    await session.commit()
+
+
+async def _cache_row(session, address) -> GeocodeCache:
+    return await session.scalar(select(GeocodeCache).where(GeocodeCache.address == address))
+
+
+async def test_stale_failure_retried_and_events_backfilled(events_db_session):
+    # Ingest with a failing geocoder: cached failure + unlocated event.
+    await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], FakeGeocoder({})
+    )
+    await _age_cache_row(events_db_session, BROAD_ST, hours=48)
+
+    retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
+
+    assert stats == {"retried": 1, "resolved": 1}
+    row = await _cache_row(events_db_session, BROAD_ST)
+    assert (row.latitude, row.longitude) == DOWNTOWN_CHATTANOOGA
+    (event,) = await _events(events_db_session)
+    await events_db_session.refresh(event)
+    assert event.location is not None
+
+
+async def test_success_rows_are_never_requeried(events_db_session):
+    await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceA", address=MARKET_ST)],
+        FakeGeocoder({MARKET_ST: DOWNTOWN_CHATTANOOGA}),
+    )
+    await _age_cache_row(events_db_session, MARKET_ST, hours=48)
+
+    retry_geo = FakeGeocoder({MARKET_ST: MEMPHIS})
+    stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
+
+    assert stats == {"retried": 0, "resolved": 0}
+    assert retry_geo.calls == []
+    row = await _cache_row(events_db_session, MARKET_ST)
+    assert (row.latitude, row.longitude) == DOWNTOWN_CHATTANOOGA
+
+
+async def test_fresh_failure_waits_out_the_age_window(events_db_session):
+    await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], FakeGeocoder({})
+    )  # last_attempted_at = now
+
+    retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
+
+    assert stats == {"retried": 0, "resolved": 0}
+    assert retry_geo.calls == []
+
+
+async def test_failed_retry_bumps_last_attempt(events_db_session):
+    await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], FakeGeocoder({})
+    )
+    await _age_cache_row(events_db_session, BROAD_ST, hours=48)
+    before = (await _cache_row(events_db_session, BROAD_ST)).last_attempted_at
+
+    still_failing = FakeGeocoder({})
+    stats = await retry_failed_geocodes(events_db_session, still_failing, retry_hours=24, batch=25)
+    assert stats == {"retried": 1, "resolved": 0}
+    after = await _cache_row(events_db_session, BROAD_ST)
+    assert after.latitude is None
+    assert after.last_attempted_at > before
+
+    # Now inside the age window: not retried again.
+    stats = await retry_failed_geocodes(events_db_session, still_failing, retry_hours=24, batch=25)
+    assert stats == {"retried": 0, "resolved": 0}
+    assert still_failing.calls == [BROAD_ST]
+
+
+async def test_batch_cap_takes_oldest_first(events_db_session):
+    addresses = [f"test-{i} Cap St, Chattanooga, TN" for i in range(3)]
+    raws = [
+        make_raw("test-SourceA", title=f"Cap Event {i}", address=addr)
+        for i, addr in enumerate(addresses)
+    ]
+    await upsert_raw_events(events_db_session, raws, FakeGeocoder({}))
+    # Ages: index 0 newest-stale (30h) ... index 2 oldest (72h).
+    for i, addr in enumerate(addresses):
+        await _age_cache_row(events_db_session, addr, hours=30 + i * 21)
+
+    retry_geo = FakeGeocoder({})
+    stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=2)
+
+    assert stats == {"retried": 2, "resolved": 0}
+    assert retry_geo.calls == [addresses[2], addresses[1]]
+
+
+async def test_non_positive_retry_hours_disables_the_pass(events_db_session):
+    await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], FakeGeocoder({})
+    )
+    await _age_cache_row(events_db_session, BROAD_ST, hours=48)
+
+    retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=0, batch=25)
+
+    assert stats == {"retried": 0, "resolved": 0}
+    assert retry_geo.calls == []

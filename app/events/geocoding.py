@@ -22,6 +22,26 @@ log = logging.getLogger("localdash.events")
 Coords = tuple[float, float]
 
 
+def _candidate_queries(address: str) -> list[str]:
+    """Ordered free-form queries to try for an address, most specific first.
+
+    Feed addresses look like "Venue Name, street, city, ST, zip, country";
+    Nominatim's free-form search usually fails on the venue-name prefix. After
+    the full string we try it with the leading component stripped, then the
+    locality tail alone (city-centroid precision — acceptable for this app's
+    distance granularity). Component thresholds keep short, already-plain
+    addresses from being stripped past usefulness.
+    """
+    parts = [p.strip() for p in address.split(",") if p.strip()]
+    candidates = [address]
+    if len(parts) >= 4:
+        candidates.append(", ".join(parts[1:]))
+    if len(parts) >= 5:
+        candidates.append(", ".join(parts[-4:]))
+    seen: set[str] = set()
+    return [c for c in candidates if not (c in seen or seen.add(c))]
+
+
 class Geocoder(ABC):
     @abstractmethod
     async def geocode(self, address: str) -> Coords | None:
@@ -70,22 +90,27 @@ class NominatimGeocoder(Geocoder):
     async def geocode(self, address: str) -> Coords | None:
         if not address:
             return None
-        await self._wait_for_slot()
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.get(
-                    self.base_url,
-                    params={"q": address, "format": "json", "limit": 1},
-                    headers={"User-Agent": self.user_agent},
-                )
-                resp.raise_for_status()
-                results = resp.json()
-        except Exception:  # noqa: BLE001 — network/service failures resolve to None
-            log.exception("geocoding failed for %r", address)
-            return None
-        if not results:
-            return None
-        try:
-            return float(results[0]["lat"]), float(results[0]["lon"])
-        except (KeyError, ValueError, TypeError, IndexError):
-            return None
+        # Try progressively simplified variants; only an empty result advances
+        # to the next one. A network/service error aborts the whole lookup so
+        # an outage doesn't multiply request volume across fallbacks.
+        for query in _candidate_queries(address):
+            await self._wait_for_slot()
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.get(
+                        self.base_url,
+                        params={"q": query, "format": "json", "limit": 1},
+                        headers={"User-Agent": self.user_agent},
+                    )
+                    resp.raise_for_status()
+                    results = resp.json()
+            except Exception:  # noqa: BLE001 — network/service failures resolve to None
+                log.exception("geocoding failed for %r", query)
+                return None
+            if not results:
+                continue
+            try:
+                return float(results[0]["lat"]), float(results[0]["lon"])
+            except (KeyError, ValueError, TypeError, IndexError):
+                return None
+        return None
