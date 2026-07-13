@@ -186,4 +186,5 @@ def test_build_sources_gates_fixtures_on_setting():
 
     disabled = build_sources(_settings(events_fixtures_enabled=False))
     assert not any(isinstance(s, FixturesSource) for s in disabled)
-    assert disabled == []  # nothing else configured -> empty registry
+    # Only the ungated CarCruiseFinder scraper remains (see test_events_meetup
+    # for the full nothing-configured registry shape).
