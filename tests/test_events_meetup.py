@@ -89,11 +89,11 @@ def test_build_sources_creates_one_ical_source_per_url():
 
 
 def test_build_sources_leaves_only_carcruisefinder_when_nothing_configured():
-    # The CarCruiseFinder scraper has no config gate; emptying the configurable
-    # sources leaves exactly it.
+    # CarCruiseFinder has no config gate; emptying the configurable sources
+    # (feeds, token) and disabling the code-as-config fixtures leaves exactly it.
     from app.events.sources.carcruisefinder import CarCruiseFinderSource
 
-    sources = build_sources(_settings())
+    sources = build_sources(_settings(events_fixtures_enabled=False))
     assert len(sources) == 1
     assert isinstance(sources[0], CarCruiseFinderSource)
 

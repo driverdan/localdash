@@ -82,15 +82,18 @@ The events feature SHALL define a pluggable source interface: a `RawEvent` value
 time, source name, source URL, plus optional description, end time, venue name, address, and
 source event id — an address only, never coordinates) and an `EventSource` base class whose async
 `fetch()` returns the source's current `RawEvent` list. Sources SHALL be registered in a single
-build function driven entirely by configuration — no network sources are active by default, and no
-sample/demo-data source SHALL be importable by the application (test doubles live in the test
-suite only; curated code-as-config registries of real events, such as the local fixtures source,
-are permitted). Adding a source MUST require only a new source class plus its registration — no
-changes to ingest, storage, API, or frontend.
+build function driven entirely by configuration — the shipped configuration defaults register
+exactly two sources (the Tennessee car-events iCal feed via the `events_ical_feeds` default, and
+the local fixtures source via the `events_fixtures_enabled` default), and every source remains
+overridable or removable through configuration alone. No sample/demo-data source SHALL be
+importable by the application (test doubles live in the test suite only; curated code-as-config
+registries of real events, such as the local fixtures source, are permitted). Adding a source
+MUST require only a new source class plus its registration — no changes to ingest, storage, API,
+or frontend.
 
-#### Scenario: Unconfigured registry runs cleanly
-- **WHEN** a refresh cycle runs with no feeds or tokens configured and `events_fixtures_enabled`
-  disabled
+#### Scenario: Explicitly emptied registry runs cleanly
+- **WHEN** a refresh cycle runs with `events_ical_feeds` set to an empty string, no tokens
+  configured, and `events_fixtures_enabled` disabled
 - **THEN** the registry is empty and the cycle completes successfully with zero created and zero
   merged events
 

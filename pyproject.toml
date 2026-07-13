@@ -22,6 +22,7 @@ dependencies = [
     "feedparser>=6.0",
     "icalendar>=5.0",
     "beautifulsoup4>=4.12",       # CarCruiseFinder scraper (stdlib html.parser backend)
+    "python-dateutil>=2.9",       # fixtures source recurrence rules (was transitive via icalendar)
 ]
 
 [project.optional-dependencies]

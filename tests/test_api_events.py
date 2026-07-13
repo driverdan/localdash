@@ -109,10 +109,11 @@ async def test_tags_endpoint_lists_known_tags_sorted(events_db_session):
 async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
     # Endpoint contract only: an empty registry refresh reports zero counts.
     # The registry is pinned empty because the always-on CarCruiseFinder
-    # scraper would otherwise hit the live site here (registry behavior is
-    # covered in test_events_meetup / test_events_carcruisefinder), and the
-    # geocode retry pass is disabled so it never geocodes real cached
-    # failures over the network.
+    # scraper and the default-on fixtures source would otherwise contribute
+    # here (registry behavior is covered in test_events_meetup /
+    # test_events_carcruisefinder / test_events_fixtures), and the geocode
+    # retry pass is disabled so it never geocodes real cached failures over
+    # the network.
     from app.config import Settings
 
     monkeypatch.setattr(

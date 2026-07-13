@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     events_ical_feeds: str = "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"  # comma-separated .ics URLs
     events_meetup_token: str = ""  # Meetup OAuth2 token; empty = source not registered
     events_meetup_query: str = ""  # optional Meetup keyword filter
+    # Code-as-config registry of feedless local events (sources/fixtures.py);
+    # pure code, no network, so it defaults on like the news registry.
+    events_fixtures_enabled: bool = True
     # Nominatim's usage policy requires a descriptive User-Agent.
     events_geocoder_user_agent: str = "LocalDash/0.1 (events geocoder)"
     # Nominatim's usage policy caps clients at 1 request/second; <= 0 disables
