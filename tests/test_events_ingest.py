@@ -30,11 +30,13 @@ DOWNTOWN_CHATTANOOGA = (35.0456, -85.3097)
 
 
 def make_raw(source, title="Jazz Night", **overrides):
+    # URL is per-listing (title-derived slug): each distinct upstream listing
+    # has its own page, and the source-listing identity tier relies on that.
     base = dict(
         title=title,
         start_time=dt.datetime(2026, 7, 1, 19, 0, tzinfo=UTC),
         source_name=source,
-        source_url=f"http://{source}/event",
+        source_url=f"http://{source}/event/{title.lower().replace(' ', '-')}",
         description="live jazz music concert",
     )
     base.update(overrides)
@@ -393,3 +395,211 @@ async def test_non_positive_retry_hours_disables_the_pass(events_db_session):
 
     assert stats == {"retried": 0, "resolved": 0}
     assert retry_geo.calls == []
+
+
+# --- tiered de-duplication ---
+
+
+def sonic_raws():
+    """Two duplicate listings from one source, as observed upstream: subset
+    titles, same start, same venue string, no address, distinct URLs."""
+    start = dt.datetime(2026, 12, 3, 22, 0, tzinfo=UTC)
+    return [
+        make_raw(
+            "test-ccf",
+            title="test-Street Machines Sonic Cruise In",
+            start_time=start,
+            venue_name="Sonic",
+            description="",
+        ),
+        make_raw(
+            "test-ccf",
+            title="test-Street Machines Cruise In",
+            start_time=start,
+            venue_name="Sonic",
+            description="",
+        ),
+    ]
+
+
+async def test_within_source_duplicate_listings_merge(events_db_session):
+    stats = await upsert_raw_events(events_db_session, sonic_raws())
+
+    assert stats == {"created": 1, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert len(event.links) == 2
+    assert {l.source_url for l in event.links} == {
+        "http://test-ccf/event/test-street-machines-sonic-cruise-in",
+        "http://test-ccf/event/test-street-machines-cruise-in",
+    }
+
+
+async def test_merged_listings_reingest_idempotently(events_db_session):
+    await upsert_raw_events(events_db_session, sonic_raws())
+    stats = await upsert_raw_events(events_db_session, sonic_raws())
+
+    assert stats == {"created": 0, "merged": 2, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert len(event.links) == 2
+
+
+async def test_fuzzy_match_requires_location_agreement(events_db_session):
+    from dataclasses import replace
+
+    bare = [replace(r, venue_name=None) for r in sonic_raws()]
+    stats = await upsert_raw_events(events_db_session, bare)
+
+    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+
+
+async def test_fuzzy_match_rejects_far_apart_coordinates(events_db_session):
+    geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA, BEALE_ST: MEMPHIS})
+    start = dt.datetime(2026, 12, 4, 22, 0, tzinfo=UTC)
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw("test-a", title="test-Cars and Coffee Meetup", start_time=start, address=BROAD_ST),
+            make_raw("test-b", title="test-Cars and Coffee", start_time=start, address=BEALE_ST),
+        ],
+        geo,
+    )
+
+    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+
+
+async def test_recurring_listing_id_does_not_collapse_series(events_db_session):
+    day1 = make_raw(
+        "test-rec",
+        title="test-Weekly Cruise",
+        start_time=dt.datetime(2026, 12, 5, 22, 0, tzinfo=UTC),
+        source_event_id="series-1",
+        source_url="http://test-rec/event/weekly-cruise",
+    )
+    day2 = make_raw(
+        "test-rec",
+        title="test-Weekly Cruise",
+        start_time=dt.datetime(2026, 12, 12, 22, 0, tzinfo=UTC),
+        source_event_id="series-1",
+        source_url="http://test-rec/event/weekly-cruise",
+    )
+    stats = await upsert_raw_events(events_db_session, [day1, day2])
+
+    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    events = await _events(events_db_session)
+    assert len(events) == 2
+
+
+async def test_source_listing_match_survives_retitle(events_db_session):
+    original = make_raw(
+        "test-src",
+        title="test-Harbor Lights Festival",
+        start_time=dt.datetime(2026, 12, 6, 20, 0, tzinfo=UTC),
+        source_event_id="ev-9",
+    )
+    await upsert_raw_events(events_db_session, [original])
+
+    retitled = make_raw(
+        "test-src",
+        title="test-Harbor Lights Winter Festival",
+        start_time=dt.datetime(2026, 12, 6, 20, 0, tzinfo=UTC),
+        source_event_id="ev-9",
+    )
+    stats = await upsert_raw_events(events_db_session, [retitled])
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    # The retitled listing carries a new URL: both listing URLs remain.
+    assert {l.source_event_id for l in event.links} == {"ev-9"}
+
+
+# --- reconciliation pass ---
+
+
+def seed_event(title, start, venue=None, address=None, location=None, url_slug=None):
+    from app.events.dedup import canonical_key
+    from app.events.models import Event
+
+    slug = url_slug or title.lower().replace(" ", "-")
+    return Event(
+        canonical_key=canonical_key(title, start),
+        title=title,
+        description="",
+        starts_at=start,
+        venue_name=venue,
+        address=address,
+        location=location,
+        tags=[],
+        links=[
+            EventLink(
+                source_name="test-seed",
+                source_url=f"http://test-seed/event/{slug}",
+            )
+        ],
+    )
+
+
+async def test_reconcile_merges_preexisting_duplicates(events_db_session):
+    from app.events.ingest import reconcile_events
+
+    start = dt.datetime(2026, 12, 8, 22, 0, tzinfo=UTC)
+    keeper = seed_event("test-Sonic Machines Cruise In", start, venue="Sonic")
+    dupe = seed_event("test-Sonic Machines Sonic Night Cruise In", start, venue="Sonic")
+    events_db_session.add_all([keeper, dupe])
+    await events_db_session.commit()
+
+    merged = await reconcile_events(events_db_session)
+
+    assert merged >= 1  # shared DB may hold other genuine duplicates
+    (event,) = await _events(events_db_session)
+    assert event.title == "test-Sonic Machines Sonic Night Cruise In"  # longer title wins
+    assert len(event.links) == 2
+
+    # Idempotent: running again leaves the surviving test event untouched.
+    await reconcile_events(events_db_session)
+    (again,) = await _events(events_db_session)
+    assert again.id == event.id
+    assert len(again.links) == 2
+
+
+async def test_reconcile_merges_after_coordinates_appear(events_db_session):
+    from app.events.ingest import _point, reconcile_events
+
+    start = dt.datetime(2026, 12, 9, 22, 0, tzinfo=UTC)
+    a = seed_event("test-Riverfront Cruise In", start)
+    b = seed_event("test-Riverfront Sonic Cruise In", start)
+    events_db_session.add_all([a, b])
+    await events_db_session.commit()
+
+    await reconcile_events(events_db_session)
+    assert len(await _events(events_db_session)) == 2  # no location evidence yet
+
+    # A later geocode resolves both addresses to the same block.
+    a.location = _point(DOWNTOWN_CHATTANOOGA)
+    b.location = _point((35.0457, -85.3098))
+    await events_db_session.commit()
+
+    await reconcile_events(events_db_session)
+    (event,) = await _events(events_db_session)
+    assert len(event.links) == 2
+
+
+async def test_reconcile_merges_stale_key_exact_duplicates(events_db_session):
+    # The observed "Cars & Coffee Franklin" / "Cars and Coffee Franklin" rows:
+    # identical normalized titles (post stopword folding) in the same hour,
+    # but stored under stale pre-folding canonical keys and geocoded just
+    # past the fuzzy tier's distance gate. Key equality must merge them.
+    from app.events.ingest import _point, reconcile_events
+
+    start = dt.datetime(2026, 12, 10, 13, 0, tzinfo=UTC)
+    a = seed_event("test-Karts & Koffee Franklin", start, location=_point((35.9513, -86.8840)))
+    b = seed_event("test-Karts and Koffee Franklin", start, location=_point((35.9412, -86.8770)))
+    # Simulate the stale stored keys: distinct, as written before the change.
+    a.canonical_key = "stale-key-a"
+    b.canonical_key = "stale-key-b"
+    events_db_session.add_all([a, b])
+    await events_db_session.commit()
+
+    await reconcile_events(events_db_session)
+
+    (event,) = await _events(events_db_session)
+    assert len(event.links) == 2

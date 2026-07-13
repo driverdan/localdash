@@ -125,8 +125,13 @@ listing, keyed by `source_event_id` where available.
 ### D5: Post-ingest reconciliation pass heals stored duplicates
 
 After each ingest cycle (inside the same refresh serialization, like the geocode retry pass),
-a reconciliation pass loads upcoming events grouped into same-day buckets and applies the D2/D3
-matcher pairwise within each bucket. Matched pairs merge:
+a reconciliation pass loads upcoming events grouped into same-day buckets and compares them
+pairwise within each bucket: a pair merges when their canonical keys — recomputed under the
+current normalization, because stored keys go stale when normalization changes — are equal, or
+when the D2/D3 matcher accepts it. (Key equality is needed, not just the fuzzy matcher: the
+observed Franklin pair has identical normalized titles but one imprecisely geocoded address
+~0.8 mi from the other, past the fuzzy tier's distance gate — as fresh reports they would have
+merged at tier 2, so stored rows must merge on the same evidence.) Matched pairs merge:
 
 - Survivor: earlier-created row (lowest id) — stable across runs.
 - Title: the longer of the two titles (more informative; picks "Ooltewah Cruise In @ Cambridge
