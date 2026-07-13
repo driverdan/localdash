@@ -59,5 +59,5 @@
       `alembic upgrade head`, trigger `POST /api/v1/events/refresh`, and confirm against the
       live DB that the known duplicate pairs (5× Scenic City, Franklin, Ooltewah) collapsed
       and the events list shows no duplicates
-- [ ] 5.3 Update `openspec/specs/events/spec.md` sync via `/opsx:sync` (or archive flow) once
+- [x] 5.3 Update `openspec/specs/events/spec.md` sync via `/opsx:sync` (or archive flow) once
       implementation is verified
