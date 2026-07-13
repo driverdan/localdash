@@ -50,21 +50,26 @@ has no HTML parser in `pyproject.toml`.
 
 ## Decisions
 
-### 1. HTML scraping of listing + detail pages, JSON-LD first
+### 1. Listing-page-only scraping, driven by the listing's own `Event` JSON-LD
 
-**Decision:** `fetch()` GETs the listing page, extracts event detail URLs, then fetches each
-detail page (up to a budget) and extracts one `RawEvent` per page: prefer the schema.org `Event`
-JSON-LD block; fall back to The Events Calendar's HTML structure (title from `h1`/entry-title,
-`.tribe-events-*` date/venue elements) when JSON-LD is absent or unparseable.
+**Decision:** `fetch()` GETs only the listing page and extracts one `RawEvent` per schema.org
+`Event` node found in the page's `<script type="application/ld+json">` blocks (nodes may appear
+as a top-level object, a top-level array, or inside a Yoast `@graph`). No detail pages are
+fetched and there is no HTML-selector fallback — if the JSON-LD disappears, the source yields
+zero events and logs, the accepted failure mode for this fragile source.
 
-**Why:** the machine endpoints are 403-blocked, so scraping is the only route. JSON-LD carries
-structured `startDate`/`endDate`/`location.name`/`location.address` and is a published contract
-of the plugin — much less brittle than selectors. Detail pages are needed because the listing
-alone lacks reliable full dates/venues.
+**Why (revised at implementation time — the original plan was listing + detail pages):**
+fixture capture showed the listing page embeds a complete `Event` JSON-LD array for every
+listed event — names, venue names, full `PostalAddress` blocks, and *DST-correct* offsets
+(`-04:00` summer, `-05:00` November). The detail pages' own JSON-LD, by contrast, was observed
+carrying a wrong offset (`-05:00` on an August event, i.e. EST during EDT), which would shift
+the UTC hour in `canonical_key` and break cross-source dedup with the iCal feed. Listing-only is
+therefore simultaneously: more correct (right offsets), 26× politer (1 request/run instead of up
+to ~26), and less fragile (one page's markup to depend on, and JSON-LD rather than selectors).
 
-**Alternative considered:** listing-page-only scraping (one request per run). Rejected: dates on
-listing cards are abbreviated/ambiguous and addresses absent, which would poison
-`canonical_key` matching and geocoding.
+**Alternative considered:** the originally-designed listing → detail-page crawl with HTML
+fallback. Rejected once the facts were in: strictly more requests, more code, and demonstrably
+worse timestamps.
 
 ### 2. Parsing dependency: `beautifulsoup4`
 
@@ -86,13 +91,13 @@ contents found via BS4 — no extra dependency (e.g. `extruct`) is warranted for
   constant. Rationale recorded in the module docstring: the site 403s generic UAs on its
   human-facing pages; this mirrors the hard-won ChattNews/TownNews precedent already in this
   codebase (`app/news/registry.py`).
-- **Request budget:** cap detail-page fetches per run (constant, e.g. 25) and sleep a fixed
-  delay (~1–2 s) between requests via `asyncio.sleep`. One listing page + ≤ budget detail pages
-  per hourly refresh is a trivially polite load.
+- **Request budget:** exactly one listing-page GET per refresh cycle — no delays or budget
+  constants needed.
 - **Timeouts:** follow the existing source style (`httpx.AsyncClient(timeout=..., follow_redirects=True)`).
-- **Per-event resilience:** a detail page that fails to fetch or parse is logged and skipped;
-  the run still returns the events that did parse. A listing-page failure raises, and
-  `run_sources()`'s existing isolation confines it to this source.
+- **Per-event resilience:** an `Event` node that fails to parse (no usable start date, malformed
+  fields) is logged and skipped; the run still returns the events that did parse. A
+  listing-page fetch failure raises, and `run_sources()`'s existing isolation confines it to
+  this source.
 - **Normal source (no flag):** CarCruiseFinder is registered unconditionally in `build_sources()`,
   matching the iCal and Meetup sources (neither of which has a per-source `*_enabled` flag
   either — iCal is gated by its feed list, Meetup by its token, CarCruiseFinder by neither).
@@ -100,23 +105,23 @@ contents found via BS4 — no extra dependency (e.g. `extruct`) is warranted for
   `run_sources()`'s per-source failure isolation rather than a default-off switch. If the
   source breaks, it contributes zero events and logs; the code can be reverted to remove it.
 
-### 4. Field mapping (JSON-LD path)
+### 4. Field mapping (listing-page `Event` JSON-LD)
 
 | RawEvent field    | JSON-LD `Event`                                             |
 |-------------------|-------------------------------------------------------------|
 | `title`           | `name` (HTML-entity-decoded)                                 |
-| `description`     | `description` (tags stripped, whitespace collapsed)          |
+| `description`     | `description` (tags stripped, entities decoded, whitespace collapsed) |
 | `start_time`      | `startDate` (ISO 8601; naive values assumed America/New_York, then → UTC) |
 | `end_time`        | `endDate`, same handling; `None` if absent                   |
 | `venue_name`      | `location.name`                                              |
-| `address`         | `location.address` (`PostalAddress` parts joined: street, locality, region, postal) |
-| `source_url`      | the detail page URL (canonical `url` if present)             |
-| `source_event_id` | the detail page URL slug (stable per event on this site)     |
+| `address`         | `location.address` (`PostalAddress` parts joined: street, locality, region, postal, country) |
+| `source_url`      | the node's `url` (the event detail page; falls back to the listing URL) |
+| `source_event_id` | the detail-URL path slug (stable per event on this site)     |
 | `source_name`     | `"CarCruiseFinder"` (constant — one link per event via ingest's `(event, source_name)` uniqueness) |
 
 Events with no parseable start date are skipped (matches the iCal source's rule and the events
-spec's "sources supply addresses, not coordinates" — no coordinates are emitted even if JSON-LD
-carries `geo`; ingest's geocoder owns coordinates).
+spec's "sources supply addresses, not coordinates" — no coordinates are emitted even though this
+JSON-LD carries `location.geo`; ingest's geocoder owns coordinates).
 
 **Timezone note:** The Events Calendar usually emits offset-qualified ISO dates; when the offset
 is missing, assume the venue-local zone (America/New_York for Chattanooga) rather than UTC,
@@ -125,30 +130,34 @@ cross-source dedup with the iCal feed.
 
 ### 5. Structure for testability
 
-Mirror `ICalSource`: network in `fetch()`, parsing in pure functions —
-`parse_listing(html) -> list[str]` (detail URLs) and `parse_detail(html, url) -> RawEvent | None`
-(JSON-LD first, selector fallback inside). Tests exercise the pure functions against fixture
-files saved under `tests/fixtures/carcruisefinder/` (one listing page snippet, one JSON-LD
-detail page, one no-JSON-LD detail page, one undated/broken page); no network in tests.
+Mirror `ICalSource`: network in `fetch()`, parsing in a pure function —
+`parse_listing(html, listing_url) -> list[RawEvent]` (JSON-LD block discovery via BS4, node
+extraction, per-node mapping with skip-on-failure). Tests exercise the pure function against
+fixture files saved under `tests/fixtures/carcruisefinder/` (a trimmed real listing snippet
+with its three JSON-LD blocks, a no-JSON-LD variant, and an undated-event variant); no network
+in tests.
 
 ## Risks / Trade-offs
 
 - **[Cloudflare starts 403-ing scraper traffic]** → Source fails, `run_sources()` logs and
   continues; other sources unaffected. The source contributes zero events until the block
   lifts or the code is reverted; no escalation of evasion.
-- **[HTML/theme change breaks selectors]** → JSON-LD-first extraction minimizes exposure; the
-  selector fallback is best-effort. Breakage manifests as zero events + logs, not corrupt data.
-- **[ToS/politeness]** → Default-off, ≤ ~26 requests/hour with delays, no blocked-endpoint
-  circumvention. The browser UA is required by the site for pages it serves to humans; we do the
-  minimum that works.
+- **[Theme/SEO-plugin change removes the listing JSON-LD]** → Source yields zero events + logs;
+  no corrupt data. There is deliberately no selector fallback to maintain against a moving
+  target.
+- **[ToS/politeness]** → One request per hourly refresh, no blocked-endpoint circumvention. The
+  browser UA is required by the site for pages it serves to humans; we do the minimum that
+  works.
 - **[Near-duplicate events vs. carsandcoffeeevents.com iCal feed]** → Expected overlap merges
   via `canonical_key(title, start_time)` (one event, one link per source). Slightly different
   titles across sites create near-duplicates — accepted; dedup improvements out of scope.
 - **[Naive-datetime timezone guess wrong]** → Worst case is a shifted start hour and a missed
   cross-source merge (two listings instead of one) — annoying, not corrupting. Fixture tests pin
-  the chosen behavior.
+  the chosen behavior. (Observed listing JSON-LD is offset-qualified and DST-correct, so this
+  path is a safety net.)
 - **[Listing pagination ignored]** → Far-future events beyond page one may be missed until they
-  reach page one; acceptable for an hourly-refresh experimental source.
+  reach page one; acceptable for an hourly-refresh experimental source (observed volume: 19
+  events on one page).
 
 ## Migration Plan
 
@@ -159,7 +168,6 @@ normally-ingested events, which are retained by design).
 
 ## Open Questions
 
-- Exact detail-page markup fallback selectors must be confirmed against saved fixture HTML at
-  implementation time (one or two polite requests to capture fixtures; no heavy crawling).
-- Whether the listing paginates for Chattanooga's volume at all — if it's one page, the budget
-  constant is moot in practice.
+None remaining — both original questions were resolved during fixture capture: the listing's
+own JSON-LD made detail pages (and their fallback selectors) unnecessary, and Chattanooga's
+volume fits on one listing page (19 events).
