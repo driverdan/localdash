@@ -71,7 +71,11 @@ class Event(Base):
 
 class EventLink(Base):
     __tablename__ = "event_links"
-    __table_args__ = (UniqueConstraint("event_id", "source_name", name="uq_event_link_source"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id", "source_name", "source_url", name="uq_event_link_source_url"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     event_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("events.id", ondelete="CASCADE"))

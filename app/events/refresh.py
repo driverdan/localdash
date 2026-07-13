@@ -15,7 +15,7 @@ import logging
 from app.config import get_settings
 from app.db import SessionLocal
 from app.events.geocoding import NominatimGeocoder
-from app.events.ingest import retry_failed_geocodes, run_sources
+from app.events.ingest import reconcile_events, retry_failed_geocodes, run_sources
 from app.events.sources import build_sources
 
 log = logging.getLogger("localdash.events")
@@ -42,10 +42,13 @@ async def refresh() -> dict:
                 retry_hours=settings.events_geocode_retry_hours,
                 batch=settings.events_geocode_retry_batch,
             )
+            # After the retry pass so freshly resolved coordinates can
+            # satisfy the matcher's location gate this same cycle.
+            stats["reconciled"] = await reconcile_events(session)
         log.info(
             "events refresh done: %d sources, %d created, %d merged, %d skipped far, "
-            "%d geocodes retried (%d resolved)",
+            "%d geocodes retried (%d resolved), %d reconciled",
             len(sources), stats["created"], stats["merged"], stats["skipped_far"],
-            stats["retried"], stats["resolved"],
+            stats["retried"], stats["resolved"], stats["reconciled"],
         )
         return stats
