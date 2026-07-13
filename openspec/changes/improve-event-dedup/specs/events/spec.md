@@ -40,8 +40,10 @@ source event id) rather than replaced. A failure in one source SHALL NOT abort i
 the others.
 
 After each ingest cycle, and under the same refresh serialization, a reconciliation pass
-SHALL apply the tier-3 matcher pairwise to stored upcoming events within the same UTC day and
-merge every matching pair: the earlier-created row survives, the longer title is kept, links
+SHALL compare stored upcoming events within the same UTC day pairwise and merge a pair when
+their canonical keys — recomputed under the current normalization, since stored keys predate
+normalization changes — are equal (the same evidence that merges fresh reports at tier 2), or
+when the tier-3 matcher accepts the pair. On a merge the earlier-created row survives, the longer title is kept, links
 and tags are unioned, missing fields (description, venue name, address, end time, location)
 are backfilled from the removed row, and the removed row is deleted. The pass SHALL be
 idempotent and its merge count SHALL be reported in the refresh result, so duplicates already
@@ -106,6 +108,12 @@ geocode retry resolves coordinates) — heal without manual intervention.
 - **WHEN** two stored same-day events with matching titles were kept separate for lack of
   location evidence and a later geocode resolves their addresses to within half a mile
 - **THEN** the next refresh cycle's reconciliation pass merges them
+
+#### Scenario: Reconciliation merges stale-key exact duplicates
+- **WHEN** two stored events' titles normalize identically under the current normalization
+  with starts in the same UTC hour, but their stored canonical keys predate that
+  normalization and their locations do not agree (e.g. one address geocoded imprecisely)
+- **THEN** the reconciliation pass merges them on recomputed key equality alone
 
 ### Requirement: CarCruiseFinder scraper source
 The system SHALL provide a CarCruiseFinder source that scrapes the Chattanooga tag
