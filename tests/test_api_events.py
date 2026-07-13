@@ -107,8 +107,11 @@ async def test_tags_endpoint_lists_known_tags_sorted(events_db_session):
 
 
 async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
-    # With iCal feeds explicitly cleared (and no Meetup token), a refresh
-    # ingests nothing. Retry disabled so the pass never geocodes real cached
+    # Endpoint contract only: an empty registry refresh reports zero counts.
+    # The registry is pinned empty because the always-on CarCruiseFinder
+    # scraper would otherwise hit the live site here (registry behavior is
+    # covered in test_events_meetup / test_events_carcruisefinder), and the
+    # geocode retry pass is disabled so it never geocodes real cached
     # failures over the network.
     from app.config import Settings
 
@@ -116,6 +119,7 @@ async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
         "app.events.refresh.get_settings",
         lambda: Settings(_env_file=None, events_ical_feeds="", events_geocode_retry_hours=0),
     )
+    monkeypatch.setattr("app.events.refresh.build_sources", lambda settings: [])
     result = await refresh()
     assert result == {
         "created": 0,

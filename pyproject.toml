@@ -21,6 +21,7 @@ dependencies = [
     "pydantic-settings>=2.2",
     "feedparser>=6.0",
     "icalendar>=5.0",
+    "beautifulsoup4>=4.12",       # CarCruiseFinder scraper (stdlib html.parser backend)
 ]
 
 [project.optional-dependencies]

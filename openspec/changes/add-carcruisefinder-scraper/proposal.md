@@ -15,11 +15,15 @@ alongside iCal and Meetup, with no per-source config flag.
 
 - Add a new `EventSource` subclass, `CarCruiseFinderSource`
   (`app/events/sources/carcruisefinder.py`), that scrapes the CarCruiseFinder Chattanooga tag
-  listing page: parse the listing HTML for event detail links, fetch each detail page, prefer
-  schema.org JSON-LD (typical for The Events Calendar plugin), and fall back to HTML selectors.
+  listing page: the listing page embeds complete schema.org `Event` JSON-LD for every listed
+  event (verified at implementation time: names, DST-correct start/end offsets, venue names,
+  full postal addresses), so the source parses that single page and fetches no detail pages.
+  (Detail pages were the original plan, but their own JSON-LD carries *incorrect* UTC offsets —
+  e.g. `-05:00` on August dates — which would corrupt cross-source dedup; the listing's JSON-LD
+  is both sufficient and more correct.)
 - Requests use a real browser-like User-Agent (the site returns Cloudflare 403 to generic/short
-  UAs — demonstrably required, not evasion for its own sake), a low request rate with polite
-  inter-request delays, and a bounded number of detail-page fetches per run.
+  UAs — demonstrably required, not evasion for its own sake). One request per refresh cycle —
+  the politest possible footprint.
 - Register the source unconditionally in `build_sources()` (`app/events/sources/__init__.py`)
   alongside the iCal and Meetup sources — a normal source with no per-source config flag
   (fragility is contained by `run_sources()`'s existing per-source failure isolation).
@@ -44,9 +48,10 @@ interface, ingest, storage, API, and frontend are unchanged._
 
 - `events`: add a requirement for the CarCruiseFinder scraper source — registered
   unconditionally as a normal event source (no per-source config flag, matching the iCal and
-  Meetup sources' treatment), browser-UA + polite scraping behavior, JSON-LD-first/HTML-fallback
-  extraction, and failure isolation (a broken scrape must not affect other sources — already
-  guaranteed by `run_sources()`, restated as a requirement for this fragile source).
+  Meetup sources' treatment), browser-UA + single-listing-page polite scraping, extraction from
+  the listing page's `Event` JSON-LD, and failure isolation (a broken scrape must not affect
+  other sources — already guaranteed by `run_sources()`, restated as a requirement for this
+  fragile source).
 
 ## Impact
 

@@ -84,11 +84,18 @@ def test_build_sources_creates_one_ical_source_per_url():
     sources = build_sources(
         _settings(events_ical_feeds="https://a.example/cal.ics, https://b.example/cal.ics,")
     )
-    assert [s.url for s in sources] == ["https://a.example/cal.ics", "https://b.example/cal.ics"]
+    ical = [s for s in sources if isinstance(s, ICalSource)]
+    assert [s.url for s in ical] == ["https://a.example/cal.ics", "https://b.example/cal.ics"]
 
 
-def test_build_sources_empty_when_nothing_configured():
-    assert build_sources(_settings()) == []
+def test_build_sources_leaves_only_carcruisefinder_when_nothing_configured():
+    # The CarCruiseFinder scraper has no config gate; emptying the configurable
+    # sources leaves exactly it.
+    from app.events.sources.carcruisefinder import CarCruiseFinderSource
+
+    sources = build_sources(_settings())
+    assert len(sources) == 1
+    assert isinstance(sources[0], CarCruiseFinderSource)
 
 
 def test_build_sources_default_registers_tennessee_car_feed():
