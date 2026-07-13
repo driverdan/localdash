@@ -83,4 +83,13 @@
       </select>
     </label>
   {/if}
+  <button
+    class="reset"
+    onclick={() => {
+      ts.resetFilters();
+      loadActive(); // refetch: previously-hidden sources need loading, closed drop out
+    }}
+  >
+    Reset filters
+  </button>
 </section>

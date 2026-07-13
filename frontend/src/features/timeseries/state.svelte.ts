@@ -1,7 +1,15 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { asBool, asNumber, asStringArray, loadPrefs, persistPrefs } from "../../lib/prefs.svelte";
 import type { ConnectionState } from "../../lib/ws";
 import { SOURCES, cfgFor, isClosed } from "./sources";
 import type { EntityId, TrackedFeature, TrackPoint } from "./types";
+
+const PREFS_KEY = "localdash.map";
+
+const allSourceKeys = (): string[] => Object.keys(SOURCES);
+const allCategories = (): string[] => [
+  ...new Set(Object.values(SOURCES).flatMap((s) => s.categories)),
+];
 
 // The feature's reactive state. Raw inputs are $state; everything the old app
 // maintained by hand (visible set, dropdown options, category union) is $derived,
@@ -10,9 +18,9 @@ class TimeseriesState {
   /** entity id -> GeoJSON feature. Values are replaced (never mutated) on update. */
   features = new SvelteMap<EntityId, TrackedFeature>();
 
-  selectedSources = new SvelteSet<string>(Object.keys(SOURCES));
+  selectedSources = new SvelteSet<string>(allSourceKeys());
   /** Enabled categories; defaults to every category of every selected source. */
-  categories = new SvelteSet<string>(Object.values(SOURCES).flatMap((s) => s.categories));
+  categories = new SvelteSet<string>(allCategories());
   status = $state("");
   jurisdiction = $state("");
   search = $state("");
@@ -26,6 +34,44 @@ class TimeseriesState {
   detailTrack = $state<TrackPoint[] | null>(null);
   /** One-shot map focus request (set by the table, consumed by MapView). */
   flyToRequest = $state<{ lat: number; lon: number } | null>(null);
+
+  // Saved preferences apply synchronously here, before the persist effect below
+  // is registered, so startup never writes a key. A saved list is an explicit
+  // allowlist: it replaces the all-on default, intersected with currently-known
+  // keys (stale entries dropped, sources/categories added later start unchecked).
+  constructor() {
+    const saved = loadPrefs(PREFS_KEY);
+    if (!saved) return;
+    const sources = asStringArray(saved.sources);
+    if (sources) {
+      this.selectedSources.clear();
+      for (const k of sources) if (k in SOURCES) this.selectedSources.add(k);
+    }
+    const cats = asStringArray(saved.categories);
+    if (cats) {
+      const known = new Set(allCategories());
+      this.categories.clear();
+      for (const c of cats) if (known.has(c)) this.categories.add(c);
+    }
+    this.showClosed = asBool(saved.showClosed) ?? this.showClosed;
+    this.closedWindow = asNumber(saved.closedWindow) ?? this.closedWindow;
+  }
+
+  /**
+   * Back to dynamic defaults: everything on, closed hidden, and the stored key
+   * deleted (not re-saved), so future sources default to checked again.
+   * Callers that had showClosed on must refetch (see FilterPanel).
+   */
+  resetFilters(): void {
+    persister.resetTo(() => {
+      this.selectedSources.clear();
+      for (const k of allSourceKeys()) this.selectedSources.add(k);
+      this.categories.clear();
+      for (const c of allCategories()) this.categories.add(c);
+      this.showClosed = false;
+      this.closedWindow = 60;
+    });
+  }
 
   /** Categories across the currently-selected sources, de-duped by name. */
   selectedCategoryList = $derived.by(() => {
@@ -86,6 +132,13 @@ class TimeseriesState {
 }
 
 export const ts = new TimeseriesState();
+
+const persister = persistPrefs(PREFS_KEY, () => ({
+  sources: [...ts.selectedSources],
+  categories: [...ts.categories],
+  showClosed: ts.showClosed,
+  closedWindow: ts.closedWindow,
+}));
 
 /** Read-only view of the live-connection state, for the app shell's status bar. */
 export const connectionState = (): ConnectionState => ts.connection;
