@@ -32,7 +32,9 @@
     <p class="summary">{item.description}</p>
   {/if}
   <div class="links">
-    {#each item.links as link (link.source_name)}
+    <!-- An event merged from duplicate listings carries several links from
+         one source, so the source name alone is not a unique key. -->
+    {#each item.links as link (`${link.source_name}|${link.source_url}`)}
       <a href={link.source_url} target="_blank" rel="noopener">{link.source_name} ↗</a>
     {/each}
   </div>
