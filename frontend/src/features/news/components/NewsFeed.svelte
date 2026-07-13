@@ -23,7 +23,7 @@
   }
 </script>
 
-<div class="news-page">
+<div id="news">
   <div class="toolbar">
     <label>
       Window
@@ -66,49 +66,3 @@
 
   <SourcesFooter />
 </div>
-
-<style>
-  /* The header is 44px; the page owns its own scroll like the map owns #layout. */
-  .news-page {
-    height: calc(100vh - 44px);
-    overflow-y: auto;
-    background: #f7f9fb;
-  }
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 16px 8px;
-    font-size: 13px;
-  }
-  .toolbar label { font-weight: 600; color: #44505f; }
-  .toolbar label.inline { display: flex; align-items: center; gap: 5px; }
-  .toolbar select,
-  .toolbar button {
-    font: inherit;
-    color: #1b1f24;
-    background: #fff;
-    border: 1px solid #cfd6df;
-    border-radius: 6px;
-    padding: 5px 9px;
-    cursor: pointer;
-  }
-  .toolbar button:hover:enabled { border-color: #0071ce; }
-  .toolbar button:disabled { opacity: 0.6; cursor: default; }
-  .toolbar .status { color: #5a6573; font-size: 12px; }
-  main { max-width: 46rem; margin: 0 auto; padding: 4px 16px 24px; }
-  .section-head {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #0071ce;
-    border-bottom: 1px solid #dde2e8;
-    padding-bottom: 4px;
-    margin: 26px 0 2px;
-  }
-  .notice { text-align: center; color: #5a6573; padding: 48px 0; }
-  .notice.error { color: #b4552d; }
-</style>

@@ -37,7 +37,7 @@
   }
 </script>
 
-<div class="events-page">
+<div id="events">
   <div class="toolbar">
     <input
       type="search"
@@ -92,65 +92,3 @@
     {/if}
   </main>
 </div>
-
-<style>
-  /* The header is 44px; the page owns its own scroll like the news page. */
-  .events-page {
-    height: calc(100vh - 44px);
-    overflow-y: auto;
-    background: #f7f9fb;
-  }
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 16px 8px;
-    font-size: 13px;
-  }
-  .toolbar label { font-weight: 600; color: #44505f; }
-  .toolbar input[type="search"],
-  .toolbar select,
-  .toolbar button {
-    font: inherit;
-    color: #1b1f24;
-    background: #fff;
-    border: 1px solid #cfd6df;
-    border-radius: 6px;
-    padding: 5px 9px;
-  }
-  .toolbar input[type="search"] { width: 220px; }
-  .toolbar select,
-  .toolbar button { cursor: pointer; }
-  .toolbar button:hover:enabled { border-color: #0071ce; }
-  .toolbar button:disabled { opacity: 0.6; cursor: default; }
-  .toolbar .status { color: #5a6573; font-size: 12px; }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    padding: 0 16px 4px;
-  }
-  .chip {
-    font: inherit;
-    font-size: 12px;
-    color: #44505f;
-    background: #fff;
-    border: 1px solid #cfd6df;
-    border-radius: 999px;
-    padding: 3px 12px;
-    cursor: pointer;
-  }
-  .chip:hover { border-color: #0071ce; }
-  .chip.active {
-    background: #0071ce;
-    border-color: #0071ce;
-    color: #fff;
-    font-weight: 600;
-  }
-  main { max-width: 46rem; margin: 0 auto; padding: 4px 16px 24px; }
-  .notice { text-align: center; color: #5a6573; padding: 48px 0; }
-  .notice.error { color: #b4552d; }
-</style>
