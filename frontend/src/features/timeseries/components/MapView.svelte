@@ -5,7 +5,8 @@
   import "leaflet/dist/leaflet.css";
   import "leaflet.markercluster/dist/MarkerCluster.css";
   import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-  import { fetchConfig } from "../../../lib/api";
+  import { fetchConfig, type AppConfig } from "../../../lib/api";
+  import { activeTheme } from "../../../lib/theme.svelte";
   import { esc, fmt } from "../../../lib/format";
   import { EPB_STATUS_COLORS, cfgFor, featureColor, isClosed } from "../sources";
   import { ts } from "../state.svelte";
@@ -15,17 +16,24 @@
 
   let mapEl = $state<HTMLElement>();
   let ready = $state(false);
+  let cfg = $state<AppConfig>();
   let map: L.Map | undefined;
   let cluster: L.MarkerClusterGroup | undefined;
   let trackLayer: L.LayerGroup | undefined;
+  let tileLayer: L.TileLayer | undefined;
 
   onMount(() => {
     let disposed = false;
     (async () => {
-      const cfg = await fetchConfig();
+      const loaded = await fetchConfig();
       if (disposed) return;
-      map = L.map(mapEl!).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
-      L.tileLayer(cfg.tile_url, { attribution: cfg.tile_attribution, maxZoom: 18 }).addTo(map);
+      cfg = loaded;
+      // maxZoom lives on the map (not only the tile layer) because the basemap is
+      // added later, in the theme effect below — without it Leaflet throws
+      // "Map has no maxZoom specified" when the cluster/markers initialise here.
+      map = L.map(mapEl!, { maxZoom: 18 }).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
+      // Basemap follows the active theme (see the effect below); Leaflet panes
+      // keep tiles under the markers regardless of add order.
       // Only group markers that share the same location (coincident points); every
       // distinct incident is shown individually. A 1px radius means nothing clusters
       // unless the points overlap, and identical coordinates can still be spiderfied.
@@ -39,6 +47,19 @@
       disposed = true;
       map?.remove();
     };
+  });
+
+  // Basemap follows the active theme: the theme's tile override when the registry
+  // declares one, else the server-configured tile_url (the default theme's
+  // basemap). Re-runs when the theme changes while the map is open, swapping the
+  // Leaflet tile layer in place with no reload.
+  $effect(() => {
+    if (!ready || !map || !cfg) return;
+    const theme = activeTheme();
+    const url = theme.tileUrl ?? cfg.tile_url;
+    const attribution = theme.tileAttribution ?? cfg.tile_attribution;
+    if (tileLayer) map.removeLayer(tileLayer);
+    tileLayer = L.tileLayer(url, { attribution, maxZoom: 18 }).addTo(map);
   });
 
   // EPB-style status legend (matches the outage-status marker colors).

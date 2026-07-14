@@ -1,5 +1,6 @@
 <script lang="ts">
   import { currentPath, navigate } from "./lib/router.svelte";
+  import { themes, currentTheme, applyTheme } from "./lib/theme.svelte";
   import { TimeseriesDashboard, connectionState } from "./features/timeseries";
   import { NewsFeed } from "./features/news";
   import { EventsPage } from "./features/events";
@@ -37,6 +38,14 @@
   {#if onMap}
     <span class="status-bar {klass}">{label}</span>
   {/if}
+  <label class="theme-switcher">
+    Theme
+    <select value={currentTheme()} onchange={(e) => applyTheme(e.currentTarget.value)}>
+      {#each themes as theme (theme.id)}
+        <option value={theme.id}>{theme.label}</option>
+      {/each}
+    </select>
+  </label>
 </header>
 
 {#if onMap}
