@@ -6,6 +6,7 @@
   import "leaflet.markercluster/dist/MarkerCluster.css";
   import "leaflet.markercluster/dist/MarkerCluster.Default.css";
   import { fetchConfig, type AppConfig } from "../../../lib/api";
+  import { asNumber, loadPrefs, savePrefs } from "../../../lib/prefs.svelte";
   import { activeTheme } from "../../../lib/theme.svelte";
   import { esc, fmt } from "../../../lib/format";
   import {
@@ -22,8 +23,27 @@
 
   const DEFAULT_VIEW = {
     center: [35.0456, -85.3097] as [number, number],
-    zoom: 11,
+    zoom: 12,
   }; // Chattanooga, TN area
+
+  // Persisted map viewport. Deliberately a separate localStorage key from the
+  // `localdash.map` filter blob (owned by state.svelte's persistPrefs): that blob's
+  // key-presence flips filtering into allowlist mode, so folding the viewport in
+  // would make merely panning the map silently change future source-filtering.
+  const VIEW_PREFS_KEY = "localdash.map.view";
+
+  // Restore the saved viewport, or null when there is none / it is unusable. All
+  // three fields must be finite numbers — a partially valid record is treated as
+  // no record, so we never open a half-restored (e.g. wrong-zoom) view.
+  function loadSavedView(): { center: [number, number]; zoom: number } | null {
+    const saved = loadPrefs(VIEW_PREFS_KEY);
+    if (!saved) return null;
+    const zoom = asNumber(saved.zoom);
+    const lat = asNumber(saved.lat);
+    const lng = asNumber(saved.lng);
+    if (zoom == null || lat == null || lng == null) return null;
+    return { center: [lat, lng], zoom };
+  }
 
   let mapEl = $state<HTMLElement>();
   let ready = $state(false);
@@ -42,10 +62,9 @@
       // maxZoom lives on the map (not only the tile layer) because the basemap is
       // added later, in the theme effect below — without it Leaflet throws
       // "Map has no maxZoom specified" when the cluster/markers initialise here.
-      map = L.map(mapEl!, { maxZoom: 18 }).setView(
-        DEFAULT_VIEW.center,
-        DEFAULT_VIEW.zoom,
-      );
+      // Resume the user's last viewport when saved; otherwise the default view.
+      const view = loadSavedView() ?? DEFAULT_VIEW;
+      map = L.map(mapEl!, { maxZoom: 18 }).setView(view.center, view.zoom);
       // Basemap follows the active theme (see the effect below); Leaflet panes
       // keep tiles under the markers regardless of add order.
       // Only group markers that share the same location (coincident points); every
@@ -68,11 +87,15 @@
     };
   });
 
-  // Push the current zoom + center coordinates into the shell debug store.
+  // Push the current zoom + center coordinates into the shell debug store, and
+  // persist them so a reload resumes this viewport (see VIEW_PREFS_KEY). Fires on
+  // init and on every moveend/zoomend.
   function publishViewport() {
     if (!map) return;
     const c = map.getCenter();
-    debug.setMapViewport({ zoom: map.getZoom(), lat: c.lat, lng: c.lng });
+    const viewport = { zoom: map.getZoom(), lat: c.lat, lng: c.lng };
+    debug.setMapViewport(viewport);
+    savePrefs(VIEW_PREFS_KEY, viewport);
   }
 
   // Basemap follows the active theme: the theme's tile override when the registry
