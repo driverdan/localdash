@@ -133,3 +133,103 @@ th {
   font-size: 11px;
   text-transform: uppercase;
 }
+
+/* ---- Debug overlay (shell chrome) ------------------------------------------
+ * The π toggle button and its route-aware modal (DebugPanel, mounted in
+ * App.svelte). Desktop: button floats bottom-right; the modal opens top-right of
+ * the main body, offset LEFT of the incident detail panel (which is fixed at
+ * top:60px right:16px width:360px) so both can be open without overlapping.
+ * Mobile (<=640px): the button moves to the bottom-center of the page and the
+ * modal spans the width. z-index sits in the detail panel's band (1000); the
+ * button rides just above so it stays clickable near the map's bottom-right
+ * legend / attribution. */
+.debug-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1100;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.debug-toggle:hover {
+  background: #000;
+}
+
+.debug-modal {
+  position: fixed;
+  top: 60px;
+  right: 392px; /* clears the 360px detail panel (right:16px) + a 16px gap */
+  width: 260px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #cfd6df;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+  z-index: 1000;
+}
+.debug-modal h3 {
+  margin: 0 24px 8px 0;
+}
+.debug-modal h4 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a6573;
+}
+.debug-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #888;
+}
+.debug-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+.debug-kv dt {
+  color: #5a6573;
+  font-weight: 600;
+}
+.debug-kv dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.debug-empty {
+  margin: 0;
+  font-size: 12px;
+  color: #5a6573;
+}
+
+@media (max-width: 640px) {
+  .debug-toggle {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 12px;
+  }
+  .debug-modal {
+    top: 52px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}

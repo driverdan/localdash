@@ -16,6 +16,7 @@
     isClosed,
   } from "../sources";
   import { iconSvg } from "../../../lib/icons";
+  import { debug } from "../../../lib/debug.svelte";
   import { ts } from "../state.svelte";
   import type { EntityId, TrackedFeature } from "../types";
 
@@ -54,13 +55,25 @@
       map.addLayer(cluster);
       trackLayer = L.layerGroup().addTo(map);
       addStatusLegend(map);
+      // Mirror the live viewport out to the shell debug store (read by DebugPanel).
+      // Seed once on init, then keep it in sync on pan (moveend) and zoom (zoomend).
+      publishViewport();
+      map.on("moveend zoomend", publishViewport);
       ready = true;
     })();
     return () => {
       disposed = true;
+      debug.clearMapViewport();
       map?.remove();
     };
   });
+
+  // Push the current zoom + center coordinates into the shell debug store.
+  function publishViewport() {
+    if (!map) return;
+    const c = map.getCenter();
+    debug.setMapViewport({ zoom: map.getZoom(), lat: c.lat, lng: c.lng });
+  }
 
   // Basemap follows the active theme: the theme's tile override when the registry
   // declares one, else the server-configured tile_url (the default theme's

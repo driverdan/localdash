@@ -123,6 +123,28 @@
   color: #8fa0b0;
 }
 
+/* ---- Debug overlay --------------------------------------------------------- */
+[data-theme="dark"] .debug-toggle {
+  background: #1e2632;
+  color: #e4e9ef;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+[data-theme="dark"] .debug-toggle:hover {
+  background: #263140;
+}
+[data-theme="dark"] .debug-modal {
+  background: #171d25;
+  border-color: #33404e;
+  color: #e4e9ef;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .debug-modal h4,
+[data-theme="dark"] .debug-kv dt,
+[data-theme="dark"] .debug-empty,
+[data-theme="dark"] .debug-close {
+  color: #8fa0b0;
+}
+
 /* Leaflet popups (default white) so they don't glare under the dark basemap. */
 [data-theme="dark"] .leaflet-popup-content-wrapper,
 [data-theme="dark"] .leaflet-popup-tip {
