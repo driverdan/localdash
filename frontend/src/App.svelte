@@ -19,7 +19,11 @@
         : "disconnected — retrying",
   );
   const klass = $derived(
-    connectionState() === "live" ? "ok" : connectionState() === "connecting" ? "" : "err",
+    connectionState() === "live"
+      ? "ok"
+      : connectionState() === "connecting"
+        ? ""
+        : "err",
   );
 
   function go(event: MouseEvent, to: string) {
@@ -33,14 +37,19 @@
   <nav>
     <a href="/" class:active={onNews} onclick={(e) => go(e, "/")}>News</a>
     <a href="/map" class:active={onMap} onclick={(e) => go(e, "/map")}>Map</a>
-    <a href="/events" class:active={onEvents} onclick={(e) => go(e, "/events")}>Events</a>
+    <a href="/events" class:active={onEvents} onclick={(e) => go(e, "/events")}
+      >Events</a
+    >
   </nav>
   {#if onMap}
     <span class="status-bar {klass}">{label}</span>
   {/if}
   <label class="theme-switcher">
     Theme
-    <select value={currentTheme()} onchange={(e) => applyTheme(e.currentTarget.value)}>
+    <select
+      value={currentTheme()}
+      onchange={(e) => applyTheme(e.currentTarget.value)}
+    >
       {#each themes as theme (theme.id)}
         <option value={theme.id}>{theme.label}</option>
       {/each}
@@ -56,6 +65,8 @@
   <EventsPage />
 {:else}
   <p class="not-found">
-    Page not found — <a href="/" onclick={(e) => go(e, "/")}>go to the news feed</a>.
+    Page not found — <a href="/" onclick={(e) => go(e, "/")}
+      >go to the news feed</a
+    >.
   </p>
 {/if}

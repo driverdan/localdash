@@ -3,6 +3,7 @@
 Each tick runs fetch -> normalize -> ingest -> broadcast, and records last-run
 telemetry on the source row. Also used by the manual /refresh endpoint.
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,9 +16,9 @@ from app.collectors import build_collectors
 from app.collectors.base import BaseCollector
 from app.config import get_settings
 from app.db import SessionLocal
+from app.events.refresh import refresh as events_refresh
 from app.ingest import ingest
 from app.models import Source
-from app.events.refresh import refresh as events_refresh
 from app.news.refresh import refresh as news_refresh
 from app.ws import manager
 

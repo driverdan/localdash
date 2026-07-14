@@ -10,6 +10,7 @@ behavior that must not regress:
   * dedup is (source_id, guid) with an upsert that only upgrades a generic
     'news' category to a specific section, never the reverse.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -128,9 +129,9 @@ async def fetch_all(session: AsyncSession) -> dict:
     for feed, source_slug in feeds:
         label = f"{source_slug}/{feed.category}"
         try:
-            added, status = await fetch_feed(session, feed)
+            _, status = await fetch_feed(session, feed)
         except Exception as exc:  # a broken feed must not kill the cycle
-            added, status = 0, f"error ({exc})"
+            status = f"error ({exc})"
             log.warning("fetch failed for %s: %s", label, exc)
         await session.execute(
             update(NewsFeed)

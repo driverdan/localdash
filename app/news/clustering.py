@@ -13,6 +13,7 @@ current window: sharing several *distinctive* tokens (e.g. "amnicola",
 The similarity math lives in pure functions (assign_clusters) so it is
 testable offline; recluster() is the async DB wrapper.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -52,9 +53,9 @@ def _same_story(a: dict, b: dict, common_tokens: set) -> bool:
             len(shared - common_tokens) >= MIN_SHARED_DISTINCTIVE
         ):
             return True
-    return SequenceMatcher(
-        None, a["title"].lower(), b["title"].lower()
-    ).ratio() >= SEQ_RATIO_THRESHOLD
+    return (
+        SequenceMatcher(None, a["title"].lower(), b["title"].lower()).ratio() >= SEQ_RATIO_THRESHOLD
+    )
 
 
 def assign_clusters(rows: list[tuple[int, int, str]]) -> dict[int, int]:
@@ -93,7 +94,7 @@ def assign_clusters(rows: list[tuple[int, int, str]]) -> dict[int, int]:
             parent[max(ra, rb)] = min(ra, rb)
 
     for i, a in enumerate(items):
-        for b in items[i + 1:]:
+        for b in items[i + 1 :]:
             if find(a["id"]) == find(b["id"]):
                 continue
             if _same_story(a, b, common_tokens):
@@ -104,9 +105,7 @@ def assign_clusters(rows: list[tuple[int, int, str]]) -> dict[int, int]:
 
 async def recluster(session: AsyncSession) -> int:
     """Assign cluster_id to all articles in the story window. Returns cluster count."""
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        days=get_settings().news_story_window_days
-    )
+    cutoff = datetime.now(timezone.utc) - timedelta(days=get_settings().news_story_window_days)
     rows = (
         await session.execute(
             select(NewsArticle.id, NewsArticle.source_id, NewsArticle.title)

@@ -17,4 +17,5 @@ export async function getJSON<T>(url: string): Promise<T> {
   return r.json() as Promise<T>;
 }
 
-export const fetchConfig = (): Promise<AppConfig> => getJSON<AppConfig>("/api/v1/config");
+export const fetchConfig = (): Promise<AppConfig> =>
+  getJSON<AppConfig>("/api/v1/config");

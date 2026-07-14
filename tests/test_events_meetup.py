@@ -1,4 +1,5 @@
 """Offline tests for the Meetup source: parse half and token-gated registration."""
+
 import datetime as dt
 
 from app.config import Settings
@@ -104,8 +105,7 @@ def test_build_sources_default_registers_tennessee_car_feed():
     ical_sources = [s for s in sources if isinstance(s, ICalSource)]
     assert len(ical_sources) == 1
     assert (
-        ical_sources[0].url
-        == "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"
+        ical_sources[0].url == "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"
     )
 
 

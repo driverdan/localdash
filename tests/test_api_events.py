@@ -4,6 +4,7 @@ Handlers are called directly with a real session (same auto-skip pattern as
 the other DB suites). Seeded titles/addresses/sources are 'test-' prefixed so
 the fixture cleans them and assertions can scope to them via search.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -86,9 +87,7 @@ async def test_topic_filter_matches_any_requested_tag(events_db_session):
         "test-Far Rock Concert",  # "concert" -> music
     }
 
-    result = await items(
-        search="test-", topic=["food"], upcoming=False, session=events_db_session
-    )
+    result = await items(search="test-", topic=["food"], upcoming=False, session=events_db_session)
     assert {i["title"] for i in result["items"]} == {"test-Past Gala Dinner"}  # "dinner" -> food
 
 

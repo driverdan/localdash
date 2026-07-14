@@ -1,4 +1,5 @@
 """Offline tests for news clustering, text helpers, and the story read model."""
+
 from __future__ import annotations
 
 from app.news.clustering import assign_clusters
@@ -67,10 +68,23 @@ def _row(aid, cluster_id, slug, category="news", title=None, summary="", publish
 
 def test_build_stories_aggregates_cluster():
     rows = [  # sorted by published ASC, as the query guarantees
-        _row(1, 1, "alpha", "news", title="First report", summary="Short.",
-             published="2026-07-10T10:00:00+00:00"),
-        _row(2, 1, "beta", "politics", summary="A much longer summary with detail.",
-             published="2026-07-10T11:00:00+00:00"),
+        _row(
+            1,
+            1,
+            "alpha",
+            "news",
+            title="First report",
+            summary="Short.",
+            published="2026-07-10T10:00:00+00:00",
+        ),
+        _row(
+            2,
+            1,
+            "beta",
+            "politics",
+            summary="A much longer summary with detail.",
+            published="2026-07-10T11:00:00+00:00",
+        ),
         _row(3, 1, "alpha", "politics", published="2026-07-10T12:00:00+00:00"),
     ]
     (story,) = build_stories(rows)

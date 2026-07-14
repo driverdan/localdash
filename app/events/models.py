@@ -6,6 +6,7 @@ linked), and topics are many-to-many :class:`Tag` rows. Location is a PostGIS
 point (SRID 4326), geocoded from the address; :class:`GeocodeCache` persists
 every address lookup so no address is geocoded twice.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -72,9 +73,7 @@ class Event(Base):
 class EventLink(Base):
     __tablename__ = "event_links"
     __table_args__ = (
-        UniqueConstraint(
-            "event_id", "source_name", "source_url", name="uq_event_link_source_url"
-        ),
+        UniqueConstraint("event_id", "source_name", "source_url", name="uq_event_link_source_url"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

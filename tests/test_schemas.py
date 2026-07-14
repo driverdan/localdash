@@ -1,4 +1,5 @@
 """Unit tests for the Diff result object."""
+
 from __future__ import annotations
 
 from app.schemas import Diff

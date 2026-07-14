@@ -14,6 +14,7 @@ severe event also present in the incidents feed is kept once, with "severe" winn
 Cameras / message signs / rest areas are mostly-static infrastructure and are intentionally
 excluded from this time-series source.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -110,7 +111,8 @@ class TdotCollector(BaseCollector):
                 lat=lat,
                 lon=lon,
                 status=item.get("status"),
-                source_time=_parse_dt(item.get("revisedDate")) or _parse_dt(item.get("beginningDate")),
+                source_time=_parse_dt(item.get("revisedDate"))
+                or _parse_dt(item.get("beginningDate")),
                 properties=item,
             )
 

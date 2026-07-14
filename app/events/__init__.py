@@ -7,6 +7,7 @@ merged cross-source records, not entity state over time).
 Pipeline: sources (config-driven, sources/) -> ingest (dedup + tag + geocode,
 ingest.py) -> /api/v1/events/ (app/api/events.py) -> /events page.
 """
+
 from __future__ import annotations
 
 # Distance origin for the API and the Meetup search filter (lat, lon).

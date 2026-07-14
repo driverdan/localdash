@@ -1,4 +1,5 @@
 """Topic tagging via keyword matching against the event title and description."""
+
 from __future__ import annotations
 
 # Topic -> keywords. Matching is case-insensitive substring matching.

@@ -10,10 +10,13 @@
 
   onMount(() => {
     Promise.all([loadStories(), loadSources()]).finally(() => (loaded = true));
-    const timer = setInterval(() => {
-      loadStories();
-      loadSources();
-    }, 5 * 60 * 1000);
+    const timer = setInterval(
+      () => {
+        loadStories();
+        loadSources();
+      },
+      5 * 60 * 1000,
+    );
     return () => clearInterval(timer);
   });
 
@@ -37,7 +40,9 @@
     <label class="inline">
       <input type="checkbox" bind:checked={news.multiOnly} /> Multi-source only
     </label>
-    <button onclick={refreshFeeds} disabled={news.refreshing}>Refresh feeds</button>
+    <button onclick={refreshFeeds} disabled={news.refreshing}
+      >Refresh feeds</button
+    >
     <span class="status">{news.statusText}</span>
   </div>
 

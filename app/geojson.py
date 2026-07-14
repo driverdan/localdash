@@ -1,10 +1,13 @@
 """Helpers for emitting GeoJSON (RFC 7946) Features / FeatureCollections."""
+
 from __future__ import annotations
 
 from typing import Any, Iterable
 
 
-def feature(lon: float | None, lat: float | None, properties: dict[str, Any], fid: Any = None) -> dict:
+def feature(
+    lon: float | None, lat: float | None, properties: dict[str, Any], fid: Any = None
+) -> dict:
     geometry = None
     if lon is not None and lat is not None:
         geometry = {"type": "Point", "coordinates": [lon, lat]}

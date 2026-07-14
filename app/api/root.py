@@ -3,6 +3,7 @@
 Feature routers (e.g. app/api/timeseries.py) own their own /api/v1/<feature>/
 namespaces; only cross-feature endpoints belong here.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter

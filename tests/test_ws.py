@@ -1,4 +1,5 @@
 """Unit tests for the WebSocket ConnectionManager (no real sockets)."""
+
 from __future__ import annotations
 
 import pytest

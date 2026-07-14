@@ -4,6 +4,7 @@ Uses the events_db_session fixture (auto-skips without a reachable Postgres).
 Source names and addresses are 'test-' prefixed so the fixture can clean up
 without touching real rows.
 """
+
 import datetime as dt
 
 import pytest
@@ -123,9 +124,7 @@ async def test_address_is_geocoded_to_coordinates(events_db_session):
     (event,) = await _events(events_db_session)
     lat, lon = (
         await events_db_session.execute(
-            select(func.ST_Y(Event.location), func.ST_X(Event.location)).where(
-                Event.id == event.id
-            )
+            select(func.ST_Y(Event.location), func.ST_X(Event.location)).where(Event.id == event.id)
         )
     ).one()
     assert (round(lat, 4), round(lon, 4)) == (35.0556, -85.3110)
@@ -428,7 +427,7 @@ async def test_within_source_duplicate_listings_merge(events_db_session):
     assert stats == {"created": 1, "merged": 1, "skipped_far": 0}
     (event,) = await _events(events_db_session)
     assert len(event.links) == 2
-    assert {l.source_url for l in event.links} == {
+    assert {link.source_url for link in event.links} == {
         "http://test-ccf/event/test-street-machines-sonic-cruise-in",
         "http://test-ccf/event/test-street-machines-cruise-in",
     }
@@ -458,7 +457,9 @@ async def test_fuzzy_match_rejects_far_apart_coordinates(events_db_session):
     stats = await upsert_raw_events(
         events_db_session,
         [
-            make_raw("test-a", title="test-Cars and Coffee Meetup", start_time=start, address=BROAD_ST),
+            make_raw(
+                "test-a", title="test-Cars and Coffee Meetup", start_time=start, address=BROAD_ST
+            ),
             make_raw("test-b", title="test-Cars and Coffee", start_time=start, address=BEALE_ST),
         ],
         geo,
@@ -509,7 +510,7 @@ async def test_source_listing_match_survives_retitle(events_db_session):
     assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
     (event,) = await _events(events_db_session)
     # The retitled listing carries a new URL: both listing URLs remain.
-    assert {l.source_event_id for l in event.links} == {"ev-9"}
+    assert {link.source_event_id for link in event.links} == {"ev-9"}
 
 
 # --- reconciliation pass ---

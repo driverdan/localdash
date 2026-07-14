@@ -2,6 +2,7 @@
 
 Ported verbatim from ChattNews.
 """
+
 from __future__ import annotations
 
 import html

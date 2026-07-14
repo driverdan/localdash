@@ -2,6 +2,7 @@
 
 The `state_changed` rule and the full DB lifecycle live in test_ingest.py.
 """
+
 from __future__ import annotations
 
 from app.ingest import _ewkt, _moved

@@ -4,6 +4,7 @@ Same auto-skip pattern as the timeseries DB tests: the news_db_session fixture
 skips when Postgres is unreachable or migration 0002 hasn't been applied. All
 rows use 'test-' slugs so real registry data is untouched.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -45,13 +46,17 @@ TEST_SOURCES_V2 = [
 
 async def _feeds(session, slug):
     return (
-        await session.execute(
-            select(NewsFeed)
-            .join(NewsSource, NewsSource.id == NewsFeed.source_id)
-            .where(NewsSource.slug == slug)
-            .order_by(NewsFeed.position)
+        (
+            await session.execute(
+                select(NewsFeed)
+                .join(NewsSource, NewsSource.id == NewsFeed.source_id)
+                .where(NewsSource.slug == slug)
+                .order_by(NewsFeed.position)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
 
 async def test_registry_sync_upserts_and_deletes(news_db_session, monkeypatch):
@@ -106,9 +111,12 @@ async def test_article_dedup_and_category_upgrade(news_db_session, monkeypatch):
     # Seen again from the generic feed: never downgraded, nothing changed.
     assert await upsert_articles(news_db_session, [_article(sid, "g1", "news")]) == 0
     # Duplicate guids within one payload: first occurrence wins, one row.
-    assert await upsert_articles(
-        news_db_session, [_article(sid, "g2", "news"), _article(sid, "g2", "sports")]
-    ) == 1
+    assert (
+        await upsert_articles(
+            news_db_session, [_article(sid, "g2", "news"), _article(sid, "g2", "sports")]
+        )
+        == 1
+    )
     await news_db_session.commit()
 
     rows = (
@@ -134,10 +142,14 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
     # Assign the cluster directly — clustering has its own offline tests, and
     # calling recluster() here would rewrite real rows in a shared dev DB.
     arts = (
-        await news_db_session.execute(
-            select(NewsArticle).where(NewsArticle.source_id == sid).order_by(NewsArticle.id)
+        (
+            await news_db_session.execute(
+                select(NewsArticle).where(NewsArticle.source_id == sid).order_by(NewsArticle.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for a in arts:
         a.cluster_id = arts[0].id
     await news_db_session.commit()

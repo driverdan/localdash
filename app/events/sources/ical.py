@@ -5,6 +5,7 @@ Many venues and civic calendars publish ICS feeds. Point the
 automatically. Fetch is async (httpx); parsing is a pure function of the
 fetched bytes, separated for offline testability.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -59,7 +60,9 @@ class ICalSource(EventSource):
                     description=str(component.get("description") or ""),
                     start_time=start,
                     end_time=_to_aware_utc(end_prop.dt) if end_prop else None,
-                    venue_name=str(component.get("location")) if component.get("location") else None,
+                    venue_name=str(component.get("location"))
+                    if component.get("location")
+                    else None,
                     address=str(component.get("location")) if component.get("location") else None,
                     source_name=self.name,
                     source_url=str(component.get("url") or self.url),

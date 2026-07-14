@@ -8,11 +8,19 @@
   import { fetchConfig, type AppConfig } from "../../../lib/api";
   import { activeTheme } from "../../../lib/theme.svelte";
   import { esc, fmt } from "../../../lib/format";
-  import { EPB_STATUS_COLORS, cfgFor, featureColor, isClosed } from "../sources";
+  import {
+    EPB_STATUS_COLORS,
+    cfgFor,
+    featureColor,
+    isClosed,
+  } from "../sources";
   import { ts } from "../state.svelte";
   import type { EntityId, TrackedFeature } from "../types";
 
-  const DEFAULT_VIEW = { center: [35.0456, -85.3097] as [number, number], zoom: 11 }; // Chattanooga, TN area
+  const DEFAULT_VIEW = {
+    center: [35.0456, -85.3097] as [number, number],
+    zoom: 11,
+  }; // Chattanooga, TN area
 
   let mapEl = $state<HTMLElement>();
   let ready = $state(false);
@@ -31,7 +39,10 @@
       // maxZoom lives on the map (not only the tile layer) because the basemap is
       // added later, in the theme effect below — without it Leaflet throws
       // "Map has no maxZoom specified" when the cluster/markers initialise here.
-      map = L.map(mapEl!, { maxZoom: 18 }).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
+      map = L.map(mapEl!, { maxZoom: 18 }).setView(
+        DEFAULT_VIEW.center,
+        DEFAULT_VIEW.zoom,
+      );
       // Basemap follows the active theme (see the effect below); Leaflet panes
       // keep tiles under the markers regardless of add order.
       // Only group markers that share the same location (coincident points); every
@@ -67,12 +78,19 @@
     const legend = new L.Control({ position: "bottomright" });
     legend.onAdd = () => {
       const div = L.DomUtil.create("div", "map-legend");
-      div.innerHTML = "<b>EPB Outage Status</b>" + [
-        ["Outage Reported", EPB_STATUS_COLORS.OUTAGE_REPORTED],
-        ["Crew En Route", EPB_STATUS_COLORS.EN_ROUTE],
-        ["Repair in Progress", EPB_STATUS_COLORS.REPAIR_IN_PROGRESS],
-        ["Restored", EPB_STATUS_COLORS.RESTORED],
-      ].map(([t, c]) => `<div><span class="lg-dot" style="background:${c}"></span>${t}</div>`).join("");
+      div.innerHTML =
+        "<b>EPB Outage Status</b>" +
+        [
+          ["Outage Reported", EPB_STATUS_COLORS.OUTAGE_REPORTED],
+          ["Crew En Route", EPB_STATUS_COLORS.EN_ROUTE],
+          ["Repair in Progress", EPB_STATUS_COLORS.REPAIR_IN_PROGRESS],
+          ["Restored", EPB_STATUS_COLORS.RESTORED],
+        ]
+          .map(
+            ([t, c]) =>
+              `<div><span class="lg-dot" style="background:${c}"></span>${t}</div>`,
+          )
+          .join("");
       return div;
     };
     legend.addTo(m);
@@ -148,10 +166,18 @@
     const pts = track
       .filter((t) => t.lat != null && t.lon != null)
       .map((t) => [t.lat!, t.lon!] as [number, number]);
-    if (pts.length > 1) L.polyline(pts, { color: "#111", weight: 2, dashArray: "4 4" }).addTo(trackLayer);
+    if (pts.length > 1)
+      L.polyline(pts, { color: "#111", weight: 2, dashArray: "4 4" }).addTo(
+        trackLayer,
+      );
     for (const t of track) {
       if (t.lat != null && t.lon != null) {
-        L.circleMarker([t.lat, t.lon], { radius: 4, color: "#111", fillColor: "#fff", fillOpacity: 1 })
+        L.circleMarker([t.lat, t.lon], {
+          radius: 4,
+          color: "#111",
+          fillColor: "#fff",
+          fillOpacity: 1,
+        })
           .bindTooltip(`${t.status || ""} @ ${fmt(t.observed_at)}`)
           .addTo(trackLayer);
       }

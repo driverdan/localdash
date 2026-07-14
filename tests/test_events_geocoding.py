@@ -1,4 +1,5 @@
 """Offline tests for NominatimGeocoder's request throttle and query fallbacks."""
+
 import asyncio
 import time
 

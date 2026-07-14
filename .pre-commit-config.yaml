@@ -1,0 +1,24 @@
+# Auto-runs linters/formatters on staged files. Install once: `pre-commit install`.
+# Fix-then-abort: hooks auto-fix, and if anything changed the commit fails so you
+# review the edits and re-commit. See openspec/changes/archive for rationale.
+repos:
+  # Python: ruff is self-provisioned by pre-commit (no global install needed).
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Frontend: prettier reuses the repo's own Node toolchain (frontend/node_modules,
+  # already required for builds and svelte-check). Runs from frontend/ so the
+  # svelte plugin and .prettierrc resolve; the frontend/ prefix is stripped from
+  # each staged path. svelte-check is intentionally NOT here — it's a whole-project
+  # type checker, kept as `npm run check` (see design.md).
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        language: system
+        entry: bash -c 'cd frontend && exec ./node_modules/.bin/prettier --write "${@#frontend/}"' --
+        files: ^frontend/.*\.(ts|svelte|css|json)$

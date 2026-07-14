@@ -1,4 +1,5 @@
 """Tests for the EPB outage collector's normalize() (pure, no network)."""
+
 from __future__ import annotations
 
 from app.collectors.epb import EpbCollector

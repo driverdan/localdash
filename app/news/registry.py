@@ -4,6 +4,7 @@ Code is the source of truth: sync_registry() upserts this into the DB at
 startup and deletes feeds that were removed here, so editing this file is how
 sources/feeds are added, disabled, or retired.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import delete, select
@@ -15,9 +16,7 @@ from app.news.models import NewsFeed, NewsSource
 # A plain browser UA for feed requests: TownNews sites (Local 3) put unfamiliar
 # UA strings in a near-zero rate-limit bucket and answer them with HTTP 429.
 # Deliberately NOT the app-wide settings.user_agent used by the geo collectors.
-USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
-)
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
 # Normalized categories in display order. Each source section feed maps to one.
 CATEGORIES = {
@@ -56,8 +55,14 @@ SOURCES = [
         "enabled": True,
         "feeds": [
             {"category": "sports", "url": "https://www.timesfreepress.com/rss/headlines/sports/"},
-            {"category": "business", "url": "https://www.timesfreepress.com/rss/headlines/business/"},
-            {"category": "politics", "url": "https://www.timesfreepress.com/rss/headlines/politics/"},
+            {
+                "category": "business",
+                "url": "https://www.timesfreepress.com/rss/headlines/business/",
+            },
+            {
+                "category": "politics",
+                "url": "https://www.timesfreepress.com/rss/headlines/politics/",
+            },
             {"category": "opinion", "url": "https://www.timesfreepress.com/rss/headlines/opinion/"},
             {"category": "life", "url": "https://www.timesfreepress.com/rss/headlines/life/"},
             {"category": "news", "url": "https://www.timesfreepress.com/rss/headlines/local/"},
@@ -105,8 +110,10 @@ async def sync_registry(session: AsyncSession) -> None:
     """Upsert SOURCES into the DB; delete feeds removed from the registry."""
     for src in SOURCES:
         stmt = pg_insert(NewsSource).values(
-            slug=src["slug"], name=src["name"],
-            homepage=src["homepage"], enabled=src["enabled"],
+            slug=src["slug"],
+            name=src["name"],
+            homepage=src["homepage"],
+            enabled=src["enabled"],
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[NewsSource.slug],
@@ -123,8 +130,10 @@ async def sync_registry(session: AsyncSession) -> None:
 
         for position, feed in enumerate(src["feeds"]):
             fstmt = pg_insert(NewsFeed).values(
-                source_id=source_id, url=feed["url"],
-                category=feed["category"], position=position,
+                source_id=source_id,
+                url=feed["url"],
+                category=feed["category"],
+                position=position,
             )
             fstmt = fstmt.on_conflict_do_update(
                 index_elements=[NewsFeed.url],

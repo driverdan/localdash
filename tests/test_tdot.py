@@ -1,4 +1,5 @@
 """Tests for the TDOT SmartWay collector's normalize() (pure, no network)."""
+
 from __future__ import annotations
 
 from datetime import timezone
@@ -20,8 +21,9 @@ def _event(**over):
         "description": "I-24 EB near MM 182",
         "revisedDate": "2026-06-13T09:42:42.34-05:00",
         "isSevere": False,
-        "locations": [{"midPoint": {"lat": 35.019349, "lng": -85.266656},
-                       "countyName": "Hamilton"}],
+        "locations": [
+            {"midPoint": {"lat": 35.019349, "lng": -85.266656}, "countyName": "Hamilton"}
+        ],
     }
     item.update(over)
     return item
@@ -66,10 +68,12 @@ def test_label_falls_back_to_event_type():
 
 
 def test_missing_id_and_location_are_handled():
-    out = _collector().normalize([
-        _event(id=None),                       # dropped (no external_id)
-        _event(id=9, locations=[]),            # kept, no coordinates
-    ])
+    out = _collector().normalize(
+        [
+            _event(id=None),  # dropped (no external_id)
+            _event(id=9, locations=[]),  # kept, no coordinates
+        ]
+    )
     assert [o.external_id for o in out] == ["9"]
     assert out[0].lat is None and out[0].lon is None
 

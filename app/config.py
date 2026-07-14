@@ -3,6 +3,7 @@
 Nothing source-specific is hardcoded — the hc911 token/origin, DB URL, and tile
 layer all come from the environment so the same code runs in any deployment.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -29,7 +30,9 @@ class Settings(BaseSettings):
     # event-style layers (they share one schema and are merged into this source).
     tdot_api_base_url: str = "https://www.tdot.tn.gov/opendata/api/public/"
     tdot_api_key: str = "8d3b7a82635d476795c09b2c41facc60"
-    tdot_endpoints: str = "RoadwayIncidents,RoadwayOperations,RoadwaySpecialEvents,RoadwaySevereImpact"
+    tdot_endpoints: str = (
+        "RoadwayIncidents,RoadwayOperations,RoadwaySpecialEvents,RoadwaySevereImpact"
+    )
     tdot_poll_interval: int = 120
     tdot_enabled: bool = True
 

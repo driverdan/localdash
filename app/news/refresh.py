@@ -4,6 +4,7 @@ A module-level lock serializes the scheduled job and the manual
 POST /api/v1/news/refresh — APScheduler's max_instances=1 only covers the
 scheduled path, so without this a manual refresh could interleave with it.
 """
+
 from __future__ import annotations
 
 import asyncio

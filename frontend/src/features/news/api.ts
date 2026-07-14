@@ -4,7 +4,9 @@ import type { SourcesResponse, StoriesResponse } from "./types";
 
 export async function loadStories(): Promise<void> {
   try {
-    const data = await getJSON<StoriesResponse>(`/api/v1/news/stories?hours=${news.hours}`);
+    const data = await getJSON<StoriesResponse>(
+      `/api/v1/news/stories?hours=${news.hours}`,
+    );
     news.categories = data.categories;
     news.stories = data.stories;
     news.loadError = false;

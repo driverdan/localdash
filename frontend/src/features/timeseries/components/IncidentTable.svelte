@@ -16,7 +16,11 @@
   <h2>Active ({ts.visibleSorted.length})</h2>
   <table id="incident-table">
     <thead>
-      <tr><th>Source</th><th>Category</th><th>Status</th><th>Type</th><th>Location</th></tr>
+      <tr
+        ><th>Source</th><th>Category</th><th>Status</th><th>Type</th><th
+          >Location</th
+        ></tr
+      >
     </thead>
     <tbody>
       {#each ts.visibleSorted as f (f.id)}
@@ -33,7 +37,10 @@
               ></span>{/if}
             {catLabel(p.category)}
           </td>
-          <td>{#if closed}<span class="badge-closed">Closed</span>{:else}{p.status || ""}{/if}</td>
+          <td
+            >{#if closed}<span class="badge-closed">Closed</span
+              >{:else}{p.status || ""}{/if}</td
+          >
           <td>{cfg.title(p)}</td>
           <td>{cfg.location(p)}</td>
         </tr>

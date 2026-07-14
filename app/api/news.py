@@ -2,6 +2,7 @@
 
 Mounted at /api/v1/news (see app/main.py).
 """
+
 from __future__ import annotations
 
 from typing import Annotated

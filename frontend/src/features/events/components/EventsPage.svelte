@@ -9,10 +9,13 @@
 
   onMount(() => {
     Promise.all([loadItems(), loadTags()]).finally(() => (loaded = true));
-    const timer = setInterval(() => {
-      loadItems();
-      loadTags();
-    }, 5 * 60 * 1000);
+    const timer = setInterval(
+      () => {
+        loadItems();
+        loadTags();
+      },
+      5 * 60 * 1000,
+    );
     return () => {
       clearInterval(timer);
       clearTimeout(searchTimer);
@@ -47,7 +50,10 @@
     />
     <label>
       Distance
-      <select value={events.maxMiles === null ? "" : String(events.maxMiles)} onchange={setMaxMiles}>
+      <select
+        value={events.maxMiles === null ? "" : String(events.maxMiles)}
+        onchange={setMaxMiles}
+      >
         <option value="">Any</option>
         <option value="5">≤ 5 mi</option>
         <option value="15">≤ 15 mi</option>
@@ -55,7 +61,9 @@
         <option value="50">≤ 50 mi</option>
       </select>
     </label>
-    <button onclick={refreshSources} disabled={events.refreshing}>Refresh sources</button>
+    <button onclick={refreshSources} disabled={events.refreshing}
+      >Refresh sources</button
+    >
     <span class="status">{events.statusText}</span>
   </div>
 

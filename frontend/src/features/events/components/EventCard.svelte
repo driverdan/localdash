@@ -5,7 +5,8 @@
   let { item }: { item: EventItem } = $props();
 
   const when = $derived(
-    fmt(item.starts_at) + (item.ends_at ? ` – ${new Date(item.ends_at).toLocaleTimeString()}` : ""),
+    fmt(item.starts_at) +
+      (item.ends_at ? ` – ${new Date(item.ends_at).toLocaleTimeString()}` : ""),
   );
   const where = $derived(
     [item.venue_name, item.venue_name === item.address ? null : item.address]
@@ -24,7 +25,11 @@
       <span class="distance">{item.distance_miles} mi</span>
     {/if}
   </div>
-  <h3><a href={item.links[0]?.source_url} target="_blank" rel="noopener">{item.title}</a></h3>
+  <h3>
+    <a href={item.links[0]?.source_url} target="_blank" rel="noopener"
+      >{item.title}</a
+    >
+  </h3>
   {#if where}
     <p class="where">{where}</p>
   {/if}
@@ -35,7 +40,9 @@
     <!-- An event merged from duplicate listings carries several links from
          one source, so the source name alone is not a unique key. -->
     {#each item.links as link (`${link.source_name}|${link.source_url}`)}
-      <a href={link.source_url} target="_blank" rel="noopener">{link.source_name} ↗</a>
+      <a href={link.source_url} target="_blank" rel="noopener"
+        >{link.source_name} ↗</a
+      >
     {/each}
   </div>
 </article>

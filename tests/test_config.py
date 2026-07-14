@@ -1,4 +1,5 @@
 """Unit tests for settings."""
+
 from __future__ import annotations
 
 from app.config import Settings, get_settings

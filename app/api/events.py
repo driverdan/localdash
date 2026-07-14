@@ -3,6 +3,7 @@
 Mounted at /api/v1/events (see app/main.py). Distance filtering runs in SQL
 against the PostGIS location (geography casts, so units are meters).
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -37,8 +38,7 @@ def _serialize(event: Event, lat: float | None, lon: float | None, meters: float
         "longitude": lon,
         "tags": sorted(tag.name for tag in event.tags),
         "links": [
-            {"source_name": link.source_name, "source_url": link.source_url}
-            for link in event.links
+            {"source_name": link.source_name, "source_url": link.source_url} for link in event.links
         ],
         "distance_miles": round(meters / METERS_PER_MILE, 1) if meters is not None else None,
     }
@@ -46,8 +46,12 @@ def _serialize(event: Event, lat: float | None, lon: float | None, meters: float
 
 @router.get("/items")
 async def items(
-    topic: Annotated[list[str] | None, Query(description="Filter by one or more topic tags")] = None,
-    max_miles: Annotated[float | None, Query(ge=0, description="Max distance from the origin")] = None,
+    topic: Annotated[
+        list[str] | None, Query(description="Filter by one or more topic tags")
+    ] = None,
+    max_miles: Annotated[
+        float | None, Query(ge=0, description="Max distance from the origin")
+    ] = None,
     lat: Annotated[float | None, Query(description="Distance origin latitude")] = None,
     lon: Annotated[float | None, Query(description="Distance origin longitude")] = None,
     upcoming: Annotated[bool, Query(description="Only events starting from now")] = True,

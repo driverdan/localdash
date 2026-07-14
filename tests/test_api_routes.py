@@ -3,6 +3,7 @@
 Validation and 404s fire before any query executes, so these run without a
 reachable Postgres. DB-backed behavior tests live in test_api_timeseries.py.
 """
+
 from __future__ import annotations
 
 import httpx
@@ -21,7 +22,13 @@ async def client():
 
 
 async def test_old_flat_routes_are_gone(client):
-    for path in ["/api/active", "/api/entities/1", "/api/observations", "/api/sources", "/api/config"]:
+    for path in [
+        "/api/active",
+        "/api/entities/1",
+        "/api/observations",
+        "/api/sources",
+        "/api/config",
+    ]:
         r = await client.get(path)
         assert r.status_code == 404, path
 

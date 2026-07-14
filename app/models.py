@@ -9,6 +9,7 @@ Three tables:
 Source-specific fields live in the JSONB `properties` / `latest_properties`
 columns, so a new source needs no schema change.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -63,8 +64,12 @@ class Entity(Base):
     category: Mapped[str] = mapped_column(String(64), default="default")
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
     last_geom = mapped_column(Geometry("POINT", srid=4326, spatial_index=True), nullable=True)
