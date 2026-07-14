@@ -125,12 +125,10 @@
 
 /* ---- Debug overlay --------------------------------------------------------- */
 [data-theme="dark"] .debug-toggle {
-  background: #1e2632;
   color: #e4e9ef;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 [data-theme="dark"] .debug-toggle:hover {
-  background: #263140;
+  color: #fff;
 }
 [data-theme="dark"] .debug-modal {
   background: #171d25;
