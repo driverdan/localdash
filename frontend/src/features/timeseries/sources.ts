@@ -1,5 +1,9 @@
 import { cap } from "../../lib/format";
+import type { IconName } from "../../lib/icons";
 import type { SourceConfig, TrackedFeature, TrackedProperties } from "./types";
+
+// Glyph shown when a category has no configured icon (or its source is unknown).
+export const FALLBACK_ICON: IconName = "map-pin";
 
 const str = (v: unknown): string => (v == null ? "" : String(v));
 
@@ -44,6 +48,12 @@ export const SOURCES: Record<string, SourceConfig> = {
       ems: "#059669",
       other: "#6b7280",
     },
+    icons: {
+      police: "siren",
+      fire: "flame",
+      ems: "ambulance",
+      other: "circle-question-mark",
+    },
     title: (p) => str(p.label) || str(p.type) || "Incident",
     location: (p) => str(p.location),
     jurisdiction: (p) => str(p.jurisdiction),
@@ -69,6 +79,12 @@ export const SOURCES: Record<string, SourceConfig> = {
       special_event: "#7c3aed",
       severe: "#dc2626",
     },
+    icons: {
+      incident: "triangle-alert",
+      construction: "traffic-cone",
+      special_event: "party-popper",
+      severe: "octagon-alert",
+    },
     title: (p) => str(p.label) || str(p.eventTypeName) || "Event",
     location: (p) => str(p.description) || tdotCounty(p),
     jurisdiction: (p) => tdotCounty(p),
@@ -90,9 +106,9 @@ export const SOURCES: Record<string, SourceConfig> = {
     short: "EPB",
     categories: ["energy", "fiber"],
     colors: { energy: "#d97706", fiber: "#0891b2" },
+    icons: { energy: "zap", fiber: "cable" },
     // EPB's map colors a marker by outage status and sizes it by customers affected,
-    // shown as a round dot rather than the default teardrop pin.
-    round: true,
+    // so its glyph is tinted by status (not category) and scaled by markerSize.
     markerColor: (p) => EPB_STATUS_COLORS[str(p.status)] || "#666666",
     markerSize: epbMarkerSize,
     title: (p) =>
@@ -115,6 +131,7 @@ export const FALLBACK: SourceConfig = {
   short: "?",
   categories: [],
   colors: {},
+  icons: {},
   title: (p) => str(p.label) || "Item",
   location: (p) => str(p.location),
   jurisdiction: (p) => str(p.jurisdiction),
@@ -137,6 +154,8 @@ export const catLabel = (cat: string): string =>
   cap(String(cat || "").replace(/_/g, " "));
 export const colorFor = (sourceKey: string, cat: string): string =>
   cfgFor(sourceKey).colors[cat] || "#6b7280";
+export const iconFor = (sourceKey: string, cat: string): IconName =>
+  cfgFor(sourceKey).icons[cat] || FALLBACK_ICON;
 
 // A feature's display color: a source may color by status/properties (e.g. EPB
 // outage status); otherwise fall back to its category color.

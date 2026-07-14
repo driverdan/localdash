@@ -2,6 +2,8 @@
 // API guarantees, plus the shape of per-source display config. Source-specific
 // properties stay untyped (Record) — that's the source-agnostic seam.
 
+import type { IconName } from "../../lib/icons";
+
 export type EntityId = string | number;
 
 /** Loose property bag: authoritative keys are typed, source-specific ones are unknown. */
@@ -62,10 +64,11 @@ export interface SourceConfig {
   short: string;
   categories: string[];
   colors: Record<string, string>;
-  /** Round dot (sized per-source) instead of the default teardrop pin. */
-  round?: boolean;
+  /** Per-category marker glyph (Lucide icon name). */
+  icons: Record<string, IconName>;
   /** Color by status/properties (e.g. EPB outage status) instead of category. */
   markerColor?: (p: TrackedProperties) => string;
+  /** Scale the glyph per-feature (e.g. EPB by customers affected). */
   markerSize?: (p: TrackedProperties) => number;
   title: (p: Record<string, unknown>) => string;
   location: (p: Record<string, unknown>) => string;

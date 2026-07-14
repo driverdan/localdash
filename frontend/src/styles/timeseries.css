@@ -109,6 +109,12 @@
   border-radius: 50%;
   vertical-align: middle;
 }
+/* Category glyph beside a filter-tree label (mirrors the map marker). */
+.cat-glyph {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
 .cat-police {
   background: #2563eb;
 }
@@ -122,28 +128,16 @@
   background: #6b7280;
 }
 
-.marker-pin {
-  width: 16px;
-  height: 16px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+/* Category glyph marker: the tinted Lucide icon is the marker. A white halo (via
+   stacked drop-shadows) keeps it legible on both light and dark basemaps; closed
+   entities are muted with opacity. Size is set inline on the <svg>. */
+.marker-glyph svg {
+  display: block;
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff)
+    drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
-.marker-pin.closed {
+.marker-glyph.closed {
   opacity: 0.4;
-  border-style: dashed;
-}
-
-/* Round, customer-scaled dot (EPB outage style). Size is set inline. */
-.marker-dot {
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-.marker-dot.closed {
-  opacity: 0.45;
-  border-style: dashed;
 }
 
 /* Map status legend (EPB look). */

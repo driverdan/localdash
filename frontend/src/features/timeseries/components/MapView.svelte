@@ -12,8 +12,10 @@
     EPB_STATUS_COLORS,
     cfgFor,
     featureColor,
+    iconFor,
     isClosed,
   } from "../sources";
+  import { iconSvg } from "../../../lib/icons";
   import { ts } from "../state.svelte";
   import type { EntityId, TrackedFeature } from "../types";
 
@@ -96,28 +98,25 @@
     legend.addTo(m);
   }
 
+  // Default glyph size (px). Sources with a markerSize override (EPB) scale their
+  // glyph per-feature (customers affected); everything else uses this.
+  const GLYPH_SIZE = 24;
+
   function markerIcon(f: TrackedFeature): L.DivIcon {
     const p = f.properties;
     const cfg = cfgFor(p.source);
     const closed = isClosed(f);
     const color = featureColor(f);
-    // Round dot (sized per-source) for sources like EPB; teardrop pin otherwise.
-    if (cfg.round) {
-      const size = cfg.markerSize ? cfg.markerSize(p) : 16;
-      return L.divIcon({
-        className: "",
-        html: `<div class="marker-dot${closed ? " closed" : ""}" style="width:${size}px;height:${size}px;background:${color}"></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-        popupAnchor: [0, -(size / 2) - 2],
-      });
-    }
+    const size = cfg.markerSize ? cfg.markerSize(p) : GLYPH_SIZE;
+    // The marker is the category glyph itself — tinted by featureColor, haloed and
+    // (when closed) muted via the .marker-glyph CSS. Centered on the coordinate.
+    const svg = iconSvg(iconFor(p.source, p.category), { size, color });
     return L.divIcon({
       className: "",
-      html: `<div class="marker-pin${closed ? " closed" : ""}" style="background:${color}"></div>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 16],
-      popupAnchor: [0, -16],
+      html: `<div class="marker-glyph${closed ? " closed" : ""}">${svg}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -(size / 2) - 2],
     });
   }
 
