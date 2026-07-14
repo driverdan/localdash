@@ -34,7 +34,7 @@
 </script>
 
 <header>
-  <h1>LocalDash</h1>
+  <h1>Chattanooga LocalDash (beta)</h1>
   <nav>
     <a href="/" class:active={onNews} onclick={(e) => go(e, "/")}>News</a>
     <a href="/map" class:active={onMap} onclick={(e) => go(e, "/map")}>Map</a>
