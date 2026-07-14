@@ -1,6 +1,7 @@
 <script lang="ts">
   import { currentPath, navigate } from "./lib/router.svelte";
   import { themes, currentTheme, applyTheme } from "./lib/theme.svelte";
+  import DebugPanel from "./lib/DebugPanel.svelte";
   import { TimeseriesDashboard, connectionState } from "./features/timeseries";
   import { NewsFeed } from "./features/news";
   import { EventsPage } from "./features/events";
@@ -70,3 +71,6 @@
     >.
   </p>
 {/if}
+
+<!-- Shell-owned debug overlay: present on every route, outside the route chain. -->
+<DebugPanel />
