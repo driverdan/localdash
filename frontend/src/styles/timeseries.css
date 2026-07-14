@@ -47,6 +47,52 @@
   margin: 0;
 }
 
+/* Nested source -> category filter tree: each source is a parent row with its
+   categories indented beneath it. */
+.source-tree {
+  margin-bottom: 10px;
+}
+.tree-heading {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #44505f;
+}
+.source-group {
+  margin-bottom: 8px;
+}
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #44505f;
+}
+.cat-children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 22px;
+  font-weight: 500;
+  font-size: 12px;
+}
+.cat-children label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+/* Native checkboxes: escape the full-width sizing `.filters input` sets on
+   text/select controls. */
+.source-tree input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
 /* The incident table's rows are clickable; other tables (e.g. the news sources
    footer) keep the neutral defaults from base.css. */
 #incident-table tbody tr {

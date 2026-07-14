@@ -66,7 +66,8 @@
   background: #171d25;
   border-right-color: #263140;
 }
-[data-theme="dark"] .filters label {
+[data-theme="dark"] .filters label,
+[data-theme="dark"] .tree-heading {
   color: #b3c0cc;
 }
 [data-theme="dark"] .filters select,
