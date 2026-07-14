@@ -23,6 +23,10 @@ class NormalizedObservation(BaseModel):
     label: str | None = None
     lat: float | None = None
     lon: float | None = None
+    # Explicit GeoJSON geometry for non-point sources (Polygon / MultiPolygon /
+    # etc.). Point collectors keep setting lat/lon and leave this None; when both
+    # are absent the entity has null geometry. Ingest prefers `geometry` when set.
+    geometry: dict | None = None
     status: str | None = None
     # The source's own notion of when this state occurred (stored in properties).
     # The canonical hypertable `observed_at` is stamped by the ingest service.

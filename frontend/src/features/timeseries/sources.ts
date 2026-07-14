@@ -23,6 +23,20 @@ function epbMarkerSize(p: TrackedProperties): number {
   return s >= 40 ? 40 : s >= 32 ? 32 : s >= 24 ? 24 : 16;
 }
 
+// American Water advisory headers read "City: Short summary : long message…" —
+// keep the "City: Short summary" lead as the title.
+const advisoryTitle = (p: Record<string, unknown>): string => {
+  const header = str(p.EventHeader);
+  if (header) return header.split(" : ")[0].trim();
+  return str(p.EventType) || "Advisory";
+};
+
+// Epoch-millis field -> a short local date (empty when missing/invalid).
+const advisoryDate = (v: unknown): string => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? new Date(n).toLocaleDateString() : "";
+};
+
 const tdotCounty = (p: Record<string, unknown>): string => {
   const locs = p.locations;
   if (Array.isArray(locs) && locs[0] && typeof locs[0] === "object") {
@@ -120,6 +134,24 @@ export const SOURCES: Record<string, SourceConfig> = {
       ["Status", catLabel(str(p.status))],
       ["Service", cap(str(p.service))],
       ["Customers affected", p.customer_quantity],
+      ["Active", String(d.is_active)],
+    ],
+  },
+  tnaw: {
+    name: "TN American Water Advisories",
+    short: "TAW",
+    categories: ["emergency", "general"],
+    colors: { emergency: "#dc2626", general: "#0891b2" },
+    icons: { emergency: "octagon-alert", general: "droplet" },
+    title: advisoryTitle,
+    location: (p) => str(p.EventMessage).slice(0, 140),
+    jurisdiction: (p) => catLabel(str(p.advisory_type)),
+    detail: (p, d) => [
+      ["Type", p.EventType],
+      ["Notification", p.EventNotificationType],
+      ["Started", advisoryDate(p.EventStartDate)],
+      ["Est. completion", advisoryDate(p.EventCompletionDate)],
+      ["Details", p.EventHyperlink],
       ["Active", String(d.is_active)],
     ],
   },

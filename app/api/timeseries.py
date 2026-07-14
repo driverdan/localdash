@@ -6,6 +6,7 @@ FeatureCollections.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -22,11 +23,16 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.geojson import feature, feature_collection
+from app.geojson import feature_collection, feature_geom
 from app.models import Entity, Observation, Source
 from app.ws import manager
 
 router = APIRouter()
+
+
+def _parse_geom(geom_json: str | None) -> dict | None:
+    """Parse an ST_AsGeoJSON() result string into a GeoJSON geometry (or None)."""
+    return json.loads(geom_json) if geom_json else None
 
 
 def _bbox_filter(column, bbox: str | None):
@@ -66,8 +72,7 @@ async def entities(
         Entity.last_seen_at,
         Entity.is_active,
         Entity.latest_properties,
-        func.ST_X(Entity.last_geom),
-        func.ST_Y(Entity.last_geom),
+        func.ST_AsGeoJSON(Entity.last_geom),
     )
 
     cutoff = (
@@ -95,11 +100,10 @@ async def entities(
 
     rows = (await session.execute(q)).all()
     feats = []
-    for eid, skey, ext, cat, label, last_seen, is_active, props, lon, lat in rows:
+    for eid, skey, ext, cat, label, last_seen, is_active, props, geom_json in rows:
         feats.append(
-            feature(
-                lon,
-                lat,
+            feature_geom(
+                _parse_geom(geom_json),
                 {
                     # raw source fields first, then our authoritative keys override them.
                     **(props or {}),
@@ -153,24 +157,31 @@ async def entity_track(entity_id: int, session: AsyncSession = Depends(get_sessi
                 Observation.observed_at,
                 Observation.status,
                 Observation.properties,
-                func.ST_X(Observation.geom),
-                func.ST_Y(Observation.geom),
+                func.ST_AsGeoJSON(Observation.geom),
             )
             .where(Observation.entity_id == entity_id)
             .order_by(Observation.observed_at.asc())
         )
     ).all()
 
-    return [
-        {
-            "observed_at": at.isoformat(),
-            "status": status,
-            "lon": lon,
-            "lat": lat,
-            "properties": props,
-        }
-        for at, status, props, lon, lat in obs_rows
-    ]
+    out = []
+    for at, status, props, geom_json in obs_rows:
+        geometry = _parse_geom(geom_json)
+        # lon/lat convenience fields stay populated only for point geometry;
+        # they are null for polygons (clients read `geometry` for those).
+        is_point = bool(geometry) and geometry.get("type") == "Point"
+        lon, lat = geometry["coordinates"] if is_point else (None, None)
+        out.append(
+            {
+                "observed_at": at.isoformat(),
+                "status": status,
+                "geometry": geometry,
+                "lon": lon,
+                "lat": lat,
+                "properties": props,
+            }
+        )
+    return out
 
 
 @router.get("/observations")
@@ -191,8 +202,7 @@ async def observations(
         Observation.status,
         Observation.observed_at,
         Observation.properties,
-        func.ST_X(Observation.geom),
-        func.ST_Y(Observation.geom),
+        func.ST_AsGeoJSON(Observation.geom),
     )
     if source:
         q = q.where(Observation.source_key == source)
@@ -209,9 +219,8 @@ async def observations(
 
     rows = (await session.execute(q)).all()
     feats = [
-        feature(
-            lon,
-            lat,
+        feature_geom(
+            _parse_geom(geom_json),
             {
                 "entity_id": eid,
                 "source": skey,
@@ -221,7 +230,7 @@ async def observations(
                 **(props or {}),
             },
         )
-        for eid, skey, cat, status, at, props, lon, lat in rows
+        for eid, skey, cat, status, at, props, geom_json in rows
     ]
     return feature_collection(feats)
 

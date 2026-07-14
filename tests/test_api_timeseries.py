@@ -87,6 +87,33 @@ async def test_track_ordered_oldest_first(db_session):
     assert times == sorted(times)
 
 
+async def test_polygon_entity_round_trips_as_polygon(db_session):
+    ring = [[-85.3, 35.0], [-85.3, 35.1], [-85.2, 35.1], [-85.2, 35.0], [-85.3, 35.0]]
+    poly = NormalizedObservation(
+        external_id="p1",
+        category="general",
+        label="Advisory",
+        geometry={"type": "Polygon", "coordinates": [ring]},
+        status="Planned Work",
+        properties={"status": "Planned Work"},
+    )
+    await ingest(db_session, "test", [poly])
+
+    fc = await entities(source="test", session=db_session)
+    [feat] = fc["features"]
+    assert feat["geometry"]["type"] == "Polygon"
+
+    eid = (
+        await db_session.execute(
+            select(Entity.id).where(Entity.source_key == "test", Entity.external_id == "p1")
+        )
+    ).scalar_one()
+    track = await entity_track(eid, session=db_session)
+    assert track[0]["geometry"]["type"] == "Polygon"
+    # point convenience scalars are null for polygon geometry
+    assert track[0]["lon"] is None and track[0]["lat"] is None
+
+
 async def test_unknown_entity_404s(db_session):
     with pytest.raises(HTTPException) as ei:
         await entity_detail(-1, session=db_session)
