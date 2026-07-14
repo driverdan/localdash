@@ -188,3 +188,12 @@ All changes use git version control and follow a standard branch + pull request 
 - **Retention**: set `RETENTION_DAYS` and add a TimescaleDB
   `add_retention_policy('observations', INTERVAL 'N days')` to auto-drop old
   history (left at keep-forever by default).
+
+## License
+
+LocalDash is licensed under the **GNU Affero General Public License v3.0 or later**
+(AGPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.
+
+Because this is an AGPL-licensed network application, if you run a modified version
+of LocalDash and let users interact with it over a network, you must also offer those
+users the corresponding source code of your modified version.

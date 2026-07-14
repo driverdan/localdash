@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,9 @@ name = "localdash"
 version = "0.1.0"
 description = "Store, serve, and view time-series geolocation data (active 911 incidents, extensible to APRS/weather/etc.)"
 requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Dan DeFelippi", email = "dan@driverdan.com" }]
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
