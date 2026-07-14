@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { loadItems, loadTags, refreshSources } from "../api";
   import { events } from "../state.svelte";
+  import { debug } from "../../../lib/debug.svelte";
   import EventCard from "./EventCard.svelte";
 
   let loaded = $state(false);
@@ -16,9 +17,23 @@
       },
       5 * 60 * 1000,
     );
+    // Manual refresh lives in the shell debug panel, not the toolbar. Getters keep
+    // disabled/status live so the panel reflects an in-flight refresh.
+    debug.registerAction({
+      id: "events-refresh",
+      label: "Refresh sources",
+      run: refreshSources,
+      get disabled() {
+        return events.refreshing;
+      },
+      get status() {
+        return events.statusText;
+      },
+    });
     return () => {
       clearInterval(timer);
       clearTimeout(searchTimer);
+      debug.unregisterAction("events-refresh");
     };
   });
 
@@ -61,10 +76,6 @@
         <option value="50">≤ 50 mi</option>
       </select>
     </label>
-    <button onclick={refreshSources} disabled={events.refreshing}
-      >Refresh sources</button
-    >
-    <span class="status">{events.statusText}</span>
   </div>
 
   {#if events.tags.length > 0}

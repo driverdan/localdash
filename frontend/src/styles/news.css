@@ -27,8 +27,7 @@
   align-items: center;
   gap: 5px;
 }
-#news .toolbar select,
-#news .toolbar button {
+#news .toolbar select {
   font: inherit;
   color: #1b1f24;
   background: #fff;
@@ -36,17 +35,6 @@
   border-radius: 6px;
   padding: 5px 9px;
   cursor: pointer;
-}
-#news .toolbar button:hover:enabled {
-  border-color: #0071ce;
-}
-#news .toolbar button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-#news .toolbar .status {
-  color: #5a6573;
-  font-size: 12px;
 }
 
 /* Category tabs */
