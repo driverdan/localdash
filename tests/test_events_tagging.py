@@ -1,4 +1,5 @@
 """Pure tests for events topic tagging (ported from the chattevents PoC)."""
+
 from app.events.tagging import tag_event
 
 

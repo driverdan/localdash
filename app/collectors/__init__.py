@@ -4,6 +4,7 @@ To add a new source: write a BaseCollector subclass in this package and append
 an instance to the list returned by build_collectors(). Nothing else needs to
 change — the scheduler, ingestion service, and API are all source-agnostic.
 """
+
 from __future__ import annotations
 
 from app.collectors.base import BaseCollector

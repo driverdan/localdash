@@ -1,4 +1,5 @@
 """Offline tests for the CarCruiseFinder listing scraper (fixture HTML, no network)."""
+
 import datetime as dt
 from pathlib import Path
 

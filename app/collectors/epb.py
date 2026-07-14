@@ -19,6 +19,7 @@ builds the time-series itself by polling. The stable entity key is the outage's 
 progresses OUTAGE_REPORTED -> EN_ROUTE -> REPAIR_IN_PROGRESS and then disappears once
 restored), so `external_id` is derived from the rounded lat/lon, scoped by service.
 """
+
 from __future__ import annotations
 
 from typing import Any

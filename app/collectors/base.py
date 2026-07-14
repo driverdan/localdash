@@ -5,6 +5,7 @@ list of `NormalizedObservation`. The ingestion service and scheduler treat every
 source uniformly through this interface, so adding APRS/weather/etc. means writing
 one subclass and registering it (see app/collectors/__init__.py).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

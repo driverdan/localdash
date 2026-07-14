@@ -4,6 +4,7 @@ Handlers are called directly with a real session (same auto-skip pattern as
 test_ingest — the db_session fixture skips if Postgres is unreachable).
 Route shapes and validation are covered offline in test_api_routes.py.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -18,8 +19,13 @@ from app.models import Entity
 
 def _obs(ext, status, lat=35.0, lon=-85.0, **props):
     return NormalizedObservation(
-        external_id=ext, category="police", label="Test",
-        lat=lat, lon=lon, status=status, properties={"status": status, **props},
+        external_id=ext,
+        category="police",
+        label="Test",
+        lat=lat,
+        lon=lon,
+        status=status,
+        properties={"status": status, **props},
     )
 
 

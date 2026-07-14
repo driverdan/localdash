@@ -1,21 +1,23 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LocalDash</title>
-  <script>
-    // Pre-paint theme bootstrap: apply the saved theme to the document root
-    // before the app bundle loads, so a reload never flashes the default theme.
-    // Shares the `localdash.theme` key with lib/theme.svelte.ts (applyTheme).
-    try {
-      var t = localStorage.getItem('localdash.theme');
-      if (t) document.documentElement.dataset.theme = t;
-    } catch (e) { /* storage unavailable — fall through to the default theme */ }
-  </script>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.ts"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LocalDash</title>
+    <script>
+      // Pre-paint theme bootstrap: apply the saved theme to the document root
+      // before the app bundle loads, so a reload never flashes the default theme.
+      // Shares the `localdash.theme` key with lib/theme.svelte.ts (applyTheme).
+      try {
+        var t = localStorage.getItem("localdash.theme");
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {
+        /* storage unavailable — fall through to the default theme */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

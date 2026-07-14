@@ -18,8 +18,15 @@
   padding: 12px 16px 8px;
   font-size: 13px;
 }
-#news .toolbar label { font-weight: 600; color: #44505f; }
-#news .toolbar label.inline { display: flex; align-items: center; gap: 5px; }
+#news .toolbar label {
+  font-weight: 600;
+  color: #44505f;
+}
+#news .toolbar label.inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 #news .toolbar select,
 #news .toolbar button {
   font: inherit;
@@ -30,9 +37,17 @@
   padding: 5px 9px;
   cursor: pointer;
 }
-#news .toolbar button:hover:enabled { border-color: #0071ce; }
-#news .toolbar button:disabled { opacity: 0.6; cursor: default; }
-#news .toolbar .status { color: #5a6573; font-size: 12px; }
+#news .toolbar button:hover:enabled {
+  border-color: #0071ce;
+}
+#news .toolbar button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+#news .toolbar .status {
+  color: #5a6573;
+  font-size: 12px;
+}
 
 /* Category tabs */
 #news .tabs {
@@ -52,7 +67,9 @@
   padding: 4px 14px;
   cursor: pointer;
 }
-#news .tabs button:hover { border-color: #0071ce; }
+#news .tabs button:hover {
+  border-color: #0071ce;
+}
 #news .tabs button.active {
   background: #0071ce;
   border-color: #0071ce;
@@ -60,7 +77,11 @@
 }
 
 /* Feed */
-#news main { max-width: 46rem; margin: 0 auto; padding: 4px 16px 24px; }
+#news main {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 4px 16px 24px;
+}
 #news .section-head {
   font-size: 12px;
   font-weight: 700;
@@ -71,8 +92,14 @@
   padding-bottom: 4px;
   margin: 26px 0 2px;
 }
-#news .notice { text-align: center; color: #5a6573; padding: 48px 0; }
-#news .notice.error { color: #b4552d; }
+#news .notice {
+  text-align: center;
+  color: #5a6573;
+  padding: 48px 0;
+}
+#news .notice.error {
+  color: #b4552d;
+}
 
 /* Story card */
 #news .story-card {
@@ -82,10 +109,23 @@
   padding: 14px 18px;
   margin: 12px 0;
 }
-#news .story-card h3 { margin: 0 0 5px; font-size: 17px; line-height: 1.3; }
-#news .story-card h3 a { color: inherit; text-decoration: none; }
-#news .story-card h3 a:hover { color: #0071ce; }
-#news .meta { font-size: 11px; color: #5a6573; margin-bottom: 7px; }
+#news .story-card h3 {
+  margin: 0 0 5px;
+  font-size: 17px;
+  line-height: 1.3;
+}
+#news .story-card h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+#news .story-card h3 a:hover {
+  color: #0071ce;
+}
+#news .meta {
+  font-size: 11px;
+  color: #5a6573;
+  margin-bottom: 7px;
+}
 #news .badge {
   display: inline-block;
   font-weight: 600;
@@ -95,7 +135,10 @@
   background: #e8f0fa;
   color: #0071ce;
 }
-#news .badge.multi { background: #dcebe3; color: #2d6a4f; }
+#news .badge.multi {
+  background: #dcebe3;
+  color: #2d6a4f;
+}
 #news .badge.cat {
   background: transparent;
   border: 1px solid #cfd6df;
@@ -104,8 +147,17 @@
   letter-spacing: 0.08em;
   font-size: 10px;
 }
-#news .summary { margin: 0 0 9px; font-size: 13px; line-height: 1.5; }
-#news .links { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+#news .summary {
+  margin: 0 0 9px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+#news .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
 #news .links a {
   text-decoration: none;
   color: #1b1f24;
@@ -114,7 +166,10 @@
   border-radius: 999px;
   padding: 2px 10px;
 }
-#news .links a:hover { border-color: #0071ce; color: #0071ce; }
+#news .links a:hover {
+  border-color: #0071ce;
+  color: #0071ce;
+}
 
 /* Sources footer. The table itself uses the shared defaults in base.css. */
 #news .sources {
@@ -124,4 +179,6 @@
   font-size: 12px;
   color: #5a6573;
 }
-#news .sources a { color: inherit; }
+#news .sources a {
+  color: inherit;
+}

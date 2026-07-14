@@ -1,4 +1,9 @@
-import { asNumber, asStringArray, loadPrefs, persistPrefs } from "../../lib/prefs.svelte";
+import {
+  asNumber,
+  asStringArray,
+  loadPrefs,
+  persistPrefs,
+} from "../../lib/prefs.svelte";
 import type { EventItem } from "./types";
 
 const PREFS_KEY = "localdash.events";

@@ -16,13 +16,15 @@
     if (ts.status && !ts.statusOptions.includes(ts.status)) ts.status = "";
   });
   $effect(() => {
-    if (ts.jurisdiction && !ts.jurisdictionOptions.includes(ts.jurisdiction)) ts.jurisdiction = "";
+    if (ts.jurisdiction && !ts.jurisdictionOptions.includes(ts.jurisdiction))
+      ts.jurisdiction = "";
   });
 </script>
 
 <section class="filters">
   <h2>Filters</h2>
-  <label>Sources
+  <label
+    >Sources
     <div class="checks">
       {#each Object.entries(SOURCES) as [key, s] (key)}
         <label>
@@ -36,33 +38,42 @@
       {/each}
     </div>
   </label>
-  <label>Category
+  <label
+    >Category
     <div class="checks">
       {#each ts.selectedCategoryList as c (c)}
         <label>
           <input
             type="checkbox"
             checked={ts.categories.has(c)}
-            onchange={(e) => (e.currentTarget.checked ? ts.categories.add(c) : ts.categories.delete(c))}
+            onchange={(e) =>
+              e.currentTarget.checked
+                ? ts.categories.add(c)
+                : ts.categories.delete(c)}
           />
-          <span class="dot" style="background:{ts.catColor(c)}"></span>{catLabel(c)}
+          <span class="dot" style="background:{ts.catColor(c)}"
+          ></span>{catLabel(c)}
         </label>
       {/each}
     </div>
   </label>
-  <label>Status
+  <label
+    >Status
     <select bind:value={ts.status}>
       <option value="">All</option>
       {#each ts.statusOptions as v (v)}<option value={v}>{v}</option>{/each}
     </select>
   </label>
-  <label>Jurisdiction
+  <label
+    >Jurisdiction
     <select bind:value={ts.jurisdiction}>
       <option value="">All</option>
-      {#each ts.jurisdictionOptions as v (v)}<option value={v}>{v}</option>{/each}
+      {#each ts.jurisdictionOptions as v (v)}<option value={v}>{v}</option
+        >{/each}
     </select>
   </label>
-  <label>Search
+  <label
+    >Search
     <input type="text" placeholder="type, location…" bind:value={ts.search} />
   </label>
   <label class="inline">
@@ -77,9 +88,12 @@
     Show recently closed
   </label>
   {#if ts.showClosed}
-    <label>Closed within
+    <label
+      >Closed within
       <select bind:value={ts.closedWindow} onchange={() => loadActive()}>
-        {#each WINDOWS as w (w.minutes)}<option value={w.minutes}>{w.label}</option>{/each}
+        {#each WINDOWS as w (w.minutes)}<option value={w.minutes}
+            >{w.label}</option
+          >{/each}
       </select>
     </label>
   {/if}

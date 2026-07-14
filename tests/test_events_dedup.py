@@ -4,6 +4,7 @@ The fuzzy-matcher cases pin real pairs observed in live data: upstream sites
 listing the same event twice under different titles (must merge) and distinct
 franchise events with near-identical titles in different cities (must not).
 """
+
 import datetime as dt
 
 from app.events.dedup import (
@@ -56,7 +57,10 @@ def test_naive_datetime_treated_as_utc():
 
 def test_stopword_variants_normalize_identically():
     assert normalize_title("Cars & Coffee Franklin") == normalize_title("Cars and Coffee Franklin")
-    assert normalize_title("Ooltewah Cruise In @ Cambridge Square") == "ooltewah cruise cambridge square"
+    assert (
+        normalize_title("Ooltewah Cruise In @ Cambridge Square")
+        == "ooltewah cruise cambridge square"
+    )
 
 
 def test_stopword_variants_share_a_canonical_key():

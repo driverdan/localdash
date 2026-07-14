@@ -4,6 +4,7 @@ Add a new source by subclassing :class:`EventSource` and returning a list of
 :class:`RawEvent` from ``fetch``. The ingest pipeline handles de-duplication,
 tagging, geocoding, and persistence.
 """
+
 from __future__ import annotations
 
 import datetime as dt

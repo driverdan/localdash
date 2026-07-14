@@ -3,12 +3,21 @@
 Mounted at /api/v1/timeseries (see app/main.py). All geo responses are GeoJSON
 FeatureCollections.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,14 +58,22 @@ async def entities(
     `active` so clients can style closed incidents differently.
     """
     q = select(
-        Entity.id, Entity.source_key, Entity.external_id, Entity.category,
-        Entity.label, Entity.last_seen_at, Entity.is_active, Entity.latest_properties,
-        func.ST_X(Entity.last_geom), func.ST_Y(Entity.last_geom),
+        Entity.id,
+        Entity.source_key,
+        Entity.external_id,
+        Entity.category,
+        Entity.label,
+        Entity.last_seen_at,
+        Entity.is_active,
+        Entity.latest_properties,
+        func.ST_X(Entity.last_geom),
+        func.ST_Y(Entity.last_geom),
     )
 
     cutoff = (
         datetime.now(timezone.utc) - timedelta(minutes=closed_within)
-        if closed_within is not None else None
+        if closed_within is not None
+        else None
     )
     if active:
         if cutoff is not None:
@@ -81,12 +98,17 @@ async def entities(
     for eid, skey, ext, cat, label, last_seen, is_active, props, lon, lat in rows:
         feats.append(
             feature(
-                lon, lat,
+                lon,
+                lat,
                 {
                     # raw source fields first, then our authoritative keys override them.
                     **(props or {}),
-                    "id": eid, "source": skey, "external_id": ext, "category": cat,
-                    "label": label, "last_seen_at": last_seen.isoformat() if last_seen else None,
+                    "id": eid,
+                    "source": skey,
+                    "external_id": ext,
+                    "category": cat,
+                    "label": label,
+                    "last_seen_at": last_seen.isoformat() if last_seen else None,
                     "active": is_active,
                     "status": "Closed" if not is_active else (props or {}).get("status"),
                 },
@@ -99,9 +121,7 @@ async def entities(
 @router.get("/entities/{entity_id}")
 async def entity_detail(entity_id: int, session: AsyncSession = Depends(get_session)):
     """Entity snapshot (no track — see /entities/{id}/track)."""
-    ent = (
-        await session.execute(select(Entity).where(Entity.id == entity_id))
-    ).scalar_one_or_none()
+    ent = (await session.execute(select(Entity).where(Entity.id == entity_id))).scalar_one_or_none()
     if ent is None:
         raise HTTPException(404, "entity not found")
 
@@ -130,8 +150,11 @@ async def entity_track(entity_id: int, session: AsyncSession = Depends(get_sessi
     obs_rows = (
         await session.execute(
             select(
-                Observation.observed_at, Observation.status, Observation.properties,
-                func.ST_X(Observation.geom), func.ST_Y(Observation.geom),
+                Observation.observed_at,
+                Observation.status,
+                Observation.properties,
+                func.ST_X(Observation.geom),
+                func.ST_Y(Observation.geom),
             )
             .where(Observation.entity_id == entity_id)
             .order_by(Observation.observed_at.asc())
@@ -142,7 +165,8 @@ async def entity_track(entity_id: int, session: AsyncSession = Depends(get_sessi
         {
             "observed_at": at.isoformat(),
             "status": status,
-            "lon": lon, "lat": lat,
+            "lon": lon,
+            "lat": lat,
             "properties": props,
         }
         for at, status, props, lon, lat in obs_rows
@@ -161,9 +185,14 @@ async def observations(
 ):
     """Historical observations in a time window as a GeoJSON FeatureCollection."""
     q = select(
-        Observation.entity_id, Observation.source_key, Observation.category,
-        Observation.status, Observation.observed_at, Observation.properties,
-        func.ST_X(Observation.geom), func.ST_Y(Observation.geom),
+        Observation.entity_id,
+        Observation.source_key,
+        Observation.category,
+        Observation.status,
+        Observation.observed_at,
+        Observation.properties,
+        func.ST_X(Observation.geom),
+        func.ST_Y(Observation.geom),
     )
     if source:
         q = q.where(Observation.source_key == source)
@@ -181,10 +210,15 @@ async def observations(
     rows = (await session.execute(q)).all()
     feats = [
         feature(
-            lon, lat,
+            lon,
+            lat,
             {
-                "entity_id": eid, "source": skey, "category": cat, "status": status,
-                "observed_at": at.isoformat(), **(props or {}),
+                "entity_id": eid,
+                "source": skey,
+                "category": cat,
+                "status": status,
+                "observed_at": at.isoformat(),
+                **(props or {}),
             },
         )
         for eid, skey, cat, status, at, props, lon, lat in rows

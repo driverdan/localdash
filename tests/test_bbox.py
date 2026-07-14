@@ -1,4 +1,5 @@
 """Unit tests for the API bbox query-param parser."""
+
 from __future__ import annotations
 
 import pytest

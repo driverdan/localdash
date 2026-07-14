@@ -14,6 +14,7 @@ Returns a Diff describing new/updated/closed entities for WebSocket broadcast.
 The pure change-detection rule lives in `state_changed()` so it is unit-testable
 without a database.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

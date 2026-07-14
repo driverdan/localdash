@@ -9,6 +9,7 @@ Production ingests only real, configured sources:
 There is intentionally no sample/seed data here — fixtures live in the test
 suite only.
 """
+
 from __future__ import annotations
 
 from app.config import Settings

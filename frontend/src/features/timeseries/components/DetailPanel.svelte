@@ -32,7 +32,10 @@
   });
 
   const title = $derived(
-    detail ? detail.label || cfgFor(detail.source).title(detail.latest_properties || {}) : "",
+    detail
+      ? detail.label ||
+          cfgFor(detail.source).title(detail.latest_properties || {})
+      : "",
   );
 </script>
 
@@ -49,7 +52,9 @@
       <h2>History ({track.length})</h2>
       <ul class="track">
         {#each [...track].reverse() as t, i (i)}
-          <li><span class="t">{fmt(t.observed_at)}</span> — {t.status || ""}</li>
+          <li>
+            <span class="t">{fmt(t.observed_at)}</span> — {t.status || ""}
+          </li>
         {/each}
       </ul>
     {/if}

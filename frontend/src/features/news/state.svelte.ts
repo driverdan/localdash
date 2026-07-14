@@ -1,4 +1,10 @@
-import { asBool, asNumber, asString, loadPrefs, persistPrefs } from "../../lib/prefs.svelte";
+import {
+  asBool,
+  asNumber,
+  asString,
+  loadPrefs,
+  persistPrefs,
+} from "../../lib/prefs.svelte";
 import type { FeedHealth, Story } from "./types";
 
 const PREFS_KEY = "localdash.news";
@@ -43,7 +49,9 @@ class NewsState {
    * the window before stories load) without overwriting the saved preference.
    */
   shownTab = $derived.by(() =>
-    this.tabs.some(([slug]) => slug === this.activeTab) ? this.activeTab : "all",
+    this.tabs.some(([slug]) => slug === this.activeTab)
+      ? this.activeTab
+      : "all",
   );
 
   shownStories = $derived.by(() =>

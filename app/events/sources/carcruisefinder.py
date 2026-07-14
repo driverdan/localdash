@@ -16,6 +16,7 @@ further WAF circumvention. The source is inherently fragile (WAF policy or
 markup changes break it at any time); breakage manifests as zero events plus
 logs, contained by run_sources()'s per-source failure isolation.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -80,7 +81,13 @@ def _join_address(location: dict) -> str | None:
         return None
     parts = (
         address.get(key)
-        for key in ("streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry")
+        for key in (
+            "streetAddress",
+            "addressLocality",
+            "addressRegion",
+            "postalCode",
+            "addressCountry",
+        )
     )
     joined = ", ".join(_clean_text(p) for p in parts if isinstance(p, str) and p.strip())
     return joined or None
@@ -99,7 +106,9 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
         for node in _iter_event_nodes(data):
             start = _to_aware_utc(node.get("startDate"))
             if start is None:
-                log.warning("carcruisefinder: event without start date skipped: %r", node.get("name"))
+                log.warning(
+                    "carcruisefinder: event without start date skipped: %r", node.get("name")
+                )
                 continue
             location = node.get("location") if isinstance(node.get("location"), dict) else {}
             url = node.get("url") or listing_url

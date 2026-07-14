@@ -1,4 +1,5 @@
 """Unit tests for the GeoJSON serialization helpers."""
+
 from __future__ import annotations
 
 from app.geojson import feature, feature_collection

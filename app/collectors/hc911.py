@@ -6,6 +6,7 @@ and renders the array on a Leaflet map. The endpoint returns a *snapshot* of
 currently-active calls, so the time-series is built by polling + the ingest
 service tracking each incident by master_incident_id over time.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

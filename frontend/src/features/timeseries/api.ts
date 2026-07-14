@@ -1,7 +1,12 @@
 import { getJSON, type FeatureCollection } from "../../lib/api";
 import { SOURCES, cfgFor } from "./sources";
 import { ts } from "./state.svelte";
-import type { EntityDetail, EntityId, TrackedFeature, TrackPoint } from "./types";
+import type {
+  EntityDetail,
+  EntityId,
+  TrackedFeature,
+  TrackPoint,
+} from "./types";
 
 export const fetchEntity = (id: EntityId): Promise<EntityDetail> =>
   getJSON<EntityDetail>(`/api/v1/timeseries/entities/${id}`);
@@ -31,7 +36,9 @@ export async function toggleSource(key: string, on: boolean): Promise<void> {
   } else {
     ts.selectedSources.delete(key);
     const stillVisible = new Set(ts.selectedCategoryList);
-    for (const c of cfgFor(key).categories) if (!stillVisible.has(c)) ts.categories.delete(c);
-    for (const [id, f] of [...ts.features]) if (f.properties.source === key) ts.features.delete(id);
+    for (const c of cfgFor(key).categories)
+      if (!stillVisible.has(c)) ts.categories.delete(c);
+    for (const [id, f] of [...ts.features])
+      if (f.properties.source === key) ts.features.delete(id);
   }
 }

@@ -9,6 +9,7 @@ test. The fuzzy tier merges only when the listings' locations agree — title
 similarity alone must never merge, because franchise events ("Cars and Coffee
 <city>") share near-identical titles at the same hour in different cities.
 """
+
 from __future__ import annotations
 
 import datetime as dt

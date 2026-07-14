@@ -7,6 +7,7 @@ scheduled path, so without this a manual refresh could interleave with it.
 The geocode retry pass runs under the same lock so all Nominatim traffic in a
 cycle shares one rate-limited geocoder.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,7 +49,12 @@ async def refresh() -> dict:
         log.info(
             "events refresh done: %d sources, %d created, %d merged, %d skipped far, "
             "%d geocodes retried (%d resolved), %d reconciled",
-            len(sources), stats["created"], stats["merged"], stats["skipped_far"],
-            stats["retried"], stats["resolved"], stats["reconciled"],
+            len(sources),
+            stats["created"],
+            stats["merged"],
+            stats["skipped_far"],
+            stats["retried"],
+            stats["resolved"],
+            stats["reconciled"],
         )
         return stats

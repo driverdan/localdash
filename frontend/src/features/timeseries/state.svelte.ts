@@ -1,5 +1,11 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { asBool, asNumber, asStringArray, loadPrefs, persistPrefs } from "../../lib/prefs.svelte";
+import {
+  asBool,
+  asNumber,
+  asStringArray,
+  loadPrefs,
+  persistPrefs,
+} from "../../lib/prefs.svelte";
 import type { ConnectionState } from "../../lib/ws";
 import { SOURCES, cfgFor, isClosed } from "./sources";
 import type { EntityId, TrackedFeature, TrackPoint } from "./types";
@@ -89,11 +95,15 @@ class TimeseriesState {
   /** Table order: most recently seen first. */
   visibleSorted = $derived.by(() =>
     [...this.visibleFeatures].sort((a, b) =>
-      String(b.properties.last_seen_at ?? "").localeCompare(String(a.properties.last_seen_at ?? "")),
+      String(b.properties.last_seen_at ?? "").localeCompare(
+        String(a.properties.last_seen_at ?? ""),
+      ),
     ),
   );
 
-  statusOptions = $derived.by(() => this.uniq((f) => String(f.properties.status ?? "")));
+  statusOptions = $derived.by(() =>
+    this.uniq((f) => String(f.properties.status ?? "")),
+  );
   jurisdictionOptions = $derived.by(() =>
     this.uniq((f) => cfgFor(f.properties.source).jurisdiction(f.properties)),
   );
@@ -105,9 +115,11 @@ class TimeseriesState {
     if (!this.categories.has(p.category)) return false;
     if (this.status && p.status !== this.status) return false;
     const cfg = cfgFor(p.source);
-    if (this.jurisdiction && cfg.jurisdiction(p) !== this.jurisdiction) return false;
+    if (this.jurisdiction && cfg.jurisdiction(p) !== this.jurisdiction)
+      return false;
     if (this.search) {
-      const hay = `${cfg.title(p)} ${cfg.location(p)} ${p.status || ""}`.toLowerCase();
+      const hay =
+        `${cfg.title(p)} ${cfg.location(p)} ${p.status || ""}`.toLowerCase();
       if (!hay.includes(this.search.toLowerCase())) return false;
     }
     return true;

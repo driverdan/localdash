@@ -1,0 +1,5 @@
+# Build artifact served by FastAPI — never hand-edit or format (see AGENTS.md).
+static/
+
+# Dependencies
+frontend/node_modules/

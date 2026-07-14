@@ -4,6 +4,7 @@
 tested against a real Postgres+PostGIS+TimescaleDB if DATABASE_URL is reachable,
 otherwise skipped (e.g. local dev without the DB container running).
 """
+
 from __future__ import annotations
 
 from sqlalchemy import func, select
@@ -12,8 +13,8 @@ from app.collectors.base import NormalizedObservation
 from app.ingest import ingest, state_changed
 from app.models import Entity, Observation
 
-
 # --- pure change-detection rule -------------------------------------------------
+
 
 def test_state_changed_status_transition():
     assert state_changed("Queued", 35.0, -85.0, True, "Enroute", 35.0, -85.0)
@@ -37,10 +38,16 @@ def test_state_unchanged_sub_epsilon_jitter():
 
 # --- full DB-backed flow --------------------------------------------------------
 
+
 def _obs(ext, status, lat=35.0, lon=-85.0, **props):
     return NormalizedObservation(
-        external_id=ext, category="police", label="Test",
-        lat=lat, lon=lon, status=status, properties={"status": status, **props},
+        external_id=ext,
+        category="police",
+        label="Test",
+        lat=lat,
+        lon=lon,
+        status=status,
+        properties={"status": status, **props},
     )
 
 

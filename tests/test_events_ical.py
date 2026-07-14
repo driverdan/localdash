@@ -1,4 +1,5 @@
 """Offline tests for the iCal source's parse half (ported from the PoC)."""
+
 import datetime as dt
 
 from app.events.sources.ical import ICalSource

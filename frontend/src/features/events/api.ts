@@ -5,7 +5,8 @@ import type { ItemsResponse, TagsResponse } from "./types";
 function itemsURL(): string {
   const params = new URLSearchParams();
   for (const t of events.topics) params.append("topic", t);
-  if (events.maxMiles !== null) params.set("max_miles", String(events.maxMiles));
+  if (events.maxMiles !== null)
+    params.set("max_miles", String(events.maxMiles));
   if (events.search.trim()) params.set("search", events.search.trim());
   const qs = params.toString();
   return "/api/v1/events/items" + (qs ? `?${qs}` : "");

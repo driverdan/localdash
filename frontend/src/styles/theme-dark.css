@@ -14,123 +14,235 @@
  */
 
 /* ---- Base / shell ---------------------------------------------------------- */
-[data-theme="dark"] { color-scheme: dark; }
-[data-theme="dark"] body { background: #10151b; color: #e4e9ef; }
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+[data-theme="dark"] body {
+  background: #10151b;
+  color: #e4e9ef;
+}
 
 [data-theme="dark"] header {
-  background: #0a1017; border-bottom: 1px solid #223; color: #e4e9ef;
+  background: #0a1017;
+  border-bottom: 1px solid #223;
+  color: #e4e9ef;
 }
 /* Typography shift: headings get tighter tracking and a heavier weight in dark. */
-[data-theme="dark"] header h1 { font-weight: 800; letter-spacing: -0.01em; }
-[data-theme="dark"] header nav a { color: #e4e9ef; }
-[data-theme="dark"] header nav a.active { background: rgba(255,255,255,.12); }
+[data-theme="dark"] header h1 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+[data-theme="dark"] header nav a {
+  color: #e4e9ef;
+}
+[data-theme="dark"] header nav a.active {
+  background: rgba(255, 255, 255, 0.12);
+}
 
-[data-theme="dark"] h2 { color: #8fa0b0; font-weight: 700; }
+[data-theme="dark"] h2 {
+  color: #8fa0b0;
+  font-weight: 700;
+}
 
-[data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: #263140; }
-[data-theme="dark"] th { color: #8fa0b0; }
+[data-theme="dark"] th,
+[data-theme="dark"] td {
+  border-bottom-color: #263140;
+}
+[data-theme="dark"] th {
+  color: #8fa0b0;
+}
 
 [data-theme="dark"] .theme-switcher select {
-  background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
 }
-[data-theme="dark"] .theme-switcher option { color: #e4e9ef; background: #171d25; }
+[data-theme="dark"] .theme-switcher option {
+  color: #e4e9ef;
+  background: #171d25;
+}
 
 /* ---- Timeseries / map ------------------------------------------------------ */
-[data-theme="dark"] #sidebar { background: #171d25; border-right-color: #263140; }
-[data-theme="dark"] .filters label { color: #b3c0cc; }
+[data-theme="dark"] #sidebar {
+  background: #171d25;
+  border-right-color: #263140;
+}
+[data-theme="dark"] .filters label {
+  color: #b3c0cc;
+}
 [data-theme="dark"] .filters select,
 [data-theme="dark"] .filters input,
 [data-theme="dark"] .filters button.reset {
-  background: #1e2632; color: #e4e9ef; border-color: #33404e;
+  background: #1e2632;
+  color: #e4e9ef;
+  border-color: #33404e;
 }
-[data-theme="dark"] .filters button.reset:hover { border-color: #4da3ff; }
+[data-theme="dark"] .filters button.reset:hover {
+  border-color: #4da3ff;
+}
 
-[data-theme="dark"] #incident-table tbody tr:hover { background: #1e2632; }
-[data-theme="dark"] tr.closed-row td { color: #6f7c8a; }
-[data-theme="dark"] .badge-closed { color: #8b96a3; border-color: #3a4655; }
-[data-theme="dark"] .popup-src { color: #8fa0b0; }
+[data-theme="dark"] #incident-table tbody tr:hover {
+  background: #1e2632;
+}
+[data-theme="dark"] tr.closed-row td {
+  color: #6f7c8a;
+}
+[data-theme="dark"] .badge-closed {
+  color: #8b96a3;
+  border-color: #3a4655;
+}
+[data-theme="dark"] .popup-src {
+  color: #8fa0b0;
+}
 
 [data-theme="dark"] .map-legend {
-  background: #171d25; color: #e4e9ef; box-shadow: 0 1px 6px rgba(0,0,0,.6);
+  background: #171d25;
+  color: #e4e9ef;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
-[data-theme="dark"] .map-legend b { color: #8fa0b0; }
+[data-theme="dark"] .map-legend b {
+  color: #8fa0b0;
+}
 
 [data-theme="dark"] .detail {
-  background: #171d25; border-color: #33404e; color: #e4e9ef;
-  box-shadow: 0 8px 30px rgba(0,0,0,.55);
+  background: #171d25;
+  border-color: #33404e;
+  color: #e4e9ef;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
 }
-[data-theme="dark"] .detail .close { color: #8fa0b0; }
-[data-theme="dark"] .track { border-left-color: #33404e; }
-[data-theme="dark"] .track .t { color: #8fa0b0; }
-[data-theme="dark"] .kv b { color: #8fa0b0; }
+[data-theme="dark"] .detail .close {
+  color: #8fa0b0;
+}
+[data-theme="dark"] .track {
+  border-left-color: #33404e;
+}
+[data-theme="dark"] .track .t {
+  color: #8fa0b0;
+}
+[data-theme="dark"] .kv b {
+  color: #8fa0b0;
+}
 
 /* Leaflet popups (default white) so they don't glare under the dark basemap. */
 [data-theme="dark"] .leaflet-popup-content-wrapper,
-[data-theme="dark"] .leaflet-popup-tip { background: #1e2632; color: #e4e9ef; }
+[data-theme="dark"] .leaflet-popup-tip {
+  background: #1e2632;
+  color: #e4e9ef;
+}
 
 /* ---- Shared page chrome (news + events) ------------------------------------ */
 [data-theme="dark"] #news,
-[data-theme="dark"] #events { background: #10151b; }
+[data-theme="dark"] #events {
+  background: #10151b;
+}
 
 [data-theme="dark"] #news .toolbar label,
-[data-theme="dark"] #events .toolbar label { color: #b3c0cc; }
+[data-theme="dark"] #events .toolbar label {
+  color: #b3c0cc;
+}
 [data-theme="dark"] #news .toolbar select,
 [data-theme="dark"] #news .toolbar button,
 [data-theme="dark"] #events .toolbar input[type="search"],
 [data-theme="dark"] #events .toolbar select,
 [data-theme="dark"] #events .toolbar button {
-  background: #1e2632; color: #e4e9ef; border-color: #33404e;
+  background: #1e2632;
+  color: #e4e9ef;
+  border-color: #33404e;
 }
 [data-theme="dark"] #news .toolbar button:hover:enabled,
-[data-theme="dark"] #events .toolbar button:hover:enabled { border-color: #4da3ff; }
+[data-theme="dark"] #events .toolbar button:hover:enabled {
+  border-color: #4da3ff;
+}
 [data-theme="dark"] #news .toolbar .status,
-[data-theme="dark"] #events .toolbar .status { color: #8fa0b0; }
+[data-theme="dark"] #events .toolbar .status {
+  color: #8fa0b0;
+}
 
 [data-theme="dark"] #news .tabs button,
 [data-theme="dark"] #events .chip {
-  background: #1e2632; color: #cdd7e1; border-color: #33404e;
+  background: #1e2632;
+  color: #cdd7e1;
+  border-color: #33404e;
 }
 [data-theme="dark"] #news .tabs button:hover,
-[data-theme="dark"] #events .chip:hover { border-color: #4da3ff; }
+[data-theme="dark"] #events .chip:hover {
+  border-color: #4da3ff;
+}
 [data-theme="dark"] #news .tabs button.active,
 [data-theme="dark"] #events .chip.active {
-  background: #4da3ff; border-color: #4da3ff; color: #0a1017;
+  background: #4da3ff;
+  border-color: #4da3ff;
+  color: #0a1017;
 }
 
 [data-theme="dark"] #news .section-head {
-  color: #4da3ff; border-bottom-color: #263140;
+  color: #4da3ff;
+  border-bottom-color: #263140;
 }
 [data-theme="dark"] #news .notice,
-[data-theme="dark"] #events .notice { color: #8fa0b0; }
+[data-theme="dark"] #events .notice {
+  color: #8fa0b0;
+}
 [data-theme="dark"] #news .notice.error,
-[data-theme="dark"] #events .notice.error { color: #f0a17a; }
+[data-theme="dark"] #events .notice.error {
+  color: #f0a17a;
+}
 
 /* Cards: raised dark surfaces with heavier heading weight (the type shift). */
 [data-theme="dark"] #news .story-card,
 [data-theme="dark"] #events .event-card {
-  background: #171d25; border-color: #263140;
+  background: #171d25;
+  border-color: #263140;
 }
 [data-theme="dark"] #news .story-card h3,
-[data-theme="dark"] #events .event-card h3 { font-weight: 700; letter-spacing: -0.01em; }
+[data-theme="dark"] #events .event-card h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
 [data-theme="dark"] #news .story-card h3 a:hover,
-[data-theme="dark"] #events .event-card h3 a:hover { color: #4da3ff; }
+[data-theme="dark"] #events .event-card h3 a:hover {
+  color: #4da3ff;
+}
 [data-theme="dark"] #news .meta,
-[data-theme="dark"] #events .meta { color: #8fa0b0; }
+[data-theme="dark"] #events .meta {
+  color: #8fa0b0;
+}
 
-[data-theme="dark"] #news .badge { background: #12314f; color: #7cc0ff; }
-[data-theme="dark"] #news .badge.multi { background: #123a2b; color: #7fd6a8; }
+[data-theme="dark"] #news .badge {
+  background: #12314f;
+  color: #7cc0ff;
+}
+[data-theme="dark"] #news .badge.multi {
+  background: #123a2b;
+  color: #7fd6a8;
+}
 [data-theme="dark"] #news .badge.cat,
-[data-theme="dark"] #events .badge.cat { border-color: #3a4655; color: #9aa6b3; }
+[data-theme="dark"] #events .badge.cat {
+  border-color: #3a4655;
+  color: #9aa6b3;
+}
 [data-theme="dark"] #news .summary,
-[data-theme="dark"] #events .summary { color: #cdd7e1; }
-[data-theme="dark"] #events .where { color: #b3c0cc; }
-[data-theme="dark"] #events .distance { color: #7fd6a8; }
+[data-theme="dark"] #events .summary {
+  color: #cdd7e1;
+}
+[data-theme="dark"] #events .where {
+  color: #b3c0cc;
+}
+[data-theme="dark"] #events .distance {
+  color: #7fd6a8;
+}
 
 [data-theme="dark"] #news .links a,
 [data-theme="dark"] #events .links a {
-  background: #1e2632; color: #cdd7e1; border-color: #33404e;
+  background: #1e2632;
+  color: #cdd7e1;
+  border-color: #33404e;
 }
 [data-theme="dark"] #news .links a:hover,
-[data-theme="dark"] #events .links a:hover { border-color: #4da3ff; color: #4da3ff; }
+[data-theme="dark"] #events .links a:hover {
+  border-color: #4da3ff;
+  color: #4da3ff;
+}
 
-[data-theme="dark"] #news .sources { color: #8fa0b0; }
+[data-theme="dark"] #news .sources {
+  color: #8fa0b0;
+}

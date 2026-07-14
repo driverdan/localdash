@@ -5,6 +5,7 @@ Three plain relational tables (no PostGIS/Timescale): the outlet registry
 articles they produce. Cross-outlet story grouping lives in
 news_articles.cluster_id, recomputed after every fetch (clustering.py).
 """
+
 from __future__ import annotations
 
 from datetime import datetime

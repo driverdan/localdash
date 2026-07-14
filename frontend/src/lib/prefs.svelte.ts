@@ -11,7 +11,9 @@ export function loadPrefs(key: string): Record<string, unknown> | null {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    return parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;
   } catch {
@@ -36,12 +38,16 @@ export function removePrefs(key: string): void {
 }
 
 // Per-field validators: null means "not usable, keep the default".
-export const asString = (v: unknown): string | null => (typeof v === "string" ? v : null);
-export const asBool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
+export const asString = (v: unknown): string | null =>
+  typeof v === "string" ? v : null;
+export const asBool = (v: unknown): boolean | null =>
+  typeof v === "boolean" ? v : null;
 export const asNumber = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 export const asStringArray = (v: unknown): string[] | null =>
-  Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : null;
+  Array.isArray(v) && v.every((x) => typeof x === "string")
+    ? (v as string[])
+    : null;
 
 export interface PrefsPersister {
   /**
@@ -58,7 +64,10 @@ export interface PrefsPersister {
  * preference never gets a key written (key-presence is what switches saved
  * source/category selections into allowlist mode).
  */
-export function persistPrefs(key: string, snapshot: () => Record<string, unknown>): PrefsPersister {
+export function persistPrefs(
+  key: string,
+  snapshot: () => Record<string, unknown>,
+): PrefsPersister {
   let mode: "first" | "on" | "suppressed" = "first";
   $effect.root(() => {
     $effect(() => {

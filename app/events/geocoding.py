@@ -8,6 +8,7 @@ User-Agent and caps clients at 1 request/second; outbound requests are spaced
 by ``min_interval`` accordingly, and the permanent DB cache keeps steady-state
 volume near zero.
 """
+
 from __future__ import annotations
 
 import asyncio

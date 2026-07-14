@@ -1,4 +1,5 @@
 """Test doubles for the events feature."""
+
 from __future__ import annotations
 
 from app.events.geocoding import Coords, Geocoder

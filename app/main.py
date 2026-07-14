@@ -1,4 +1,5 @@
 """FastAPI application: REST API + WebSocket + static dashboard + poll scheduler."""
+
 from __future__ import annotations
 
 import logging
@@ -8,7 +9,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
-
 from starlette.types import Scope
 
 from app.api import events, news, root, timeseries

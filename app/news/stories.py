@@ -3,6 +3,7 @@
 Ported from ChattNews. build_stories() is pure (testable offline);
 get_stories()/get_sources() are the async DB entry points used by the router.
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -71,8 +72,12 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
     rows = (
         await session.execute(
             select(
-                NewsArticle.id, NewsArticle.cluster_id, NewsArticle.url,
-                NewsArticle.title, NewsArticle.summary, NewsArticle.category,
+                NewsArticle.id,
+                NewsArticle.cluster_id,
+                NewsArticle.url,
+                NewsArticle.title,
+                NewsArticle.summary,
+                NewsArticle.category,
                 NewsArticle.published,
                 NewsSource.name.label("source_name"),
                 NewsSource.slug.label("source_slug"),
@@ -115,8 +120,13 @@ async def get_sources(session: AsyncSession) -> list[dict]:
     rows = (
         await session.execute(
             select(
-                NewsSource.slug, NewsSource.name, NewsSource.homepage, NewsSource.enabled,
-                NewsFeed.category, NewsFeed.last_fetch, NewsFeed.last_status,
+                NewsSource.slug,
+                NewsSource.name,
+                NewsSource.homepage,
+                NewsSource.enabled,
+                NewsFeed.category,
+                NewsFeed.last_fetch,
+                NewsFeed.last_status,
                 article_count.label("article_count"),
             )
             .join(NewsSource, NewsSource.id == NewsFeed.source_id)

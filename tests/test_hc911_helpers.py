@@ -1,4 +1,5 @@
 """Unit tests for the HC911 collector's parsing helpers."""
+
 from __future__ import annotations
 
 from app.collectors.hc911 import _as_float, _parse_dt

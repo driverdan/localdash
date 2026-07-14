@@ -1,4 +1,5 @@
 """WebSocket connection manager — broadcasts ingest diffs to live dashboards."""
+
 from __future__ import annotations
 
 import asyncio

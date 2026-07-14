@@ -9,6 +9,7 @@ Chattanooga area.
 In keeping with the rest of the pipeline, only an address is emitted per event;
 coordinates are derived later by the ingest pipeline's geocoder.
 """
+
 from __future__ import annotations
 
 import datetime as dt

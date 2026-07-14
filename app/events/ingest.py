@@ -6,6 +6,7 @@ eagerly (selectinload) — lazy loading does not work under async sessions.
 Identity is resolved in tiers (see app.events.dedup): the source listing
 itself, then the exact canonical key, then the location-gated fuzzy match.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -182,7 +183,9 @@ async def upsert_raw_events(
                     skipped_far += 1
                     log.debug(
                         "skipping far event %r (%.0f mi > %.0f mi)",
-                        raw.title, distance, max_miles,
+                        raw.title,
+                        distance,
+                        max_miles,
                     )
                     continue
             event = Event(
@@ -221,9 +224,9 @@ async def upsert_raw_events(
         # listing refreshes its source event id rather than adding a link.
         existing = next(
             (
-                l
-                for l in event.links
-                if l.source_name == raw.source_name and l.source_url == raw.source_url
+                link
+                for link in event.links
+                if link.source_name == raw.source_name and link.source_url == raw.source_url
             ),
             None,
         )
@@ -257,7 +260,7 @@ def _merge_pair(survivor: Event, loser: Event) -> None:
         survivor.ends_at = loser.ends_at
     if survivor.location is None and loser.location is not None:
         survivor.location = loser.location
-    kept = {(l.source_name, l.source_url) for l in survivor.links}
+    kept = {(link.source_name, link.source_url) for link in survivor.links}
     for link in list(loser.links):
         if (link.source_name, link.source_url) not in kept:
             loser.links.remove(link)

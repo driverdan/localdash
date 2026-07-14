@@ -1,4 +1,5 @@
 """Offline tests for the HC911 collector's normalize() — no network, no DB."""
+
 from __future__ import annotations
 
 from app.collectors.hc911 import HC911Collector
@@ -10,7 +11,8 @@ def test_normalize_maps_core_fields(settings, hc911_payload):
 
     # Every non-PERBURN record with a master_incident_id should map.
     expected = [
-        r for r in hc911_payload
+        r
+        for r in hc911_payload
         if r.get("type") != "PERBURN" and r.get("master_incident_id") is not None
     ]
     assert len(obs) == len(expected)
@@ -25,10 +27,22 @@ def test_normalize_maps_core_fields(settings, hc911_payload):
 def test_normalize_filters_perburn():
     collector = HC911Collector(_DummySettings())
     raw = [
-        {"master_incident_id": 1, "type": "PERBURN", "agency_type": "Fire",
-         "latitude": 35.0, "longitude": -85.0, "status": "Queued"},
-        {"master_incident_id": 2, "type": "Property", "agency_type": "Law",
-         "latitude": 35.0, "longitude": -85.0, "status": "Queued"},
+        {
+            "master_incident_id": 1,
+            "type": "PERBURN",
+            "agency_type": "Fire",
+            "latitude": 35.0,
+            "longitude": -85.0,
+            "status": "Queued",
+        },
+        {
+            "master_incident_id": 2,
+            "type": "Property",
+            "agency_type": "Law",
+            "latitude": 35.0,
+            "longitude": -85.0,
+            "status": "Queued",
+        },
     ]
     obs = collector.normalize(raw)
     assert [o.external_id for o in obs] == ["2"]
@@ -37,16 +51,18 @@ def test_normalize_filters_perburn():
 
 def test_normalize_handles_bad_coords_and_sentinel_time():
     collector = HC911Collector(_DummySettings())
-    raw = [{
-        "master_incident_id": 9,
-        "type": "MVC",
-        "agency_type": "EMS",
-        "latitude": "not-a-number",
-        "longitude": None,
-        "status": "Enroute",
-        "statusdatetime": "1900-01-01T00:00:00.000Z",
-        "creation": "2026-06-13T15:14:25.000Z",
-    }]
+    raw = [
+        {
+            "master_incident_id": 9,
+            "type": "MVC",
+            "agency_type": "EMS",
+            "latitude": "not-a-number",
+            "longitude": None,
+            "status": "Enroute",
+            "statusdatetime": "1900-01-01T00:00:00.000Z",
+            "creation": "2026-06-13T15:14:25.000Z",
+        }
+    ]
     obs = collector.normalize(raw)
     assert len(obs) == 1
     o = obs[0]
