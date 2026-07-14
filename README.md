@@ -125,6 +125,24 @@ fixture (`tests/fixtures/hc911_sample.json`). The full ingest lifecycle test
 (`test_ingest_full_lifecycle`) runs only when `DATABASE_URL` is reachable; it is
 skipped otherwise.
 
+## Linting & formatting
+
+A [pre-commit](https://pre-commit.com/) hook auto-fixes and lints **staged** code —
+`ruff` for Python, `prettier` for the frontend. Enable it once per clone (hooks are
+not installed automatically):
+
+```bash
+pip install -e ".[dev]"      # pre-commit + ruff
+cd frontend && npm install   # prettier + prettier-plugin-svelte
+pre-commit install           # from the repo root
+```
+
+If a hook reformats a file the commit **aborts** so you can review the change, then
+re-stage and commit again — fixes are never committed unseen. Run on the whole tree
+with `pre-commit run --all-files`, or format the frontend directly via `npm run format`.
+The hook is bypassable with `git commit --no-verify`, and there is no CI check yet, so
+treat it as a convenience rather than a hard gate.
+
 ## Git workflow
 
 All changes use git version control and follow a standard branch + pull request process:

@@ -225,6 +225,26 @@ Most tests are pure/offline. The DB-backed tests (`tests/test_ingest.py::test_in
 fixtures in `conftest.py`) **auto-skip** unless `DATABASE_URL` points at a reachable Postgres —
 bring up `docker compose up -d db` (and `alembic upgrade head` for the news tables) to make them run.
 
+**Linting & formatting (pre-commit):** a git pre-commit hook auto-fixes and lints **staged**
+code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
+per clone (hooks are not installed automatically):
+```bash
+pip install -e ".[dev]"           # installs pre-commit + ruff into the venv
+cd frontend && npm install        # prettier + prettier-plugin-svelte (also needed for builds)
+pre-commit install                # from the repo root — wires .git/hooks/pre-commit
+```
+Behavior is **fix-then-abort**: if a hook rewrites a file the commit fails, leaving the fixes in
+the working tree for you to review, re-stage, and re-commit — auto-fixes are never silently
+committed. Config lives in `[tool.ruff]` (`pyproject.toml`), `frontend/.prettierrc`, and
+`.pre-commit-config.yaml`. `ruff` is self-provisioned by pre-commit; `prettier` reuses
+`frontend/node_modules`. Run against everything with `pre-commit run --all-files`; format the
+frontend directly with `npm run format`.
+
+`svelte-check` is deliberately **not** in the hook (it's a whole-project type checker, not a
+per-file linter) — keep running it as `npm run check`. **Known gap:** the hook is bypassable with
+`git commit --no-verify` and there is no CI backstop yet, so it is a convenience, not an
+enforcement boundary; a `pre-commit run --all-files` CI job is deferred to a later change.
+
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
 `alembic/versions/0001_initial.py`).
