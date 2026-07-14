@@ -3,7 +3,7 @@
   import { news } from "../state.svelte";
 </script>
 
-<footer>
+<footer class="sources">
   <h2>Sources</h2>
   <table>
     <thead>
@@ -22,17 +22,3 @@
     </tbody>
   </table>
 </footer>
-
-<style>
-  footer {
-    max-width: 46rem;
-    margin: 0 auto;
-    padding: 8px 16px 32px;
-    font-size: 12px;
-    color: #5a6573;
-  }
-  footer a { color: inherit; }
-  /* Rows come from the global table styles (app.css); news rows aren't clickable. */
-  tbody tr { cursor: default; }
-  tbody tr:hover { background: inherit; }
-</style>

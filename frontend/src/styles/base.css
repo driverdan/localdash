@@ -1,0 +1,51 @@
+/*
+ * LocalDash styling contract
+ * ==========================
+ * All visual styling lives in these global stylesheets — a base layer (this file)
+ * plus one sheet per feature (timeseries.css, news.css, events.css) — imported once
+ * at the app root (main.ts). This is the site's single source of visual truth.
+ *
+ * Rules every feature follows (the timeseries/map feature is the reference impl —
+ * it already carries zero scoped styles):
+ *   1. Feature components contain NO scoped visual <style> blocks. Style them here.
+ *   2. Markup is a semantic, assumption-free substrate a stylesheet can restyle in
+ *      layout, typography, and color:
+ *        - singleton regions carry a stable id (#news, #events, #layout, #sidebar,
+ *          #map, #incident-table);
+ *        - repeated elements carry a semantic class named for what they are
+ *          (.story-card, .event-card, .chip, .toolbar), not how they look;
+ *        - state (active/closed/selected) is a class or data-* attribute.
+ *   3. No presentational-only wrapper elements and no structural inline styles.
+ *      Data-driven inline values (e.g. a marker's category color) are fine.
+ *   4. A per-feature sheet styles only its own feature's hooks (mirroring the
+ *      feature-isolation rule for source), so features never collide.
+ *
+ * This file: reset, shared element defaults, and shell chrome (header, status bar).
+ */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1b1f24; }
+
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 16px; background: #0071CE; color: #fff;  /* EPB brand blue */
+}
+header h1 { font-size: 18px; margin: 0; }
+header nav { display: flex; gap: 4px; }
+header nav a {
+  color: #fff; text-decoration: none; font-size: 13px; font-weight: 600;
+  padding: 4px 10px; border-radius: 6px; opacity: .8;
+}
+header nav a:hover { opacity: 1; }
+header nav a.active { background: rgba(255,255,255,.18); opacity: 1; }
+.not-found { padding: 24px; }
+.status-bar { font-size: 12px; opacity: .85; }
+.status-bar.ok { color: #6ee7a8; }
+.status-bar.err { color: #ff9a9a; }
+
+/* Shared element defaults. */
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #5a6573; margin: 16px 0 8px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #e6eaef; }
+th { color: #5a6573; font-size: 11px; text-transform: uppercase; }

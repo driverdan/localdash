@@ -1,22 +1,4 @@
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1b1f24; }
-
-header {
-  display: flex; align-items: center; gap: 16px;
-  padding: 10px 16px; background: #0071CE; color: #fff;  /* EPB brand blue */
-}
-header h1 { font-size: 18px; margin: 0; }
-header nav { display: flex; gap: 4px; }
-header nav a {
-  color: #fff; text-decoration: none; font-size: 13px; font-weight: 600;
-  padding: 4px 10px; border-radius: 6px; opacity: .8;
-}
-header nav a:hover { opacity: 1; }
-header nav a.active { background: rgba(255,255,255,.18); opacity: 1; }
-.not-found { padding: 24px; }
-.status-bar { font-size: 12px; opacity: .85; }
-.status-bar.ok { color: #6ee7a8; }
-.status-bar.err { color: #ff9a9a; }
+/* Timeseries / map feature: layout regions, filters, incident table, markers, legend, detail. */
 
 #layout { display: flex; height: calc(100vh - 44px); }
 #sidebar {
@@ -25,17 +7,15 @@ header nav a.active { background: rgba(255,255,255,.18); opacity: 1; }
 }
 #map { flex: 1; height: 100%; }
 
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #5a6573; margin: 16px 0 8px; }
 .filters label { display: block; margin-bottom: 10px; font-weight: 600; font-size: 12px; color: #44505f; }
 .filters select, .filters input { width: 100%; padding: 6px; margin-top: 4px; border: 1px solid #cfd6df; border-radius: 6px; font: inherit; }
 .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-weight: 500; }
 .checks label { display: flex; align-items: center; gap: 4px; margin: 0; }
 
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #e6eaef; }
-th { color: #5a6573; font-size: 11px; text-transform: uppercase; }
-tbody tr { cursor: pointer; }
-tbody tr:hover { background: #eef3f9; }
+/* The incident table's rows are clickable; other tables (e.g. the news sources
+   footer) keep the neutral defaults from base.css. */
+#incident-table tbody tr { cursor: pointer; }
+#incident-table tbody tr:hover { background: #eef3f9; }
 
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
 .cat-police { background: #2563eb; }
