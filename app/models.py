@@ -72,7 +72,12 @@ class Entity(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
-    last_geom = mapped_column(Geometry("POINT", srid=4326, spatial_index=True), nullable=True)
+    # Generic geometry (Point for point sources, Polygon/MultiPolygon for area
+    # sources like water advisories) — the geo stack is source-agnostic.
+    last_geom = mapped_column(Geometry("GEOMETRY", srid=4326, spatial_index=True), nullable=True)
+    # Fingerprint of last_geom used by ingest change-detection without ST_X/ST_Y
+    # (which are point-only). Point form preserves the prior ~0.1 m threshold.
+    geom_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
     latest_properties: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     observations: Mapped[list["Observation"]] = relationship(back_populates="entity")
@@ -93,7 +98,7 @@ class Observation(Base):
     source_key: Mapped[str] = mapped_column(String(64))
     category: Mapped[str] = mapped_column(String(64), default="default")
     status: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    geom = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    geom = mapped_column(Geometry("GEOMETRY", srid=4326), nullable=True)
     properties: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     entity: Mapped["Entity"] = relationship(back_populates="observations")

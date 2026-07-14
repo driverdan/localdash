@@ -13,6 +13,7 @@ import {
   OctagonAlert,
   Zap,
   Cable,
+  Droplet,
   MapPin,
   type IconNode,
 } from "lucide";
@@ -28,6 +29,7 @@ export const ICONS = {
   "octagon-alert": OctagonAlert,
   zap: Zap,
   cable: Cable,
+  droplet: Droplet,
   "map-pin": MapPin,
 } satisfies Record<string, IconNode>;
 

@@ -6,6 +6,13 @@ import type { IconName } from "../../lib/icons";
 
 export type EntityId = string | number;
 
+/** GeoJSON geometry the API may emit — a point for point sources, or a polygon
+ *  area for sources like `tnaw` water advisories. */
+export type GeoGeometry =
+  | { type: "Point"; coordinates: [number, number] }
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
+
 /** Loose property bag: authoritative keys are typed, source-specific ones are unknown. */
 export interface TrackedProperties {
   id: EntityId;
@@ -22,13 +29,16 @@ export interface TrackedProperties {
 export interface TrackedFeature {
   type: "Feature";
   id: EntityId;
-  geometry: { type: "Point"; coordinates: [number, number] } | null;
+  geometry: GeoGeometry | null;
   properties: TrackedProperties;
 }
 
 export interface TrackPoint {
   observed_at: string;
   status: string | null;
+  /** Full geometry of the observation (point or polygon). */
+  geometry: GeoGeometry | null;
+  /** Convenience scalars, populated only for point geometry (null otherwise). */
   lon: number | null;
   lat: number | null;
   properties: Record<string, unknown>;

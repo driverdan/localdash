@@ -16,24 +16,28 @@ from app.models import Entity, Observation
 # --- pure change-detection rule -------------------------------------------------
 
 
+# Change detection now compares (status, geometry fingerprint) rather than raw
+# lat/lon movement; see geom_fingerprint() and test_ingest_helpers.py.
+
+
 def test_state_changed_status_transition():
-    assert state_changed("Queued", 35.0, -85.0, True, "Enroute", 35.0, -85.0)
+    assert state_changed("Queued", "fp", True, "Enroute", "fp")
 
 
 def test_state_unchanged_when_identical():
-    assert not state_changed("Enroute", 35.0, -85.0, True, "Enroute", 35.0, -85.0)
+    assert not state_changed("Enroute", "fp", True, "Enroute", "fp")
 
 
-def test_state_changed_on_movement():
-    assert state_changed("Enroute", 35.0, -85.0, True, "Enroute", 35.5, -85.0)
+def test_state_changed_on_geometry_change():
+    assert state_changed("Enroute", "fpA", True, "Enroute", "fpB")
 
 
 def test_state_changed_when_reappeared():
-    assert state_changed("Closed", 35.0, -85.0, False, "Queued", 35.0, -85.0)
+    assert state_changed("Closed", "fp", False, "Queued", "fp")
 
 
-def test_state_unchanged_sub_epsilon_jitter():
-    assert not state_changed("Enroute", 35.0, -85.0, True, "Enroute", 35.0 + 1e-9, -85.0)
+def test_state_unchanged_when_fingerprint_stable():
+    assert not state_changed("Enroute", "fp", True, "Enroute", "fp")
 
 
 # --- full DB-backed flow --------------------------------------------------------
@@ -79,17 +83,58 @@ async def test_ingest_full_lifecycle(db_session):
     assert ent2.is_active is True
 
 
-async def _count(session, model) -> int:
+_RING = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-84.9, 35.0], [-85.0, 35.0]]
+
+
+def _poly_obs(ext, status, ring=_RING, **props):
+    return NormalizedObservation(
+        external_id=ext,
+        category="general",
+        label="Advisory",
+        geometry={"type": "Polygon", "coordinates": [ring]},
+        status=status,
+        properties={"status": status, **props},
+    )
+
+
+async def test_ingest_polygon_geometry(db_session):
+    # A polygon source ingests with polygon geometry stored (not a point).
+    diff = await ingest(db_session, "test", [_poly_obs("a1", "Planned Work")])
+    assert len(diff.new) == 1
+    assert diff.new[0]["geometry"]["type"] == "Polygon"
+
+    ent = await _entity(db_session, "a1", "test")
+    geom_type = (
+        await db_session.execute(
+            select(func.ST_GeometryType(Entity.last_geom)).where(Entity.id == ent.id)
+        )
+    ).scalar_one()
+    assert geom_type == "ST_Polygon"
+    assert ent.geom_fingerprint  # fingerprint recorded for change detection
+
+    # Same advisory, unchanged status + shape -> no new observation.
+    diff = await ingest(db_session, "test", [_poly_obs("a1", "Planned Work")])
+    assert not diff.updated
+    assert await _count(db_session, Observation, "test") == 1
+
+    # Reshaped affected area -> new observation even with unchanged status.
+    bigger = [[-85.0, 35.0], [-85.0, 35.3], [-84.7, 35.3], [-84.7, 35.0], [-85.0, 35.0]]
+    diff = await ingest(db_session, "test", [_poly_obs("a1", "Planned Work", ring=bigger)])
+    assert len(diff.updated) == 1
+    assert await _count(db_session, Observation, "test") == 2
+
+
+async def _count(session, model, source_key: str = "test") -> int:
     return (
         await session.execute(
-            select(func.count()).select_from(model.__table__).where(model.source_key == "test")
+            select(func.count()).select_from(model.__table__).where(model.source_key == source_key)
         )
     ).scalar_one()
 
 
-async def _entity(session, external_id: str) -> Entity:
+async def _entity(session, external_id: str, source_key: str = "test") -> Entity:
     return (
         await session.execute(
-            select(Entity).where(Entity.source_key == "test", Entity.external_id == external_id)
+            select(Entity).where(Entity.source_key == source_key, Entity.external_id == external_id)
         )
     ).scalar_one()

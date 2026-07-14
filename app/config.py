@@ -44,6 +44,23 @@ class Settings(BaseSettings):
     epb_poll_interval: int = 60
     epb_enabled: bool = True
 
+    # Tennessee American Water advisories (Chattanooga-area water). The public
+    # Customer Advisory Map is an Esri Web AppBuilder app backed by an
+    # unauthenticated ArcGIS MapServer; the national feed is filtered to
+    # `tnaw_state` server-side and the two Active advisory layers are polled as
+    # GeoJSON (polygons). See docs/tnaw-advisory-api.md.
+    tnaw_api_base_url: str = (
+        "https://utility.arcgis.com/usrsvcs/servers/482bbe2135c54d178ec406189303faf4"
+        "/rest/services/CustomerAdvisoryMap/DisplayData_SDE/MapServer"
+    )
+    tnaw_state: str = "TN"
+    # layer id -> advisory category. 17 = Active–Emergency, 16 = Active–General.
+    # (15 = Lifted is intentionally not ingested; the closure sweep retires lifted
+    # advisories when they drop out of the Active layers.)
+    tnaw_layers: str = "17:emergency,16:general"
+    tnaw_poll_interval: int = 300
+    tnaw_enabled: bool = True
+
     user_agent: str = "LocalDash/0.1"
 
     # News feature (RSS aggregation; outlets/feeds live in app/news/registry.py).

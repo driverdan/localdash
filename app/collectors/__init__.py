@@ -11,6 +11,7 @@ from app.collectors.base import BaseCollector
 from app.collectors.epb import EpbCollector
 from app.collectors.hc911 import HC911Collector
 from app.collectors.tdot import TdotCollector
+from app.collectors.tnaw import TnawCollector
 from app.config import Settings
 
 
@@ -25,6 +26,9 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
 
     if settings.epb_enabled:
         collectors.append(EpbCollector(settings))
+
+    if settings.tnaw_enabled:
+        collectors.append(TnawCollector(settings))
 
     # Future sources, e.g.:
     #   collectors.append(AprsCollector(settings))

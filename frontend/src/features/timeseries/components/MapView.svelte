@@ -50,6 +50,9 @@
   let cfg = $state<AppConfig>();
   let map: L.Map | undefined;
   let cluster: L.MarkerClusterGroup | undefined;
+  // Polygon (area) features render here, deliberately outside the marker cluster —
+  // clustering only makes sense for point markers.
+  let polyLayer: L.LayerGroup | undefined;
   let trackLayer: L.LayerGroup | undefined;
   let tileLayer: L.TileLayer | undefined;
 
@@ -72,6 +75,7 @@
       // unless the points overlap, and identical coordinates can still be spiderfied.
       cluster = L.markerClusterGroup({ maxClusterRadius: 1 });
       map.addLayer(cluster);
+      polyLayer = L.layerGroup().addTo(map);
       trackLayer = L.layerGroup().addTo(map);
       addStatusLegend(map);
       // Mirror the live viewport out to the shell debug store (read by DebugPanel).
@@ -156,6 +160,20 @@
     });
   }
 
+  // Fill/stroke for an area feature: the source's category color (e.g. emergency
+  // vs general advisory), muted when the entity is closed/lifted.
+  function polyStyle(f: TrackedFeature): L.PathOptions {
+    const color = featureColor(f);
+    const closed = isClosed(f);
+    return {
+      color,
+      weight: 2,
+      opacity: closed ? 0.4 : 0.9,
+      fillColor: color,
+      fillOpacity: closed ? 0.08 : 0.25,
+    };
+  }
+
   function popupHtml(f: TrackedFeature): string {
     const p = f.properties;
     const cfg = cfgFor(p.source);
@@ -164,30 +182,57 @@
       ${esc(cfg.location(p))}`;
   }
 
-  // Reconcile Leaflet markers against the derived visible set. Feature objects
-  // are replaced (never mutated) on update, so reference equality identifies the
-  // markers that actually changed — unaffected markers are left untouched.
-  const rendered = new Map<EntityId, { f: TrackedFeature; marker: L.Marker }>();
+  // Reconcile Leaflet layers against the derived visible set. Feature objects are
+  // replaced (never mutated) on update, so reference equality identifies the layers
+  // that actually changed — unaffected ones are left untouched. Points render as
+  // clustered markers; polygons render in the separate (non-clustered) polyLayer.
+  const renderedMarkers = new Map<
+    EntityId,
+    { f: TrackedFeature; marker: L.Marker }
+  >();
+  const renderedPolys = new Map<
+    EntityId,
+    { f: TrackedFeature; layer: L.GeoJSON }
+  >();
   $effect(() => {
-    if (!ready || !cluster) return;
+    if (!ready || !cluster || !polyLayer) return;
     const shown = new Set<EntityId>();
     for (const f of ts.visibleFeatures) {
       if (!f.geometry) continue;
       shown.add(f.id);
-      const cur = rendered.get(f.id);
-      if (cur && cur.f === f) continue;
-      if (cur) cluster.removeLayer(cur.marker);
-      const [lon, lat] = f.geometry.coordinates;
-      const marker = L.marker([lat, lon], { icon: markerIcon(f) });
-      marker.bindPopup(popupHtml(f));
-      marker.on("click", () => (ts.detailId = f.id));
-      cluster.addLayer(marker);
-      rendered.set(f.id, { f, marker });
+      if (f.geometry.type === "Point") {
+        const cur = renderedMarkers.get(f.id);
+        if (cur && cur.f === f) continue;
+        if (cur) cluster.removeLayer(cur.marker);
+        const [lon, lat] = f.geometry.coordinates;
+        const marker = L.marker([lat, lon], { icon: markerIcon(f) });
+        marker.bindPopup(popupHtml(f));
+        marker.on("click", () => (ts.detailId = f.id));
+        cluster.addLayer(marker);
+        renderedMarkers.set(f.id, { f, marker });
+      } else {
+        const cur = renderedPolys.get(f.id);
+        if (cur && cur.f === f) continue;
+        if (cur) polyLayer.removeLayer(cur.layer);
+        const layer = L.geoJSON(f as unknown as GeoJSON.Feature, {
+          style: () => polyStyle(f),
+        });
+        layer.bindPopup(popupHtml(f));
+        layer.on("click", () => (ts.detailId = f.id));
+        polyLayer.addLayer(layer);
+        renderedPolys.set(f.id, { f, layer });
+      }
     }
-    for (const [id, r] of rendered) {
+    for (const [id, r] of renderedMarkers) {
       if (!shown.has(id)) {
         cluster.removeLayer(r.marker);
-        rendered.delete(id);
+        renderedMarkers.delete(id);
+      }
+    }
+    for (const [id, r] of renderedPolys) {
+      if (!shown.has(id)) {
+        polyLayer.removeLayer(r.layer);
+        renderedPolys.delete(id);
       }
     }
   });
@@ -219,11 +264,21 @@
     }
   });
 
-  // One-shot focus requests from the table.
+  // One-shot focus requests from the table: fly to a point entity's coordinates,
+  // or fit the map to a polygon entity's affected-area bounds.
   $effect(() => {
     const req = ts.flyToRequest;
-    if (!ready || !req || !map) return;
-    map.flyTo([req.lat, req.lon], 15);
+    if (!ready || req == null || !map) return;
+    const f = ts.features.get(req);
+    if (f?.geometry) {
+      if (f.geometry.type === "Point") {
+        const [lon, lat] = f.geometry.coordinates;
+        map.flyTo([lat, lon], 15);
+      } else {
+        const bounds = L.geoJSON(f as unknown as GeoJSON.Feature).getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds, { maxZoom: 15 });
+      }
+    }
     ts.flyToRequest = null;
   });
 </script>

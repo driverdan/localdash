@@ -44,8 +44,9 @@ class TimeseriesState {
   detailId = $state<EntityId | null>(null);
   /** Track of the open detail entity, drawn on the map by MapView. */
   detailTrack = $state<TrackPoint[] | null>(null);
-  /** One-shot map focus request (set by the table, consumed by MapView). */
-  flyToRequest = $state<{ lat: number; lon: number } | null>(null);
+  /** One-shot map focus request: the entity id to focus (set by the table,
+   *  consumed by MapView, which flies to a point or fits a polygon's bounds). */
+  flyToRequest = $state<EntityId | null>(null);
 
   // Saved preferences apply synchronously here, before the persist effect below
   // is registered, so startup never writes a key. A saved list is an explicit

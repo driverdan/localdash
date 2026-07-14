@@ -5,10 +5,8 @@
 
   function openDetail(f: TrackedFeature) {
     ts.detailId = f.id;
-    if (f.geometry) {
-      const [lon, lat] = f.geometry.coordinates;
-      ts.flyToRequest = { lat, lon };
-    }
+    // MapView focuses by id: flies to a point or fits a polygon's bounds.
+    if (f.geometry) ts.flyToRequest = f.id;
   }
 </script>
 
