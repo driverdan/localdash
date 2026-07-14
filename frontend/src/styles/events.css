@@ -23,8 +23,7 @@
   color: #44505f;
 }
 #events .toolbar input[type="search"],
-#events .toolbar select,
-#events .toolbar button {
+#events .toolbar select {
   font: inherit;
   color: #1b1f24;
   background: #fff;
@@ -35,20 +34,8 @@
 #events .toolbar input[type="search"] {
   width: 220px;
 }
-#events .toolbar select,
-#events .toolbar button {
+#events .toolbar select {
   cursor: pointer;
-}
-#events .toolbar button:hover:enabled {
-  border-color: #0071ce;
-}
-#events .toolbar button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-#events .toolbar .status {
-  color: #5a6573;
-  font-size: 12px;
 }
 
 /* Topic chips */

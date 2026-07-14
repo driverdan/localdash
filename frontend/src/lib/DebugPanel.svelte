@@ -38,7 +38,23 @@
           </dd>
         </dl>
       </section>
-    {:else}
+    {/if}
+    {#if debug.actions.length > 0}
+      <section class="debug-section">
+        <h4>Actions</h4>
+        {#each debug.actions as action (action.id)}
+          <div class="debug-action">
+            <button onclick={action.run} disabled={action.disabled}
+              >{action.label}</button
+            >
+            {#if action.status}
+              <span class="debug-action-status">{action.status}</span>
+            {/if}
+          </div>
+        {/each}
+      </section>
+    {/if}
+    {#if !onMap && debug.actions.length === 0}
       <p class="debug-empty">No debug data for this view.</p>
     {/if}
   </aside>

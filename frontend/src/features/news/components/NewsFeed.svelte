@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { loadSources, loadStories, refreshFeeds } from "../api";
   import { news } from "../state.svelte";
+  import { debug } from "../../../lib/debug.svelte";
   import CategoryTabs from "./CategoryTabs.svelte";
   import SourcesFooter from "./SourcesFooter.svelte";
   import StoryCard from "./StoryCard.svelte";
@@ -17,7 +18,23 @@
       },
       5 * 60 * 1000,
     );
-    return () => clearInterval(timer);
+    // Manual refresh lives in the shell debug panel, not the toolbar. Getters keep
+    // disabled/status live so the panel reflects an in-flight refresh.
+    debug.registerAction({
+      id: "news-refresh",
+      label: "Refresh feeds",
+      run: refreshFeeds,
+      get disabled() {
+        return news.refreshing;
+      },
+      get status() {
+        return news.statusText;
+      },
+    });
+    return () => {
+      clearInterval(timer);
+      debug.unregisterAction("news-refresh");
+    };
   });
 
   function setHours(e: Event) {
@@ -40,10 +57,6 @@
     <label class="inline">
       <input type="checkbox" bind:checked={news.multiOnly} /> Multi-source only
     </label>
-    <button onclick={refreshFeeds} disabled={news.refreshing}
-      >Refresh feeds</button
-    >
-    <span class="status">{news.statusText}</span>
   </div>
 
   <CategoryTabs />

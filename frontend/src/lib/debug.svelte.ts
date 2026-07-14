@@ -14,11 +14,34 @@ export interface MapViewport {
   lng: number;
 }
 
+// A feature-provided debug action, rendered by DebugPanel as a button + status
+// line. `disabled` and `status` are getters (not snapshots) so the panel reflects
+// live feature state — e.g. a button that greys out and a status that ticks over
+// during an in-flight refresh — without `lib/` importing any feature code.
+export interface DebugAction {
+  /** Stable key, e.g. "news-refresh". */
+  id: string;
+  /** Button text, e.g. "Refresh feeds". */
+  label: string;
+  /** Invoked when the button is clicked. */
+  run: () => void;
+  /** Whether the button is disabled (read live). */
+  readonly disabled: boolean;
+  /** Status text; empty string hides the status line. */
+  readonly status: string;
+}
+
 class DebugState {
   /** Modal visibility, toggled by the π button. */
   open = $state(false);
   /** Live map viewport, or null when the map isn't mounted (off the `/map` route). */
   map = $state<MapViewport | null>(null);
+  /**
+   * Feature-registered actions. Only the mounted feature's action is present, so
+   * the panel is route-aware for free. Features write here on mount and remove on
+   * teardown, mirroring the map-viewport slice.
+   */
+  actions = $state<DebugAction[]>([]);
 
   toggle(): void {
     this.open = !this.open;
@@ -31,6 +54,16 @@ class DebugState {
   /** Cleared on MapView teardown so a stale viewport isn't shown after leaving `/map`. */
   clearMapViewport(): void {
     this.map = null;
+  }
+
+  /** Register (or replace, by id) a feature debug action. */
+  registerAction(action: DebugAction): void {
+    this.actions = [...this.actions.filter((a) => a.id !== action.id), action];
+  }
+
+  /** Remove a feature debug action by id; idempotent. */
+  unregisterAction(id: string): void {
+    this.actions = this.actions.filter((a) => a.id !== id);
   }
 }
 

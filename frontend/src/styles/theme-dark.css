@@ -139,8 +139,17 @@
 [data-theme="dark"] .debug-modal h4,
 [data-theme="dark"] .debug-kv dt,
 [data-theme="dark"] .debug-empty,
+[data-theme="dark"] .debug-action-status,
 [data-theme="dark"] .debug-close {
   color: #8fa0b0;
+}
+[data-theme="dark"] .debug-action button {
+  background: #1e2632;
+  color: #e4e9ef;
+  border-color: #33404e;
+}
+[data-theme="dark"] .debug-action button:hover:enabled {
+  border-color: #4da3ff;
 }
 
 /* Leaflet popups (default white) so they don't glare under the dark basemap. */
@@ -161,21 +170,11 @@
   color: #b3c0cc;
 }
 [data-theme="dark"] #news .toolbar select,
-[data-theme="dark"] #news .toolbar button,
 [data-theme="dark"] #events .toolbar input[type="search"],
-[data-theme="dark"] #events .toolbar select,
-[data-theme="dark"] #events .toolbar button {
+[data-theme="dark"] #events .toolbar select {
   background: #1e2632;
   color: #e4e9ef;
   border-color: #33404e;
-}
-[data-theme="dark"] #news .toolbar button:hover:enabled,
-[data-theme="dark"] #events .toolbar button:hover:enabled {
-  border-color: #4da3ff;
-}
-[data-theme="dark"] #news .toolbar .status,
-[data-theme="dark"] #events .toolbar .status {
-  color: #8fa0b0;
 }
 
 [data-theme="dark"] #news .tabs button,
