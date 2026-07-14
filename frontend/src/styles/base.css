@@ -40,6 +40,19 @@ header nav a:hover { opacity: 1; }
 header nav a.active { background: rgba(255,255,255,.18); opacity: 1; }
 .not-found { padding: 24px; }
 .status-bar { font-size: 12px; opacity: .85; }
+
+/* Theme switcher: pushed to the header's trailing edge (auto margin), so it
+   stays put whether or not the map's status bar is present. */
+.theme-switcher {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: #fff; opacity: .9;
+}
+.theme-switcher select {
+  font: inherit; font-weight: 600; color: #fff;
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+  border-radius: 6px; padding: 3px 8px; cursor: pointer;
+}
+.theme-switcher option { color: #1b1f24; }
 .status-bar.ok { color: #6ee7a8; }
 .status-bar.err { color: #ff9a9a; }
 
