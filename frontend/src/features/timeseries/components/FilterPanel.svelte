@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { loadActive, toggleSource } from "../api";
-  import { SOURCES, catLabel } from "../sources";
+  import { loadActive, toggleCategory, toggleSource } from "../api";
+  import { SOURCES, catKey, catLabel, colorFor } from "../sources";
   import { ts } from "../state.svelte";
 
   const WINDOWS = [
@@ -23,40 +23,40 @@
 
 <section class="filters">
   <h2>Filters</h2>
-  <label
-    >Sources
-    <div class="checks">
-      {#each Object.entries(SOURCES) as [key, s] (key)}
-        <label>
+  <div class="source-tree">
+    <span class="tree-heading">Sources &amp; categories</span>
+    {#each Object.entries(SOURCES) as [key, s] (key)}
+      {@const cats = s.categories}
+      {@const onCount = cats.filter((c) =>
+        ts.categories.has(catKey(key, c)),
+      ).length}
+      <div class="source-group">
+        <label class="source-row">
           <input
             type="checkbox"
-            checked={ts.selectedSources.has(key)}
+            checked={onCount === cats.length}
+            indeterminate={onCount > 0 && onCount < cats.length}
             onchange={(e) => toggleSource(key, e.currentTarget.checked)}
           />
           {s.name}
         </label>
-      {/each}
-    </div>
-  </label>
-  <label
-    >Category
-    <div class="checks">
-      {#each ts.selectedCategoryList as c (c)}
-        <label>
-          <input
-            type="checkbox"
-            checked={ts.categories.has(c)}
-            onchange={(e) =>
-              e.currentTarget.checked
-                ? ts.categories.add(c)
-                : ts.categories.delete(c)}
-          />
-          <span class="dot" style="background:{ts.catColor(c)}"
-          ></span>{catLabel(c)}
-        </label>
-      {/each}
-    </div>
-  </label>
+        <div class="cat-children">
+          {#each cats as c (c)}
+            <label>
+              <input
+                type="checkbox"
+                checked={ts.categories.has(catKey(key, c))}
+                onchange={(e) =>
+                  toggleCategory(key, c, e.currentTarget.checked)}
+              />
+              <span class="dot" style="background:{colorFor(key, c)}"
+              ></span>{catLabel(c)}
+            </label>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </div>
   <label
     >Status
     <select bind:value={ts.status}>

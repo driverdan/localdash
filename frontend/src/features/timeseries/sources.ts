@@ -129,6 +129,10 @@ export const cfgFor = (key: string): SourceConfig => SOURCES[key] || FALLBACK;
 // ---- display helpers ---------------------------------------------------------
 export const isClosed = (f: TrackedFeature): boolean =>
   f.properties.active === false;
+// Category identity is scoped to its source ("source:category"), so two sources
+// may define the same category name without sharing a filter toggle or color.
+export const catKey = (source: string, cat: string): string =>
+  `${source}:${cat}`;
 export const catLabel = (cat: string): string =>
   cap(String(cat || "").replace(/_/g, " "));
 export const colorFor = (sourceKey: string, cat: string): string =>

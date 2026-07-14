@@ -7,15 +7,17 @@ import {
   persistPrefs,
 } from "../../lib/prefs.svelte";
 import type { ConnectionState } from "../../lib/ws";
-import { SOURCES, cfgFor, isClosed } from "./sources";
+import { SOURCES, catKey, cfgFor, isClosed } from "./sources";
 import type { EntityId, TrackedFeature, TrackPoint } from "./types";
 
 const PREFS_KEY = "localdash.map";
 
-const allSourceKeys = (): string[] => Object.keys(SOURCES);
-const allCategories = (): string[] => [
-  ...new Set(Object.values(SOURCES).flatMap((s) => s.categories)),
-];
+// Source-scoped category keys ("source:category") for every category of every
+// source; unique by construction, so no de-duplication is needed.
+const allCategoryKeys = (): string[] =>
+  Object.entries(SOURCES).flatMap(([key, s]) =>
+    s.categories.map((c) => catKey(key, c)),
+  );
 
 // The feature's reactive state. Raw inputs are $state; everything the old app
 // maintained by hand (visible set, dropdown options, category union) is $derived,
@@ -24,9 +26,13 @@ class TimeseriesState {
   /** entity id -> GeoJSON feature. Values are replaced (never mutated) on update. */
   features = new SvelteMap<EntityId, TrackedFeature>();
 
-  selectedSources = new SvelteSet<string>(allSourceKeys());
-  /** Enabled categories; defaults to every category of every selected source. */
-  categories = new SvelteSet<string>(allCategories());
+  /**
+   * The single source of truth for source/category filtering: the set of enabled
+   * source-scoped category keys ("source:category"). A source is "loaded" iff at
+   * least one of its categories is enabled (see `selectedSources`), so there is no
+   * separate source-selection state.
+   */
+  categories = new SvelteSet<string>(allCategoryKeys());
   status = $state("");
   jurisdiction = $state("");
   search = $state("");
@@ -44,19 +50,15 @@ class TimeseriesState {
   // Saved preferences apply synchronously here, before the persist effect below
   // is registered, so startup never writes a key. A saved list is an explicit
   // allowlist: it replaces the all-on default, intersected with currently-known
-  // keys (stale entries dropped, sources/categories added later start unchecked).
+  // category keys (stale entries dropped, categories added later start unchecked).
   constructor() {
     const saved = loadPrefs(PREFS_KEY);
     if (!saved) return;
-    const sources = asStringArray(saved.sources);
-    if (sources) {
-      this.selectedSources.clear();
-      for (const k of sources) if (k in SOURCES) this.selectedSources.add(k);
-    }
     const cats = asStringArray(saved.categories);
     if (cats) {
-      const known = new Set(allCategories());
+      const known = new Set(allCategoryKeys());
       this.categories.clear();
+      // Stale keys — including pre-scoping bare category names — are dropped.
       for (const c of cats) if (known.has(c)) this.categories.add(c);
     }
     this.showClosed = asBool(saved.showClosed) ?? this.showClosed;
@@ -70,20 +72,23 @@ class TimeseriesState {
    */
   resetFilters(): void {
     persister.resetTo(() => {
-      this.selectedSources.clear();
-      for (const k of allSourceKeys()) this.selectedSources.add(k);
       this.categories.clear();
-      for (const c of allCategories()) this.categories.add(c);
+      for (const c of allCategoryKeys()) this.categories.add(c);
       this.showClosed = false;
       this.closedWindow = 60;
     });
   }
 
-  /** Categories across the currently-selected sources, de-duped by name. */
-  selectedCategoryList = $derived.by(() => {
-    const out: string[] = [];
-    for (const key of this.selectedSources) {
-      for (const c of cfgFor(key).categories) if (!out.includes(c)) out.push(c);
+  /**
+   * Loaded sources, derived from the category selection: a source is on iff at
+   * least one of its categories is enabled. Drives what `loadActive` fetches and
+   * which push diffs `live.ts` accepts.
+   */
+  selectedSources = $derived.by(() => {
+    const out = new Set<string>();
+    for (const [key, s] of Object.entries(SOURCES)) {
+      if (s.categories.some((c) => this.categories.has(catKey(key, c))))
+        out.add(key);
     }
     return out;
   });
@@ -110,9 +115,10 @@ class TimeseriesState {
 
   passesFilters(f: TrackedFeature): boolean {
     const p = f.properties;
-    if (!this.selectedSources.has(p.source)) return false;
+    // A scoped-category miss also excludes features of any source whose
+    // categories are all off, so no separate source-membership check is needed.
+    if (!this.categories.has(catKey(p.source, p.category))) return false;
     if (isClosed(f) && !this.showClosed) return false;
-    if (!this.categories.has(p.category)) return false;
     if (this.status && p.status !== this.status) return false;
     const cfg = cfgFor(p.source);
     if (this.jurisdiction && cfg.jurisdiction(p) !== this.jurisdiction)
@@ -123,15 +129,6 @@ class TimeseriesState {
       if (!hay.includes(this.search.toLowerCase())) return false;
     }
     return true;
-  }
-
-  /** Color for a category checkbox/dot (from whichever selected source defines it). */
-  catColor(cat: string): string {
-    for (const key of this.selectedSources) {
-      const c = cfgFor(key).colors[cat];
-      if (c) return c;
-    }
-    return "#6b7280";
   }
 
   private uniq(getter: (f: TrackedFeature) => string): string[] {
@@ -146,7 +143,8 @@ class TimeseriesState {
 export const ts = new TimeseriesState();
 
 const persister = persistPrefs(PREFS_KEY, () => ({
-  sources: [...ts.selectedSources],
+  // `sources` is derived from `categories`, so only the scoped category keys are
+  // persisted (plus the closed-window preferences).
   categories: [...ts.categories],
   showClosed: ts.showClosed,
   closedWindow: ts.closedWindow,

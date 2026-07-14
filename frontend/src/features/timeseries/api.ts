@@ -1,5 +1,5 @@
 import { getJSON, type FeatureCollection } from "../../lib/api";
-import { SOURCES, cfgFor } from "./sources";
+import { SOURCES, catKey, cfgFor } from "./sources";
 import { ts } from "./state.svelte";
 import type {
   EntityDetail,
@@ -27,18 +27,41 @@ export async function loadActive(): Promise<void> {
   await Promise.all([...ts.selectedSources].map(fetchSourceInto));
 }
 
+// Remove a source's entities from the map/table (it is no longer loaded).
+function dropSource(key: string): void {
+  for (const [id, f] of [...ts.features])
+    if (f.properties.source === key) ts.features.delete(id);
+}
+
+/** Parent toggle: select/clear all of a source's categories, fetching or dropping it. */
 export async function toggleSource(key: string, on: boolean): Promise<void> {
   if (!SOURCES[key]) return;
+  const cats = cfgFor(key).categories;
   if (on) {
-    ts.selectedSources.add(key);
-    for (const c of cfgFor(key).categories) ts.categories.add(c); // show its categories
+    for (const c of cats) ts.categories.add(catKey(key, c));
     await fetchSourceInto(key);
   } else {
-    ts.selectedSources.delete(key);
-    const stillVisible = new Set(ts.selectedCategoryList);
-    for (const c of cfgFor(key).categories)
-      if (!stillVisible.has(c)) ts.categories.delete(c);
-    for (const [id, f] of [...ts.features])
-      if (f.properties.source === key) ts.features.delete(id);
+    for (const c of cats) ts.categories.delete(catKey(key, c));
+    dropSource(key);
+  }
+}
+
+/**
+ * Child toggle: enable/disable one source-scoped category. The source is fetched
+ * when this is its first enabled category and dropped when it was its last.
+ */
+export async function toggleCategory(
+  source: string,
+  cat: string,
+  on: boolean,
+): Promise<void> {
+  if (!SOURCES[source]) return;
+  if (on) {
+    const wasLoaded = ts.selectedSources.has(source);
+    ts.categories.add(catKey(source, cat));
+    if (!wasLoaded) await fetchSourceInto(source);
+  } else {
+    ts.categories.delete(catKey(source, cat));
+    if (!ts.selectedSources.has(source)) dropSource(source);
   }
 }
