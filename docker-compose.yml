@@ -32,5 +32,21 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
+  # Cloudflare named tunnel — exposes the app publicly over HTTPS without opening
+  # any inbound ports (cloudflared dials OUT to Cloudflare, so it works behind NAT).
+  # Opt-in: only starts with `docker compose --profile tunnel up`. Create the tunnel
+  # in the Cloudflare Zero Trust dashboard, route its public hostname to
+  # http://app:8000, and put the tunnel token in .env as CLOUDFLARE_TUNNEL_TOKEN.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: localdash-tunnel
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   localdash_pgdata:

@@ -80,6 +80,32 @@ npm run build        # one-off build served by uvicorn at :8000
 npm run dev          # or: hot-reload dev server at :5173, proxies /api to :8000
 ```
 
+## Expose publicly with a Cloudflare named tunnel (optional)
+
+The `cloudflared` compose service (behind the `tunnel` profile) publishes the app
+over HTTPS without opening any inbound ports — it dials **out** to Cloudflare, so it
+works behind NAT/CGNAT and needs no port forwarding or static IP.
+
+One-time setup:
+
+1. Add a domain to Cloudflare (move its nameservers to Cloudflare — free plan).
+2. In the **Zero Trust** dashboard → **Networks → Tunnels**, create a tunnel.
+   Under **Public Hostname**, route your chosen hostname to the service
+   `http://app:8000` (the app is reachable at `app` on the compose network).
+3. Copy the tunnel's connector token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+
+Then start the stack with the tunnel:
+
+```bash
+docker compose --profile tunnel up -d --build
+```
+
+Your hostname now serves the dashboard. Notes:
+
+- Only `app:8000` is exposed; Postgres stays private to the compose network.
+- The app ships **no authentication** — anyone with the URL can read the dashboard
+  and API. Gate it with Cloudflare Access (free) if that matters.
+
 ## API
 
 | Method | Path | Description |
