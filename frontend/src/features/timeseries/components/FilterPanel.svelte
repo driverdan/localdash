@@ -1,7 +1,14 @@
 <script lang="ts">
   import { loadActive, toggleCategory, toggleSource } from "../api";
-  import { SOURCES, catKey, catLabel, colorFor } from "../sources";
+  import { SOURCES, catKey, catLabel, colorFor, iconFor } from "../sources";
   import { ts } from "../state.svelte";
+  import { Icon } from "../../../lib/icons";
+
+  // A category glyph is tinted its category color, except for sources whose on-map
+  // marker color encodes something other than category (EPB, colored by outage
+  // status) — those render black so the tint can't imply a mapping that isn't real.
+  const glyphColor = (key: string, cat: string): string =>
+    SOURCES[key].markerColor ? "#000" : colorFor(key, cat);
 
   const WINDOWS = [
     { minutes: 30, label: "30 min" },
@@ -49,8 +56,13 @@
                 onchange={(e) =>
                   toggleCategory(key, c, e.currentTarget.checked)}
               />
-              <span class="dot" style="background:{colorFor(key, c)}"
-              ></span>{catLabel(c)}
+              <span class="cat-glyph"
+                ><Icon
+                  name={iconFor(key, c)}
+                  color={glyphColor(key, c)}
+                  size={16}
+                /></span
+              >{catLabel(c)}
             </label>
           {/each}
         </div>
