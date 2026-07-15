@@ -101,7 +101,6 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
         "retail",
         "manufacturing",
         "headquarters",
-        "real estate",
         "development project",
         "small business",
         "chamber of commerce",
