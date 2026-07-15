@@ -8,7 +8,9 @@ A shell-owned debug overlay for investigating issues and inspecting live UI stat
 lets features publish runtime state to a shared store without cross-feature imports. Ships with the
 map section (live zoom + center); structured so new sections can be added without touching existing
 ones.
+
 ## Requirements
+
 ### Requirement: Debug overlay toggle button
 The shell SHALL render a persistent debug toggle button on every route, drawn as the **π** glyph in a
 small styled button. The button SHALL be feature-agnostic shell code (`frontend/src/lib/` +
