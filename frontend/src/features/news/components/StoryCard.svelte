@@ -18,6 +18,11 @@
     </span>
     {timeAgo(story.latest_published)}
   </div>
+  {#if story.image_url}
+    <a href={story.sources[0].url} target="_blank" rel="noopener" class="image">
+      <img src={story.image_url} alt="" loading="lazy" />
+    </a>
+  {/if}
   <h3>
     <a href={story.sources[0].url} target="_blank" rel="noopener"
       >{story.title}</a

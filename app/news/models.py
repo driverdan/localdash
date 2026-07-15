@@ -73,5 +73,8 @@ class NewsArticle(Base):
     category: Mapped[str] = mapped_column(String(32), default="news")
     published: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Feed-supplied lead image (image enclosure, else first inline <img>); null
+    # when the feed item carries neither. No article page is fetched for this.
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Same-story group id: the smallest member article id (clustering.py).
     cluster_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

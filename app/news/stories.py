@@ -33,6 +33,9 @@ def build_stories(rows: list[dict]) -> list[dict]:
         # Majority category; a specific section beats generic 'news' on ties.
         votes = Counter(m["category"] for m in members)
         category = max(votes.items(), key=lambda kv: (kv[1], kv[0] != "news"))[0]
+        # Lead image borrowed from the earliest member that has one (members are
+        # published-ascending), consistent with the headline coming from members[0].
+        image_url = next((m["image_url"] for m in members if m.get("image_url")), None)
         seen_sources = set()
         source_links = []
         for m in members:
@@ -55,6 +58,7 @@ def build_stories(rows: list[dict]) -> list[dict]:
                 "title": members[0]["title"],
                 "summary": truncate_sentences(best_summary, 400),
                 "category": category,
+                "image_url": image_url,
                 "first_published": members[0]["published"],
                 "latest_published": members[-1]["published"],
                 "source_count": len(seen_sources),
@@ -79,6 +83,7 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
                 NewsArticle.summary,
                 NewsArticle.category,
                 NewsArticle.published,
+                NewsArticle.image_url,
                 NewsSource.name.label("source_name"),
                 NewsSource.slug.label("source_slug"),
             )
@@ -97,6 +102,7 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
                 "summary": r.summary,
                 "category": r.category,
                 "published": r.published.isoformat(),
+                "image_url": r.image_url,
                 "source_name": r.source_name,
                 "source_slug": r.source_slug,
             }
