@@ -231,6 +231,13 @@ Most tests are pure/offline. The DB-backed tests (`tests/test_ingest.py::test_in
 fixtures in `conftest.py`) **auto-skip** unless `DATABASE_URL` points at a reachable Postgres —
 bring up `docker compose up -d db` (and `alembic upgrade head` for the news tables) to make them run.
 
+**CI:** `.github/workflows/tests.yml` runs `pytest` on every PR and on pushes to `main`, and the
+`pytest` check is required by the default-branch ruleset — a failing suite blocks the merge button.
+CI stands up the same `timescale/timescaledb-ha:pg16` image as a service container and runs
+`alembic upgrade head` first, so the DB-backed tests actually execute rather than auto-skipping. That
+migrate step doubles as the guard: if the DB were unreachable, it fails loudly instead of letting the
+suite skip its way to green.
+
 **Linting & formatting (pre-commit):** a git pre-commit hook auto-fixes and lints **staged**
 code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
 per clone (hooks are not installed automatically):
@@ -248,8 +255,9 @@ frontend directly with `npm run format`.
 
 `svelte-check` is deliberately **not** in the hook (it's a whole-project type checker, not a
 per-file linter) — keep running it as `npm run check`. **Known gap:** the hook is bypassable with
-`git commit --no-verify` and there is no CI backstop yet, so it is a convenience, not an
-enforcement boundary; a `pre-commit run --all-files` CI job is deferred to a later change.
+`git commit --no-verify` and lint/format still has no CI backstop, so it remains a convenience
+rather than an enforcement boundary — CI covers `pytest` only. A `pre-commit run --all-files` job
+(and `npm run check`) alongside it is deferred to a later change.
 
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
