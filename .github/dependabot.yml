@@ -8,15 +8,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
     open-pull-requests-limit: 5
-    groups:
-      # One PR per week for the routine stuff; majors stay separate so they get
-      # reviewed on their own (Svelte/Vite majors are breaking often enough).
-      frontend-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(dev-deps)"
@@ -29,13 +21,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
     open-pull-requests-limit: 5
-    groups:
-      python-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(dev-deps)"
@@ -46,8 +32,6 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(docker)"
@@ -59,8 +43,6 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(docker)"
