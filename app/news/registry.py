@@ -103,6 +103,17 @@ SOURCES = [
             },
         ],
     },
+    {
+        "slug": "chattnewschronicle",
+        "name": "Chattanooga News Chronicle",
+        "homepage": "https://www.chattnewschronicle.com",
+        # WordPress site. Only the primary feed is actively updated; the
+        # per-category feeds are dormant, so all articles land under "news".
+        "enabled": True,
+        "feeds": [
+            {"category": "news", "url": "https://www.chattnewschronicle.com/feed/"},
+        ],
+    },
 ]
 
 
