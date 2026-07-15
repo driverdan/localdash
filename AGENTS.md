@@ -4,14 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-LocalDash is a local-data dashboard with two features:
+LocalDash is a local-data dashboard with three features:
 
 - **Timeseries** (`/map`): stores, serves, and views **time-series geolocation data** — active 911
-  incidents for Hamilton County TN, TDOT SmartWay roadway events, and EPB outages. The geo stack is
-  deliberately source-agnostic so APRS / weather / other geo feeds can be added without schema changes.
+  incidents for Hamilton County TN, TDOT SmartWay roadway events, EPB outages, and TN American Water
+  advisories. The geo stack is deliberately source-agnostic so APRS / weather / other geo feeds can
+  be added without schema changes.
 - **News** (`/`, the homepage): an RSS aggregator for Chattanooga outlets that clusters articles
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
   source — it is a sibling feature beside the timeseries pipeline, not a collector.
+- **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (car
+  cruises, Meetup groups, configurable iCal calendars; ported from the `chattevents` PoC). Also a
+  sibling feature — events are merged cross-source records, not entity-state-over-time, so they do
+  not flow through collectors/ingest.
 
 ## Tech stack & why
 
@@ -192,7 +197,8 @@ move the change directory into the archive.
 ```bash
 docker compose up --build        # app waits for DB health, runs migrations, then serves :8000
 ```
-News feed at http://localhost:8000/, map dashboard at http://localhost:8000/map.
+News feed at http://localhost:8000/, map dashboard at http://localhost:8000/map, events at
+http://localhost:8000/events.
 
 **Local dev (Dockerized DB, app from venv with --reload):**
 ```bash
@@ -321,13 +327,29 @@ syndicated national content (known caveat); WDEF feeds live on `www.wdef.com` (a
 erroring must never abort the cycle — per-feed status lands in `news_feeds.last_status`, surfaced
 in the UI footer.
 
+### The events feature (`app/events/`, ported from chattevents)
+Pipeline: **fetch sources → ingest (dedup + tag + geocode) → serve**, run as one APScheduler job and
+by `POST /api/v1/events/refresh`; both paths share an asyncio lock in `refresh.py` so all Nominatim
+traffic in a cycle uses one rate-limited geocoder. Events are merged cross-source records, not entity
+state over time, so they do **not** flow through collectors/ingest.
+
+- `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `MeetupSource`, and
+  `ICalSource` (one per configured calendar URL). Each yields normalized event records.
+- `ingest.py` — `run_sources()` fetches + upserts (dedup across sources), `tagging.py` assigns topic
+  tags, and `geocoding.py` (`NominatimGeocoder`, rate-limited) resolves addresses to points;
+  `retry_failed_geocodes()` reruns stale geocode misses under the same lock.
+- Distance is done in PostGIS: the API casts `Event.location` to `geography` and filters/measures in
+  meters from a Chattanooga origin (`CHATTANOOGA_CENTER`).
+- Tables: `events` → `event_tags` / `event_links` (`app/events/models.py`).
+
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
-  `/api/v1/<feature>/` (`timeseries`, `news`), and feature-agnostic app-shell endpoints
+  `/api/v1/<feature>/` (`timeseries`, `news`, `events`), and feature-agnostic app-shell endpoints
   (`/api/v1/config`) sit directly under `/api/v1`. Each feature is one `APIRouter` module in
-  `app/api/` (`timeseries.py`, `news.py`, `root.py` for app-shell), composed in `main.py` — adding a
-  feature is a new router module + one `include_router` line. `main.py` mounts `static/` at `/` last
-  so `/api` always wins (with an SPA fallback: extension-less non-`/api` misses serve `index.html`).
+  `app/api/` (`timeseries.py`, `news.py`, `events.py`, `root.py` for app-shell), composed in
+  `main.py` — adding a feature is a new router module + one `include_router` line. `main.py` mounts
+  `static/` at `/` last so `/api` always wins (with an SPA fallback: extension-less non-`/api` misses
+  serve `index.html`).
 - All geographic responses are **GeoJSON FeatureCollections** (`geojson.py`). `bbox` params are
   `minLon,minLat,maxLon,maxLat`.
 - Timeseries routes are resource-shaped: `GET /api/v1/timeseries/entities` (filters: `active`
@@ -337,11 +359,14 @@ in the UI footer.
 - News routes: `GET /api/v1/news/stories?hours=N` (returns the category slug→label map + one story
   per cluster), `GET /api/v1/news/sources` (per-feed health for the footer), `POST
   /api/v1/news/refresh`.
+- Events routes (JSON, not GeoJSON): `GET /api/v1/events/items` (filters: `topic`, `max_miles` +
+  `lat`/`lon` origin, `upcoming` [default true], `search`, `limit`; each item carries
+  `distance_miles`), `GET /api/v1/events/tags`, `POST /api/v1/events/refresh`.
 - The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
   `src/features/timeseries/` loads `/api/v1/timeseries/entities`, then opens the WebSocket and
   applies diffs into a runes store; `src/features/news/` loads stories/sources into its own runes
-  store (5-minute auto-reload, no WebSocket); `src/lib/` holds the feature-agnostic shell code
-  (including the path router).
+  store (5-minute auto-reload, no WebSocket); `src/features/events/` loads `/api/v1/events/items`
+  into its own store; `src/lib/` holds the feature-agnostic shell code (including the path router).
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911

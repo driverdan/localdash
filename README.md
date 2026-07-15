@@ -1,12 +1,27 @@
 # LocalDash
 
-Store, serve, and view **time-series geolocation data** in a web dashboard. Built-in
-sources are **active 911 incidents** for Hamilton County, TN and **TDOT SmartWay**
-roadway events (incidents / construction / special events / severe-impact across
-Tennessee). The design is source-agnostic so APRS, weather, and other
-real-time/historical geo feeds can be added by writing one small collector class.
+A self-hosted **local-data dashboard** for the Chattanooga / Hamilton County, TN
+area. It bundles three sibling features behind one FastAPI app and one Svelte SPA:
 
-## How it works
+| Feature | Route | What it does |
+| --- | --- | --- |
+| **News** | `/` | RSS aggregator that clusters the same story across local outlets |
+| **Map** (timeseries) | `/map` | Live + historical **time-series geolocation** on a Leaflet map |
+| **Events** | `/events` | Aggregated, de-duplicated area events (car cruises, meetups, civic calendars) |
+
+The three features share a database, a scheduler, and the app shell, but they are
+independent pipelines — News and Events do **not** flow through the geo
+collector/ingest path. Open <http://localhost:8000/> for News and
+<http://localhost:8000/map> for the map after starting the stack (below).
+
+## Map — time-series geolocation
+
+Store, serve, and view time-series geolocation data. The design is
+**source-agnostic**: each upstream feed is a **snapshot** of what's currently
+active, and LocalDash builds the **time-series** itself. A background scheduler
+polls each source, tracks each thing by a stable id, appends an observation row
+whenever its status or position changes, and closes it when it drops out of the
+feed. Adding a feed is one small collector class — no schema changes.
 
 ```
 collector.fetch() ── raw payload
@@ -16,20 +31,20 @@ collector.fetch() ── raw payload
    ingest() ─────── upsert entity · append observation on change · close on absence
         │
    ┌────┴─────┐
- REST API   WebSocket diffs ──► Svelte + Leaflet dashboard (map + filters + live table)
+ REST API   WebSocket diffs ──► Svelte + Leaflet map (map + filters + live table)
 ```
 
-The upstream 911 endpoint returns only a **snapshot** of currently-active calls.
-LocalDash builds the **time-series** itself: a background scheduler polls every
-60s, tracks each incident by `master_incident_id`, appends an observation row
-whenever its status or position changes, and marks it closed when it drops out of
-the feed.
+### Built-in geo sources
 
-Each upstream feed is a snapshot too, so every source is built the same way. The
-feeds are documented in [`docs/hc911-api.md`](docs/hc911-api.md) and
-[`docs/tdot-smartway-api.md`](docs/tdot-smartway-api.md) (endpoints, auth, field
-reference, and behavioral caveats). The frontend has a **Source** selector to switch
-between them.
+Four collectors ship out of the box. Each has a reverse-engineered API reference
+under [`docs/`](docs/); the map's **Source** selector switches between them.
+
+| Source | `source_key` | What | Docs |
+| --- | --- | --- | --- |
+| Hamilton County TN 911 | `hc911` | Active 911 incidents | [`docs/hc911-api.md`](docs/hc911-api.md) |
+| TDOT SmartWay | `tdot` | Roadway events (incidents / construction / special events / severe-impact) across TN | [`docs/tdot-smartway-api.md`](docs/tdot-smartway-api.md) |
+| EPB Outages | `epb` | Chattanooga electric + fiber outages | [`docs/epb-outage-api.md`](docs/epb-outage-api.md) |
+| TN American Water Advisories | `tnaw` | Water advisory affected-area polygons across TN | [`docs/tnaw-advisory-api.md`](docs/tnaw-advisory-api.md) |
 
 ### Data model (Postgres + PostGIS + TimescaleDB)
 
@@ -37,7 +52,34 @@ between them.
 - **`entities`** — one tracked thing per source (latest snapshot, `is_active`,
   `last_geom`, `latest_properties`). Unique on `(source_key, external_id)`.
 - **`observations`** — the time-series, a TimescaleDB **hypertable** on
-  `observed_at`, with a PostGIS `geom` point. Source-specific fields live in JSONB.
+  `observed_at`, with a PostGIS `geom` (point *or* polygon). Source-specific fields
+  live in JSONB, so new sources need no migration.
+
+## News — clustered local headlines
+
+An RSS aggregator for Chattanooga outlets (ported from the standalone **ChattNews**
+app), served at `/`. It fetches each outlet's section feeds on a schedule, then
+clusters articles that cover the same story **across outlets** so one story shows
+one headline with a link per outlet.
+
+Pipeline: **fetch → cluster → serve**, run as one scheduler job (every
+`NEWS_REFRESH_MINUTES`, default 15) and on demand via `POST /api/v1/news/refresh`.
+The outlet/feed list is code-as-config in `app/news/registry.py`; stories live in
+their own relational tables (`news_sources` → `news_feeds` → `news_articles`),
+separate from the geo pipeline.
+
+## Events — aggregated area events
+
+Aggregates, de-duplicates, tags, and geocodes local happenings (ported from the
+`chattevents` PoC), served at `/events`. Sources include **CarCruiseFinder**,
+**Meetup**, and configurable **iCal** calendars.
+
+Pipeline: **fetch sources → ingest (dedup + tag + geocode) → serve**, run as one
+scheduler job and on demand via `POST /api/v1/events/refresh`. Geocoding uses a
+rate-limited Nominatim client; the API filters by distance from a Chattanooga
+origin in PostGIS (geography, so distances are real meters). Events are merged
+cross-source records, not entity-state-over-time, so they do **not** use the
+collector/ingest path.
 
 ## Quick start (Docker — full stack)
 
@@ -49,7 +91,8 @@ dashboard and starts the poll scheduler.
 docker compose up --build
 ```
 
-Open <http://localhost:8000/> for the dashboard.
+Then open the **News** homepage at <http://localhost:8000/> and the **map** at
+<http://localhost:8000/map> (Events at <http://localhost:8000/events>).
 
 > If you hit `permission denied … /var/run/docker.sock`, add yourself to the
 > `docker` group once: `sudo usermod -aG docker $USER`, then start a new shell (or
@@ -108,19 +151,45 @@ Your hostname now serves the dashboard. Notes:
 
 ## API
 
+Every feature owns a namespace under `/api/v1/<feature>/`; feature-agnostic
+app-shell routes sit directly under `/api/v1`. Geographic responses are GeoJSON
+FeatureCollections; `bbox` is `minLon,minLat,maxLon,maxLat` and times are ISO-8601.
+
+**App shell**
+
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/config` | Frontend bootstrap (map tiles) |
-| GET | `/api/sources` | Registered sources + last-run status |
-| GET | `/api/active?source=&category=&bbox=&include_closed=&closed_within_minutes=` | Active entities as GeoJSON. With `include_closed=true`, also returns entities closed within `closed_within_minutes` (default 60); each feature's `properties.active` flags live vs. closed |
-| GET | `/api/entities/{id}` | Entity snapshot + full observation track |
-| GET | `/api/observations?source=&start=&end=&bbox=&category=&limit=` | Historical query (GeoJSON) |
-| POST | `/api/sources/{key}/refresh` | Trigger one collection cycle now |
-| WS | `/api/ws/live?source=` | Pushes `{new, updated, closed}` diffs each cycle |
+| GET | `/api/v1/config` | Frontend bootstrap (map tile layer + attribution) |
 
-`bbox` is `minLon,minLat,maxLon,maxLat`. Times are ISO-8601.
+**Timeseries** — prefix `/api/v1/timeseries`
 
-## Adding a data source
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/sources` | Registered sources + last-run telemetry |
+| GET | `/entities?active=&source=&category=&bbox=&closed_within=` | Tracked entities as GeoJSON. `active` (default true) returns live entities; `closed_within=N` (minutes) also includes recently-closed ones; `active=false` returns only inactive. Each feature's `properties.active` flags live vs. closed |
+| GET | `/entities/{id}` | Entity snapshot (no track) |
+| GET | `/entities/{id}/track` | Full observation history, oldest first |
+| GET | `/observations?source=&category=&bbox=&start=&end=&limit=` | Historical observations (GeoJSON) |
+| POST | `/sources/{key}/refresh` | Trigger one collection cycle now |
+| WS | `/ws?source=` | Pushes `{new, updated, closed}` diffs each cycle |
+
+**News** — prefix `/api/v1/news`
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/stories?hours=N` | Clustered stories in the window + category slug→label map |
+| GET | `/sources` | Per-feed health (for the sources footer) |
+| POST | `/refresh` | Fetch all feeds and recluster now |
+
+**Events** — prefix `/api/v1/events`
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/items?topic=&max_miles=&lat=&lon=&upcoming=&search=&limit=` | De-duplicated events (JSON), with distance from the origin (Chattanooga unless `lat`/`lon` given) |
+| GET | `/tags` | All topic tags |
+| POST | `/refresh` | Fetch all sources and upsert now |
+
+## Adding a geo data source
 
 1. Create `app/collectors/<name>.py` with a `BaseCollector` subclass:
    ```python
@@ -136,9 +205,13 @@ Your hostname now serves the dashboard. Notes:
    `lon`, `status`, `label`, `properties`).
 2. Register it in `app/collectors/__init__.py` `build_collectors()`.
 
-That's it — the scheduler, ingestion, REST API, WebSocket, and dashboard are all
+That's it — the scheduler, ingestion, REST API, WebSocket, and map are all
 source-agnostic and pick it up automatically. Moving objects (APRS), evolving
-incidents (911), and point readings (weather) all fit the same model.
+incidents (911), point readings (weather), and affected-area polygons (water
+advisories) all fit the same model.
+
+> News outlets and Events sources are **not** geo collectors — add a news feed in
+> `app/news/registry.py` or an events source under `app/events/sources/`.
 
 ## Tests
 
@@ -146,10 +219,10 @@ incidents (911), and point readings (weather) all fit the same model.
 pytest
 ```
 
-`normalize` and the pure change-detection rule run offline against a saved payload
-fixture (`tests/fixtures/hc911_sample.json`). The full ingest lifecycle test
-(`test_ingest_full_lifecycle`) runs only when `DATABASE_URL` is reachable; it is
-skipped otherwise.
+Most tests are pure/offline (`normalize`, the change-detection rule, and news
+clustering run against saved fixtures). DB-backed tests auto-skip unless
+`DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db`
+(and `alembic upgrade head`) to run them.
 
 ## Linting & formatting
 
@@ -179,12 +252,17 @@ All changes use git version control and follow a standard branch + pull request 
 3. **Push** the branch to GitHub.
 4. **Open a pull request** for the change.
 
+Larger changes use the **OpenSpec** workflow (`openspec/`) and land as three
+sequential PRs (propose → implement → archive); see [`AGENTS.md`](AGENTS.md).
+
 ## Notes
 
-- **Config / secrets** (`X-Frontend-Auth`, origin, DB URL, tile layer) come from
-  `.env` via pydantic-settings — nothing is hardcoded.
-- **Be a good upstream citizen**: a descriptive `USER_AGENT` is sent, and the poll
-  interval is never set below the source site's own 60s cadence.
+- **Config / secrets** (`X-Frontend-Auth`, origin, DB URL, tile layer, poll
+  intervals, news/events knobs) come from `.env` via pydantic-settings — nothing is
+  hardcoded. The app runs on the defaults in `app/config.py` with no `.env` at all.
+- **Be a good upstream citizen**: a descriptive `USER_AGENT` is sent, poll intervals
+  are never set below a source site's own cadence, and the Events geocoder is
+  rate-limited.
 - **Retention**: set `RETENTION_DAYS` and add a TimescaleDB
   `add_retention_policy('observations', INTERVAL 'N days')` to auto-drop old
   history (left at keep-forever by default).
