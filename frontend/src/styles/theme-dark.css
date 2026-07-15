@@ -151,6 +151,22 @@
 [data-theme="dark"] .debug-action button:hover:enabled {
   border-color: #4da3ff;
 }
+[data-theme="dark"] .debug-setting-delete {
+  background: #1e2632;
+  color: #e4e9ef;
+  border-color: #33404e;
+}
+[data-theme="dark"] .debug-setting-delete:hover:enabled {
+  border-color: #ff6b5a;
+  color: #ff6b5a;
+}
+[data-theme="dark"] .debug-setting-value {
+  background: #1e2632;
+  color: #e4e9ef;
+}
+[data-theme="dark"] .debug-setting-notice {
+  color: #ffb454;
+}
 
 /* Leaflet popups (default white) so they don't glare under the dark basemap. */
 [data-theme="dark"] .leaflet-popup-content-wrapper,

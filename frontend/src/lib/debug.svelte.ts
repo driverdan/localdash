@@ -6,6 +6,7 @@
 // General by design: `open` drives the modal; per-area slices (starting with the
 // map viewport) hold whatever runtime state a route wants to expose. A new debug
 // section is one slice here plus one block in DebugPanel — existing ones untouched.
+import { listPrefs, removePrefs, type StoredPref } from "./prefs.svelte";
 
 /** The map's live viewport, mirrored out of Leaflet by MapView. */
 export interface MapViewport {
@@ -32,8 +33,20 @@ export interface DebugAction {
 }
 
 class DebugState {
+  #open = $state(false);
+
   /** Modal visibility, toggled by the π button. */
-  open = $state(false);
+  get open(): boolean {
+    return this.#open;
+  }
+
+  /** Opening re-reads the settings snapshot, whatever path opened the modal. */
+  set open(value: boolean) {
+    if (value === this.#open) return;
+    this.#open = value;
+    if (value) this.refreshSettings();
+  }
+
   /** Live map viewport, or null when the map isn't mounted (off the `/map` route). */
   map = $state<MapViewport | null>(null);
   /**
@@ -42,9 +55,40 @@ class DebugState {
    * teardown, mirroring the map-viewport slice.
    */
   actions = $state<DebugAction[]>([]);
+  /**
+   * Stored `localdash.*` preference keys — a snapshot taken when the modal
+   * opens, not a live view. Same-tab writes fire no `storage` event (it notifies
+   * other tabs only), so a key the app rewrites — a map pan restoring
+   * `localdash.map.view` — can't be observed while the panel is open. Re-reading
+   * on open is what surfaces it, and is why a resurrected key shows up again on
+   * reopen with no notice: the delete really was undone.
+   *
+   * Enumerated rather than registered, so a key a future feature adds is listed
+   * with no registration step, and no feature module is imported here.
+   */
+  settings = $state<StoredPref[]>([]);
+  /** Keys deleted since the modal opened; their rows stay listed, but flagged. */
+  deletedSettings = $state<Set<string>>(new Set());
 
   toggle(): void {
     this.open = !this.open;
+  }
+
+  refreshSettings(): void {
+    this.settings = listPrefs();
+    this.deletedSettings = new Set();
+  }
+
+  /**
+   * Delete one stored key. Deliberately does NOT reload or reset the owning
+   * feature's in-memory state, so nothing visibly changes and that feature's
+   * next persisted-field change rewrites its blob, restoring the key with the
+   * pre-delete values. The row stays listed and flagged so the panel can say the
+   * delete only lands on reload.
+   */
+  deleteSetting(key: string): void {
+    removePrefs(key);
+    this.deletedSettings = new Set(this.deletedSettings).add(key);
   }
 
   setMapViewport(v: MapViewport): void {

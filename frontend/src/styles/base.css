@@ -242,6 +242,59 @@ th {
   font-size: 12px;
   color: #5a6573;
 }
+.debug-setting {
+  margin-bottom: 10px;
+}
+.debug-setting-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.debug-setting-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.debug-setting-delete {
+  flex: none;
+  font: inherit;
+  font-size: 11px;
+  color: #1b1f24;
+  background: #fff;
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.debug-setting-delete:hover:enabled {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+.debug-setting-delete:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* A stored value is arbitrary text, so it wraps and scrolls inside the modal
+ * rather than widening it. */
+.debug-setting-value {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: #f4f6f9;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.debug-setting-notice {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #a15c00;
+}
 
 @media (max-width: 640px) {
   .debug-toggle {
