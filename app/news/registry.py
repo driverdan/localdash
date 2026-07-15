@@ -114,6 +114,18 @@ SOURCES = [
             {"category": "news", "url": "https://www.chattnewschronicle.com/feed/"},
         ],
     },
+    {
+        "slug": "chattanoogapulse",
+        "name": "The Pulse",
+        "homepage": "https://www.chattanoogapulse.com",
+        # Chattanooga's arts & entertainment weekly, on Metro Publisher. Only a
+        # single global feed is exposed (the ?section= param is ignored), and
+        # items carry no <category> tags, so all articles land under "life".
+        "enabled": True,
+        "feeds": [
+            {"category": "life", "url": "https://www.chattanoogapulse.com/api/rss/content.rss"},
+        ],
+    },
 ]
 
 
