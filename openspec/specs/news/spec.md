@@ -6,19 +6,17 @@ Backend news aggregation, ported from ChattNews: a code registry of Chattanooga 
 RSS feeds, scheduled fetching with per-feed error isolation, deduplicated article storage in
 Postgres, cross-outlet story clustering, and the `/api/v1/news/` API (stories, sources, manual
 refresh) that the `frontend-news` feature consumes.
-
 ## Requirements
-
 ### Requirement: News source and feed registry
 The news feature SHALL define its outlets and their per-section RSS feeds as a code registry
 (sources with slug, name, homepage, enabled flag; feeds with URL and one normalized category each),
-covering five Chattanooga outlets (Chattanoogan.com, Chattanooga Times Free Press, WDEF News 12,
-Local 3 News, and Chattanooga News Chronicle). A source MAY register a single primary site feed
-instead of per-section feeds, in which case all of that outlet's articles carry that feed's
-category. The registry SHALL be the source of truth: at application startup it is upserted into the
-database, and feeds removed from the registry SHALL be deleted so they stop being fetched. Within a
-source, specific section feeds SHALL be ordered before the general news feed so an article appearing
-in both keeps the specific category.
+covering six Chattanooga outlets (Chattanoogan.com, Chattanooga Times Free Press, WDEF News 12,
+Local 3 News, Chattanooga News Chronicle, and The Pulse). A source MAY register a single primary
+site feed instead of per-section feeds, in which case all of that outlet's articles carry that
+feed's category. The registry SHALL be the source of truth: at application startup it is upserted
+into the database, and feeds removed from the registry SHALL be deleted so they stop being fetched.
+Within a source, specific section feeds SHALL be ordered before the general news feed so an article
+appearing in both keeps the specific category.
 
 #### Scenario: Registry syncs to the database on startup
 - **WHEN** the application starts after a feed URL was removed from the registry
@@ -34,6 +32,12 @@ in both keeps the specific category.
   (`https://www.chattnewschronicle.com/feed/`) mapped to category `news`
 - **THEN** every article fetched from that outlet is stored with category `news`, regardless of the
   per-item category tags the feed carries
+
+#### Scenario: Arts weekly categorizes all articles under life
+- **WHEN** The Pulse is registered with only its global site feed
+  (`https://www.chattanoogapulse.com/api/rss/content.rss`) mapped to category `life`
+- **THEN** every article fetched from that outlet is stored with category `life`, because the feed
+  carries no per-item category tags and no section-scoped feeds are available
 
 ### Requirement: Scheduled feed fetching with per-feed error isolation
 The system SHALL fetch all enabled feeds on a configurable interval (default 15 minutes) as a
@@ -139,3 +143,4 @@ recluster cycle on demand and returns per-source results and the cluster count.
 #### Scenario: Manual refresh runs a full cycle
 - **WHEN** a client sends `POST /api/v1/news/refresh`
 - **THEN** feeds are fetched, articles reclustered, and the response reports the outcome
+
