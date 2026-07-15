@@ -1,0 +1,66 @@
+version: 2
+
+updates:
+  # Frontend (Svelte + Vite + Leaflet). package-lock.json means Dependabot can
+  # resolve exact versions, so this is the ecosystem that produces real PRs.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR per week for the routine stuff; majors stay separate so they get
+      # reviewed on their own (Svelte/Vite majors are breaking often enough).
+      frontend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+
+  # Python deps declared in pyproject.toml. Note: these are `>=` lower bounds
+  # with no lockfile, so Dependabot only opens PRs for security advisories, not
+  # routine version bumps — a new release always satisfies `>=`.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+
+  # Base images in the multi-stage Dockerfile (node:22-slim, python:3.12-slim).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
+
+  # Service images in docker-compose.yml. cloudflared is pinned to `latest` and
+  # so is never updated here; timescaledb-ha is the one that moves.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
