@@ -231,12 +231,18 @@ Most tests are pure/offline. The DB-backed tests (`tests/test_ingest.py::test_in
 fixtures in `conftest.py`) **auto-skip** unless `DATABASE_URL` points at a reachable Postgres —
 bring up `docker compose up -d db` (and `alembic upgrade head` for the news tables) to make them run.
 
-**CI:** `.github/workflows/tests.yml` runs `pytest` on every PR and on pushes to `main`, and the
-`pytest` check is required by the default-branch ruleset — a failing suite blocks the merge button.
-CI stands up the same `timescale/timescaledb-ha:pg16` image as a service container and runs
-`alembic upgrade head` first, so the DB-backed tests actually execute rather than auto-skipping. That
-migrate step doubles as the guard: if the DB were unreachable, it fails loudly instead of letting the
-suite skip its way to green.
+**CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`, in two jobs whose
+checks are required by the default-branch ruleset — a failure blocks the merge button.
+
+- **`pytest`** — the full suite. CI stands up the same `timescale/timescaledb-ha:pg16` image as a
+  service container and runs `alembic upgrade head` first, so the DB-backed tests actually execute
+  rather than auto-skipping. That migrate step doubles as the guard: if the DB were unreachable it
+  fails loudly instead of letting the suite skip its way to green. The job also `mkdir -p static`
+  first — `static/` is a gitignored build artifact and `main.py` mounts it at import time, so a fresh
+  checkout can't even import the app without it.
+- **`frontend`** — `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
+  `*.test.ts`), so these stand in as the frontend gate; they're what catches a bad npm bump, which
+  `pytest` never sees. If a JS test runner is ever added, wire `npm test` into this job.
 
 **Linting & formatting (pre-commit):** a git pre-commit hook auto-fixes and lints **staged**
 code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
