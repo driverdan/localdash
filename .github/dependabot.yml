@@ -1,6 +1,17 @@
 version: 2
 
 updates:
+  # Actions pinned in .github/workflows/. Without this the pins in tests.yml
+  # silently rot; nothing else updates them.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+
   # Frontend (Svelte + Vite + Leaflet). package-lock.json means Dependabot can
   # resolve exact versions, so this is the ecosystem that produces real PRs.
   - package-ecosystem: "npm"

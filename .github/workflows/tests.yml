@@ -1,0 +1,101 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to a PR makes the in-flight run obsolete; don't pay for it.
+# Runs on main are never cancelled (group includes the ref).
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    services:
+      # The DB-backed tests (tests/test_ingest.py, test_api_timeseries.py,
+      # test_news_db.py, test_events_*) auto-skip when DATABASE_URL is
+      # unreachable — silently, and skips don't fail a build. Running the same
+      # image as docker-compose is what keeps CI an actual gate rather than a
+      # green light for the offline subset.
+      db:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: localdash
+          POSTGRES_PASSWORD: localdash
+          POSTGRES_DB: localdash
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U localdash"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://localdash:localdash@localhost:5432/localdash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          # Matches the runtime image in the Dockerfile.
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # `static/` is a gitignored build artifact, so a fresh checkout has none —
+      # and main.py mounts it at import time, which hard-fails collection for
+      # every test that imports the app. No test reads a built asset, so the
+      # empty directory is enough; building the frontend here would buy nothing.
+      - name: Create static mount target
+        run: mkdir -p static
+
+      # Creates the news/events tables the DB-backed fixtures need; the fixtures
+      # skip rather than fail when they are missing.
+      - name: Migrate
+        run: alembic upgrade head
+
+      - name: Test
+        run: pytest -rs
+
+  # The frontend has no test suite yet (no runner, no *.test.ts) — there is
+  # nothing to execute. Until there is, its real gates are the strict
+  # svelte-check pass AGENTS.md requires to stay at 0 errors, and the build
+  # itself. Both catch what npm dependency bumps actually break, which pytest
+  # never sees.
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Matches the frontend build stage in the Dockerfile.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Build
+        run: npm run build
