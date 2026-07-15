@@ -48,11 +48,23 @@ jobs:
         with:
           # Matches the runtime image in the Dockerfile.
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
 
+      # Pinned to a full version, unlike the other actions here: setup-uv stopped
+      # publishing a moving major tag after v7, so `@v8` does not resolve.
+      # Dependabot's github-actions ecosystem bumps it.
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          # Matches the uv pinned in the Dockerfile's deps stage.
+          version: "0.11.29"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # --locked fails the build if uv.lock and pyproject.toml disagree, which is
+      # what keeps the lock honest: a dependency edit that skips `uv lock` cannot
+      # merge. It must be --locked, not --frozen — the latter installs the lock
+      # as-is without checking it against pyproject, so drift would sail through.
       - name: Install
-        run: pip install -e ".[dev]"
+        run: uv sync --locked --extra dev
 
       # `static/` is a gitignored build artifact, so a fresh checkout has none —
       # and main.py mounts it at import time, which hard-fails collection for
@@ -64,10 +76,10 @@ jobs:
       # Creates the news/events tables the DB-backed fixtures need; the fixtures
       # skip rather than fail when they are missing.
       - name: Migrate
-        run: alembic upgrade head
+        run: uv run alembic upgrade head
 
       - name: Test
-        run: pytest -rs
+        run: uv run pytest -rs
 
   # The frontend has no test suite yet (no runner, no *.test.ts) — there is
   # nothing to execute. Until there is, its real gates are the strict

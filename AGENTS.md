@@ -58,6 +58,20 @@ ChattNews behavior was tuned against.
 **Config / validation — Pydantic v2 + pydantic-settings.** Typed settings loaded from env/`.env`, and
 `NormalizedObservation` is a Pydantic model so collector output is validated at the boundary.
 
+**Python dependency locking — uv (`uv.lock`).** The project stays plain PEP 621: uv owns no
+metadata in `pyproject.toml`, so `pip install -e ".[dev]"` keeps working and uv is removable by
+deleting one file. It is used for the one thing pip cannot do here — produce a **universal**
+lock. `uv.lock` carries environment markers covering the whole `requires-python = ">=3.11"` range
+and Linux/macOS/Windows, which matters because this repo spans interpreters: Docker and CI run
+3.12 while local venvs run 3.13. The standard `pylock.toml` was the obvious alternative and was
+rejected on three counts: `pip lock` is experimental and self-describes as removable without
+warning; its output resolves against *one* interpreter (a lock built on 3.13 pins `cp313` wheels
+and hard-fails on 3.12, and vice versa), so no single file could serve both; and Dependabot cannot
+read it ([dependabot-core#12094](https://github.com/dependabot/dependabot-core/issues/12094)),
+which would leave the lock silently stale on every bump PR it opens. uv is a build-time tool only —
+the Dockerfile's `deps` stage produces `/app/.venv` and the runtime image copies it without the uv
+binary, the same split that keeps Node out of the runtime image.
+
 **Frontend — Svelte 5 + TypeScript + Leaflet, built by plain Vite (not SvelteKit).** Source lives in
 `frontend/`; `vite build` outputs into `static/`, which is a **gitignored build artifact** served by
 FastAPI's existing mount (never edit `static/` by hand). Svelte's runes replace the old vanilla-JS
@@ -203,12 +217,33 @@ http://localhost:8000/events.
 **Local dev (Dockerized DB, app from venv with --reload):**
 ```bash
 docker compose up -d db
-source .venv/bin/activate         # venv already exists with deps installed
-pip install -e ".[dev]"           # if recreating the env
+uv sync --extra dev               # creates/updates .venv from uv.lock; add --locked to fail on a stale lock
+source .venv/bin/activate         # or prefix commands with `uv run`
 cp .env.example .env              # DATABASE_URL -> localhost:5432
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+`pip install -e ".[dev]"` still works — pyproject.toml is plain PEP 621 with no uv-specific
+tables — but it resolves fresh instead of reading `uv.lock`, so you can silently get versions CI
+and Docker never test. Prefer `uv sync`.
+
+**Dependencies (`pyproject.toml` + `uv.lock`, both committed):**
+```bash
+uv lock --upgrade-package fastapi  # bump one dep to the newest its ~= range allows
+uv lock --upgrade                  # re-resolve everything within the declared ranges
+uv lock                            # after hand-editing pyproject.toml — never leave the lock stale
+```
+Direct deps are pinned with **tilde ranges** (`~=X.Y.Z` = that patch series only), so minors and
+majors are opted into by editing `pyproject.toml`, never picked up by an install. Widening a range
+is the deliberate act; `uv lock` then records the exact transitive set. **Any change to
+`pyproject.toml` dependencies must be followed by `uv lock`** — CI and the Docker build install
+with `uv sync --locked`, which errors on a lock that disagrees with pyproject, so a skipped re-lock
+blocks the merge rather than drifting. Check it yourself with `uv lock --check`.
+
+⚠️ The guard flag is **`--locked`, not `--frozen`**. They read alike and do different things:
+`--locked` verifies `uv.lock` against `pyproject.toml` and fails if it is stale; `--frozen` skips
+that check and installs the lock as-is, so a dependency edit with no re-lock passes silently. Use
+`--frozen` only where you deliberately want the lock honored without consulting pyproject.
 
 **Frontend (source in `frontend/`, builds into gitignored `static/`):**
 ```bash
@@ -239,7 +274,9 @@ checks are required by the default-branch ruleset — a failure blocks the merge
   rather than auto-skipping. That migrate step doubles as the guard: if the DB were unreachable it
   fails loudly instead of letting the suite skip its way to green. The job also `mkdir -p static`
   first — `static/` is a gitignored build artifact and `main.py` mounts it at import time, so a fresh
-  checkout can't even import the app without it.
+  checkout can't even import the app without it. Installs are `uv sync --locked`, which makes the
+  job double as the lockfile gate: a `pyproject.toml` dependency edit without a matching `uv lock`
+  fails here instead of merging a stale lock.
 - **`frontend`** — `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
   `*.test.ts`), so these stand in as the frontend gate; they're what catches a bad npm bump, which
   `pytest` never sees. If a JS test runner is ever added, wire `npm test` into this job.
@@ -248,7 +285,7 @@ checks are required by the default-branch ruleset — a failure blocks the merge
 code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
 per clone (hooks are not installed automatically):
 ```bash
-pip install -e ".[dev]"           # installs pre-commit + ruff into the venv
+uv sync --extra dev               # installs pre-commit + ruff into the venv
 cd frontend && npm install        # prettier + prettier-plugin-svelte (also needed for builds)
 pre-commit install                # from the repo root — wires .git/hooks/pre-commit
 ```
