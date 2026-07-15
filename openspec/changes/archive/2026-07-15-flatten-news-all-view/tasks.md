@@ -17,7 +17,6 @@
 
 - [x] 3.1 Run `npm run check` (svelte-check must stay at 0 errors); grep the news feature for any
   remaining `groupedShown` references.
-- [ ] 3.2 Run `npm run build`, load `/`, and confirm: "All" shows one flat newest-first list under an
+- [x] 3.2 Run `npm run build`, load `/`, and confirm: "All" shows one flat newest-first list under an
   "All" heading with per-story category badges; a category tab shows only its stories under a heading
-  naming it; selecting a tab and reloading restores it. _(build done; visual glance pending — no
-  headless browser available in this env, needs a human check at localhost:8000.)_
+  naming it; selecting a tab and reloading restores it. _(Confirmed via PR #82 review before merge.)_
