@@ -274,7 +274,7 @@ checks are required by the default-branch ruleset — a failure blocks the merge
   rather than auto-skipping. That migrate step doubles as the guard: if the DB were unreachable it
   fails loudly instead of letting the suite skip its way to green. The job also `mkdir -p static`
   first — `static/` is a gitignored build artifact and `main.py` mounts it at import time, so a fresh
-  checkout can't even import the app without it. Installs are `uv sync --frozen`, which makes the
+  checkout can't even import the app without it. Installs are `uv sync --locked`, which makes the
   job double as the lockfile gate: a `pyproject.toml` dependency edit without a matching `uv lock`
   fails here instead of merging a stale lock.
 - **`frontend`** — `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
