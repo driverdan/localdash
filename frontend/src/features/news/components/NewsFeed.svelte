@@ -68,14 +68,8 @@
       <div class="notice">Loading…</div>
     {:else if news.shownStories.length === 0}
       <div class="notice">No stories in this window.</div>
-    {:else if news.shownTab === "all"}
-      {#each news.groupedShown as [slug, label, group] (slug)}
-        <h2 class="section-head">{label}</h2>
-        {#each group as story (story.id)}
-          <StoryCard {story} />
-        {/each}
-      {/each}
     {:else}
+      <h2 class="section-head">{news.shownTabLabel}</h2>
       {#each news.shownStories as story (story.id)}
         <StoryCard {story} />
       {/each}
