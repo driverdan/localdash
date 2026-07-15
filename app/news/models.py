@@ -44,8 +44,8 @@ class NewsFeed(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("news_sources.id", ondelete="CASCADE"))
     url: Mapped[str] = mapped_column(Text, unique=True)
-    # The sites' feed items carry no category tags; the section feed an article
-    # appeared in supplies its category (see registry.py).
+    # The feed's section category; used as the fallback when content
+    # categorization finds no mapped tag or keyword (see classify.py).
     category: Mapped[str] = mapped_column(String(32), default="news")
     position: Mapped[int] = mapped_column(Integer, default=0)
 
