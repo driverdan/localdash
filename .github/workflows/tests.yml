@@ -54,6 +54,13 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
 
+      # `static/` is a gitignored build artifact, so a fresh checkout has none —
+      # and main.py mounts it at import time, which hard-fails collection for
+      # every test that imports the app. No test reads a built asset, so the
+      # empty directory is enough; building the frontend here would buy nothing.
+      - name: Create static mount target
+        run: mkdir -p static
+
       # Creates the news/events tables the DB-backed fixtures need; the fixtures
       # skip rather than fail when they are missing.
       - name: Migrate
