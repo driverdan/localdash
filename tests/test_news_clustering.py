@@ -52,7 +52,7 @@ def test_transitive_merge_uses_smallest_id():
     assert clusters == {1: 1, 2: 1, 3: 1}
 
 
-def _row(aid, cluster_id, slug, category="news", title=None, summary="", published=""):
+def _row(aid, cluster_id, slug, category="news", title=None, summary="", published="", image=None):
     return {
         "id": aid,
         "cluster_id": cluster_id,
@@ -61,6 +61,7 @@ def _row(aid, cluster_id, slug, category="news", title=None, summary="", publish
         "summary": summary,
         "category": category,
         "published": published,
+        "image_url": image,
         "source_name": slug.title(),
         "source_slug": slug,
     }
@@ -96,6 +97,38 @@ def test_build_stories_aggregates_cluster():
     assert [s["slug"] for s in story["sources"]] == ["alpha", "beta"]
     assert story["first_published"] == "2026-07-10T10:00:00+00:00"
     assert story["latest_published"] == "2026-07-10T12:00:00+00:00"
+
+
+def test_build_stories_borrows_earliest_member_image():
+    # Earliest member has no image; a later one does — the story borrows it.
+    rows = [
+        _row(1, 1, "alpha", published="2026-07-10T10:00:00+00:00", image=None),
+        _row(
+            2,
+            1,
+            "beta",
+            published="2026-07-10T11:00:00+00:00",
+            image="https://example.com/first.jpg",
+        ),
+        _row(
+            3,
+            1,
+            "gamma",
+            published="2026-07-10T12:00:00+00:00",
+            image="https://example.com/second.jpg",
+        ),
+    ]
+    (story,) = build_stories(rows)
+    assert story["image_url"] == "https://example.com/first.jpg"  # earliest with an image
+
+
+def test_build_stories_no_member_image_is_none():
+    rows = [
+        _row(1, 1, "alpha", published="2026-07-10T10:00:00+00:00"),
+        _row(2, 1, "beta", published="2026-07-10T11:00:00+00:00"),
+    ]
+    (story,) = build_stories(rows)
+    assert story["image_url"] is None
 
 
 def test_build_stories_specific_beats_news_on_tie():

@@ -13,6 +13,8 @@ export interface Story {
   title: string;
   summary: string;
   category: string;
+  /** Feed-supplied lead image, or null when no member article had one. */
+  image_url: string | null;
   first_published: string;
   latest_published: string;
   source_count: number;

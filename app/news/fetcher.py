@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import calendar
 import logging
+import re
 from datetime import datetime, timezone
 
 import feedparser
@@ -46,6 +47,28 @@ def _entry_summary(entry) -> str:
     if not raw:
         raw = getattr(entry, "summary", "") or getattr(entry, "description", "")
     return truncate_sentences(strip_html(raw), 600)
+
+
+_IMG_SRC = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def _entry_image(entry) -> str | None:
+    """Feed-supplied image URL: first image enclosure, else first inline <img>.
+
+    Only reads what the feed already carries — no article page is fetched.
+    Local 3 (TownNews) ships an image enclosure on most items; WDEF sometimes
+    embeds an <img> in the item content; the other outlets carry neither.
+    """
+    for enc in getattr(entry, "enclosures", []) or []:
+        if str(enc.get("type", "")).startswith("image") and enc.get("href"):
+            return enc["href"]
+    raw = ""
+    if getattr(entry, "content", None):
+        raw = entry.content[0].get("value", "")
+    if not raw:
+        raw = getattr(entry, "summary", "") or getattr(entry, "description", "")
+    match = _IMG_SRC.search(raw or "")
+    return match.group(1) if match else None
 
 
 def _parse_feed(url: str):
@@ -105,6 +128,7 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, str]:
                 "url": url,
                 "title": title,
                 "summary": _entry_summary(entry),
+                "image_url": _entry_image(entry),
                 "category": feed.category,
                 "published": _entry_published(entry),
                 "fetched_at": now,
