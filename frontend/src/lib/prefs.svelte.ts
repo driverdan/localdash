@@ -6,6 +6,44 @@
 // in-memory state only.
 import { flushSync } from "svelte";
 
+/**
+ * Reserved namespace for every key the frontend persists for a browser. It
+ * spans keys this module never writes — `localdash.theme` (owned by
+ * lib/theme.svelte, which must apply before first paint) and namespaced view
+ * state like `localdash.map.view` — so `listPrefs` can enumerate a browser's
+ * stored preferences without being told the key names. Any new persisted
+ * preference key belongs under it.
+ */
+export const PREFS_PREFIX = "localdash.";
+
+export interface StoredPref {
+  key: string;
+  /** The value exactly as stored; callers decide how (or whether) to parse it. */
+  raw: string;
+}
+
+/**
+ * The namespace's keys currently in storage, sorted for a stable render order.
+ * Only stored keys are reported — a key that was never written is absent, not
+ * empty, and that difference matters: an absent `localdash.map` means every
+ * category is on (including ones added later), where a present one is an
+ * allowlist.
+ */
+export function listPrefs(): StoredPref[] {
+  try {
+    const out: StoredPref[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key === null || !key.startsWith(PREFS_PREFIX)) continue;
+      const raw = localStorage.getItem(key);
+      if (raw !== null) out.push({ key, raw });
+    }
+    return out.sort((a, b) => a.key.localeCompare(b.key));
+  } catch {
+    return []; // storage unavailable — same swallow as the other read paths
+  }
+}
+
 export function loadPrefs(key: string): Record<string, unknown> | null {
   try {
     const raw = localStorage.getItem(key);
