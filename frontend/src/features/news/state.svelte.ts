@@ -62,15 +62,11 @@ class NewsState {
     ),
   );
 
-  /** "All" view: [slug, label, stories] sections in category display order. */
-  groupedShown = $derived.by(() =>
-    Object.entries(this.categories)
-      .map(([slug, label]): [string, string, Story[]] => [
-        slug,
-        label,
-        this.shownStories.filter((s) => s.category === slug),
-      ])
-      .filter(([, , group]) => group.length > 0),
+  /** Label of the shown tab, for the feed's single section heading. */
+  shownTabLabel = $derived.by(
+    () =>
+      this.tabs.find(([slug]) => slug === this.shownTab)?.[1] ??
+      this.tabs[0][1],
   );
 }
 
