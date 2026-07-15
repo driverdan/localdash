@@ -112,15 +112,16 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
 
 
 async def get_sources(session: AsyncSession) -> list[dict]:
-    """One row per feed, with article counts per source+category."""
+    """One row per feed, with the source's total article count.
+
+    Category is content-derived and no longer equals the producing feed's
+    section, so the count is a per-source total rather than per source+category.
+    """
     article_count = (
         select(func.count())
         .select_from(NewsArticle)
-        .where(
-            NewsArticle.source_id == NewsSource.id,
-            NewsArticle.category == NewsFeed.category,
-        )
-        .correlate(NewsSource, NewsFeed)
+        .where(NewsArticle.source_id == NewsSource.id)
+        .correlate(NewsSource)
         .scalar_subquery()
     )
     rows = (

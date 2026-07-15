@@ -7,8 +7,9 @@ behavior that must not regress:
     sites answer unfamiliar UAs with HTTP 429;
   * a feed erroring must never abort the cycle — failures are caught per-feed
     and recorded in news_feeds.last_status;
-  * dedup is (source_id, guid) with an upsert that only upgrades a generic
-    'news' category to a specific section, never the reverse.
+  * dedup is (source_id, guid); the category is content-derived (classify.py)
+    and recomputed on every fetch, so an upsert overwrites it rather than
+    one-way upgrading a generic 'news' category to a section.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.news.classify import classify
 from app.news.models import NewsArticle, NewsFeed, NewsSource
 from app.news.registry import USER_AGENT
 from app.news.textutil import strip_html, truncate_sentences
@@ -71,6 +73,12 @@ def _entry_image(entry) -> str | None:
     return match.group(1) if match else None
 
 
+def _entry_tags(entry) -> list[str]:
+    """Per-item feed <category> terms (WordPress outlets carry these; others
+    don't). feedparser exposes them as entry.tags, each a dict with a 'term'."""
+    return [t.get("term", "") for t in getattr(entry, "tags", []) or [] if t.get("term")]
+
+
 def _parse_feed(url: str):
     return feedparser.parse(
         url,
@@ -82,9 +90,9 @@ def _parse_feed(url: str):
 async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     """Insert article rows, deduplicating on (source_id, guid).
 
-    Returns the changed-row count: inserts plus category upgrades. A conflict
-    only updates when it upgrades a generic 'news' category to a specific
-    section, never the reverse (sections are fetched before the news feed).
+    Returns the affected-row count (inserts plus conflicting rows). The category
+    is content-derived and recomputed each fetch, so a conflict overwrites the
+    stored category with the freshly classified one (either direction).
     """
     if not rows:
         return 0
@@ -98,7 +106,6 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     stmt = stmt.on_conflict_do_update(
         constraint="uq_news_article_source_guid",
         set_={"category": stmt.excluded.category},
-        where=(NewsArticle.category == "news") & (stmt.excluded.category != "news"),
     )
     result = await session.execute(stmt)
     return result.rowcount
@@ -121,15 +128,18 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, str]:
         title = strip_html(getattr(entry, "title", "") or "")
         if not url or not title:
             continue
+        summary = _entry_summary(entry)
         rows.append(
             {
                 "source_id": feed.source_id,
                 "guid": getattr(entry, "id", "") or url,
                 "url": url,
                 "title": title,
-                "summary": _entry_summary(entry),
+                "summary": summary,
                 "image_url": _entry_image(entry),
-                "category": feed.category,
+                # Content-derived, not the feed section (feed.category is the
+                # last-resort fallback inside classify()).
+                "category": classify(title, summary, _entry_tags(entry), feed.category),
                 "published": _entry_published(entry),
                 "fetched_at": now,
             }

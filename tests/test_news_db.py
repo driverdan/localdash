@@ -102,14 +102,14 @@ async def _seed_source(session, monkeypatch) -> int:
     ).scalar_one()
 
 
-async def test_article_dedup_and_category_upgrade(news_db_session, monkeypatch):
+async def test_article_dedup_and_category_recompute(news_db_session, monkeypatch):
     sid = await _seed_source(news_db_session, monkeypatch)
 
     assert await upsert_articles(news_db_session, [_article(sid, "g1", "news")]) == 1
-    # Same guid from a section feed: category upgrades, no new row.
+    # Same guid, freshly classified category: overwrites in place, no new row.
     assert await upsert_articles(news_db_session, [_article(sid, "g1", "sports")]) == 1
-    # Seen again from the generic feed: never downgraded, nothing changed.
-    assert await upsert_articles(news_db_session, [_article(sid, "g1", "news")]) == 0
+    # Recompute is not a one-way upgrade — a later fetch can move it back.
+    assert await upsert_articles(news_db_session, [_article(sid, "g1", "news")]) == 1
     # Duplicate guids within one payload: first occurrence wins, one row.
     assert (
         await upsert_articles(
@@ -126,7 +126,7 @@ async def test_article_dedup_and_category_upgrade(news_db_session, monkeypatch):
             .order_by(NewsArticle.guid)
         )
     ).all()
-    assert [tuple(r) for r in rows] == [("g1", "sports"), ("g2", "news")]
+    assert [tuple(r) for r in rows] == [("g1", "news"), ("g2", "news")]
 
 
 async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
@@ -162,6 +162,12 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
     assert story["article_count"] == 2 and story["source_count"] == 1
 
     sources = (await api_get_sources(session=news_db_session))["sources"]
-    row = next(r for r in sources if r["slug"] == "test-outlet" and r["category"] == "sports")
-    assert row["article_count"] == 2
-    assert row["last_status"] is None  # never fetched in this test
+    # Per-source total: every feed row of the outlet reports its 2 stored
+    # articles, even the "news" feed whose section none of them were filed under.
+    for cat in ("sports", "news"):
+        row = next(r for r in sources if r["slug"] == "test-outlet" and r["category"] == cat)
+        assert row["article_count"] == 2
+    sports_row = next(
+        r for r in sources if r["slug"] == "test-outlet" and r["category"] == "sports"
+    )
+    assert sports_row["last_status"] is None  # never fetched in this test

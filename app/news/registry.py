@@ -28,11 +28,12 @@ CATEGORIES = {
     "life": "Life",
 }
 
-# Local Chattanooga, TN news sources. Feeds verified 2026-07. None of the
-# sites put <category> tags on feed items, but they all publish per-section
-# feeds, so the section a feed belongs to supplies the article's category.
-# List specific sections before the general news feed: an article present in
-# two feeds keeps the category of the feed fetched first.
+# Local Chattanooga, TN news sources. Feeds verified 2026-07. Categorization is
+# content-derived per article (see classify.py): a mapped feed <category> tag
+# (only the two WordPress outlets — WDEF and the News Chronicle — emit per-item
+# tags), else a keyword match, else a feed's registered category below as the
+# fallback. List specific sections before the general news feed so that fallback
+# prefers the specific category when an article appears in both.
 SOURCES = [
     {
         "slug": "chattanoogan",
