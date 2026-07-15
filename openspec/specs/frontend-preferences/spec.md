@@ -6,7 +6,9 @@ Client-side persistence of per-feature view preferences (`frontend/src/lib/prefs
 localStorage keys, serialization, tolerant loading, and the persist-on-change effect that the
 `frontend-timeseries`, `frontend-events`, and `frontend-news` features build on. Per-browser only —
 there is no server-side or per-account preference storage.
+
 ## Requirements
+
 ### Requirement: Per-feature localStorage persistence
 The frontend SHALL persist per-feature view preferences in `localStorage` under one JSON key per
 feature: `localdash.map` (selected sources, selected categories, show-closed toggle, closed
