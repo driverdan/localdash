@@ -102,13 +102,17 @@ Then open the **News** homepage at <http://localhost:8000/> and the **map** at
 
 Run just Postgres in Docker and the app from your venv (nice for `--reload` dev):
 
+Needs [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`) — it
+installs the exact dependency versions pinned in `uv.lock`, the same ones CI and the Docker image
+use. The full-Docker quick start above needs nothing but Docker.
+
 ```bash
 # 1. Database only
 docker compose up -d db
 
-# 2. Python env + deps
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+# 2. Python env + deps (uv creates .venv and installs the exact versions in uv.lock)
+uv sync --extra dev
+source .venv/bin/activate
 
 # 3. Config + migrations
 cp .env.example .env          # DATABASE_URL points at localhost:5432
@@ -231,7 +235,7 @@ A [pre-commit](https://pre-commit.com/) hook auto-fixes and lints **staged** cod
 not installed automatically):
 
 ```bash
-pip install -e ".[dev]"      # pre-commit + ruff
+uv sync --extra dev          # pre-commit + ruff
 cd frontend && npm install   # prettier + prettier-plugin-svelte
 pre-commit install           # from the repo root
 ```

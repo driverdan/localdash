@@ -24,10 +24,13 @@ updates:
       prefix: "chore(deps)"
       prefix-development: "chore(dev-deps)"
 
-  # Python deps declared in pyproject.toml. Note: these are `>=` lower bounds
-  # with no lockfile, so Dependabot only opens PRs for security advisories, not
-  # routine version bumps — a new release always satisfies `>=`.
-  - package-ecosystem: "pip"
+  # Python deps declared in pyproject.toml, pinned transitively by uv.lock.
+  # Both halves matter: the `~=` ranges mean a new minor no longer satisfies the
+  # spec (a `>=` floor always did, which is why this ecosystem used to produce
+  # nothing but security PRs), and the lockfile lets Dependabot resolve exact
+  # versions — it updates pyproject.toml and uv.lock in the same PR, so the two
+  # never drift. Requires the "uv" ecosystem; the "pip" one cannot read uv.lock.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -37,7 +40,8 @@ updates:
       prefix: "chore(deps)"
       prefix-development: "chore(dev-deps)"
 
-  # Base images in the multi-stage Dockerfile (node:22-slim, python:3.12-slim).
+  # Base images in the multi-stage Dockerfile (node:22-slim, python:3.12-slim,
+  # and the pinned ghcr.io/astral-sh/uv used by the deps stage).
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
