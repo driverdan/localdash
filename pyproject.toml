@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "localdash"
 version = "0.1.0"
 description = "Store, serve, and view time-series geolocation data (active 911 incidents, extensible to APRS/weather/etc.)"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Dan DeFelippi", email = "dan@driverdan.com" }]
@@ -40,7 +40,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
