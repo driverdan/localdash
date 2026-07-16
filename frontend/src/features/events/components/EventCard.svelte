@@ -25,6 +25,16 @@
       <span class="distance">{item.distance_miles} mi</span>
     {/if}
   </div>
+  {#if item.image_url}
+    <a
+      href={item.links[0]?.source_url}
+      target="_blank"
+      rel="noopener"
+      class="image"
+    >
+      <img src={item.image_url} alt="" loading="lazy" />
+    </a>
+  {/if}
   <h3>
     <a href={item.links[0]?.source_url} target="_blank" rel="noopener"
       >{item.title}</a

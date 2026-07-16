@@ -19,7 +19,7 @@ CENTER = (35.0456, -85.3097)  # geocode target = the default origin -> 0 miles
 NASHVILLE = (36.1627, -86.7816)  # ~110 miles away
 
 
-def _raw(title, starts_in_days, address=None):
+def _raw(title, starts_in_days, address=None, image_url=None):
     now = dt.datetime.now(UTC)
     return RawEvent(
         title=title,
@@ -27,6 +27,7 @@ def _raw(title, starts_in_days, address=None):
         source_name="test-api",
         source_url="http://test-api/event",
         address=address,
+        image_url=image_url,
     )
 
 
@@ -64,6 +65,22 @@ async def test_default_listing_is_upcoming_in_start_order(events_db_session):
     assert by_title["test-Near Jazz Show"]["links"] == [
         {"source_name": "test-api", "source_url": "http://test-api/event"}
     ]
+
+
+async def test_listing_serializes_image_url(events_db_session):
+    geo = FakeGeocoder({})
+    await upsert_raw_events(
+        events_db_session,
+        [
+            _raw("test-Imaged Show", 1, image_url="http://img.test/show.jpg"),
+            _raw("test-Imageless Show", 2),
+        ],
+        geo,
+    )
+    result = await items(search="test-", session=events_db_session)
+    by_title = {i["title"]: i for i in result["items"]}
+    assert by_title["test-Imaged Show"]["image_url"] == "http://img.test/show.jpg"
+    assert by_title["test-Imageless Show"]["image_url"] is None
 
 
 async def test_upcoming_false_includes_past_events(events_db_session):

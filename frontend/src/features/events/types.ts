@@ -13,6 +13,7 @@ export interface EventItem {
   ends_at: string | null;
   venue_name: string | null;
   address: string | null;
+  image_url: string | null;
   latitude: number | null;
   longitude: number | null;
   tags: string[];

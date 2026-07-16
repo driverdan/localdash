@@ -47,8 +47,48 @@ END:VCALENDAR
 """
 
 
+ICS_WITH_IMAGE = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//test//EN
+BEGIN:VEVENT
+UID:img-1
+SUMMARY:Gallery Opening
+DTSTART:20260710T180000Z
+ATTACH;FMTTYPE=image/jpeg:https://example.com/photos/opening.jpg
+END:VEVENT
+END:VCALENDAR
+"""
+
+ICS_GENERIC_IMAGE = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//test//EN
+BEGIN:VEVENT
+UID:generic-1
+SUMMARY:Cars and Coffee
+DTSTART:20260710T180000Z
+ATTACH;FMTTYPE=image/jpeg:https://example.com/img/Generic-Car-Show.jpg
+END:VEVENT
+END:VCALENDAR
+"""
+
+
 def _source() -> ICalSource:
     return ICalSource("https://example.com/feed.ics")
+
+
+def test_image_attach_is_parsed():
+    (event,) = _source().parse(ICS_WITH_IMAGE)
+    assert event.image_url == "https://example.com/photos/opening.jpg"
+
+
+def test_generic_image_attach_is_treated_as_absent():
+    (event,) = _source().parse(ICS_GENERIC_IMAGE)
+    assert event.image_url is None
+
+
+def test_event_without_attach_has_no_image():
+    (event,) = _source().parse(ICS_SAMPLE)
+    assert event.image_url is None
 
 
 def test_parses_event_fields():

@@ -55,6 +55,34 @@ def test_parse_listing_maps_jsonld_fields():
     assert "cruise-in" in sonic.description
 
 
+def test_parse_listing_maps_jsonld_image():
+    events = parse_listing(load("listing.html"))
+    (sonic,) = [
+        e
+        for e in events
+        if e.source_event_id == "car-show/scenic-city-street-machines-cruise-in/2026-08-13"
+    ]
+    assert sonic.image_url is not None
+    assert sonic.image_url.startswith("https://carcruisefinder.com/")
+
+
+def test_image_accepts_string_list_and_object_forms():
+    def one(image_json: str) -> object:
+        html = f"""
+        <script type="application/ld+json">
+        {{"@type": "Event", "name": "M", "startDate": "2026-01-10T18:00:00",
+          "url": "https://carcruisefinder.com/car-show/m/", "image": {image_json}}}
+        </script>
+        """
+        (event,) = parse_listing(html)
+        return event.image_url
+
+    assert one('"https://ccf.test/a.jpg"') == "https://ccf.test/a.jpg"
+    assert one('["https://ccf.test/a.jpg", "https://ccf.test/b.jpg"]') == "https://ccf.test/a.jpg"
+    assert one('{"url": "https://ccf.test/a.jpg"}') == "https://ccf.test/a.jpg"
+    assert one('"https://ccf.test/Generic-Car-Show.jpg"') is None
+
+
 def test_no_jsonld_yields_zero_events():
     assert parse_listing(load("listing_no_jsonld.html")) == []
 

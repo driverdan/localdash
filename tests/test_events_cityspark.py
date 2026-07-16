@@ -124,6 +124,46 @@ def test_event_without_any_url_falls_back_to_the_widget_detail_page():
     )
 
 
+# --- parse: card image ---
+
+
+def test_image_prefers_medium_variant():
+    (event,) = parse_payload(
+        make_payload(
+            [
+                make_event(
+                    MediumImg="https://blob.test/medium.jpg",
+                    LargeImg="https://blob.test/large.jpg",
+                    SmallImg="https://blob.test/small.jpg",
+                )
+            ]
+        )
+    )
+    assert event.image_url == "https://blob.test/medium.jpg"
+
+
+def test_image_falls_back_through_variants_then_images_array():
+    (event,) = parse_payload(make_payload([make_event(SmallImg="https://blob.test/small.jpg")]))
+    assert event.image_url == "https://blob.test/small.jpg"
+
+    (event,) = parse_payload(
+        make_payload([make_event(Images=[{"url": "https://blob.test/first.jpg"}])])
+    )
+    assert event.image_url == "https://blob.test/first.jpg"
+
+
+def test_image_absent_yields_none():
+    (event,) = parse_payload(make_payload([make_event()]))
+    assert event.image_url is None
+
+
+def test_image_placeholder_is_excluded():
+    (event,) = parse_payload(
+        make_payload([make_event(MediumImg="https://blob.test/Generic-Event.jpg")])
+    )
+    assert event.image_url is None
+
+
 # --- parse: depth-1 tag rollup ---
 
 

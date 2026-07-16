@@ -8,8 +8,33 @@ tagging, geocoding, and persistence.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
+
+# Basenames of stock/placeholder artwork every source should treat as absent
+# (e.g. the Cars and Coffee iCal feed's ``Generic-Car-Show.jpg``). Matched
+# case-insensitively as a substring of the URL's final path segment; a miss
+# costs only a bland-but-topical image, so the pattern stays deliberately small.
+_PLACEHOLDER_RE = re.compile(r"generic|placeholder|default|stock", re.IGNORECASE)
+
+
+def clean_image_url(url: str | None) -> str | None:
+    """Return ``url`` unless it is empty or a known generic/placeholder image.
+
+    Shared by every source so the exclusion rule is applied uniformly: a URL
+    whose basename matches the placeholder pattern is treated as no image.
+    """
+    if not url:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+    basename = urlparse(url).path.rsplit("/", 1)[-1]
+    if _PLACEHOLDER_RE.search(basename):
+        return None
+    return url
 
 
 @dataclass
@@ -35,6 +60,7 @@ class RawEvent:
     source_event_id: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    image_url: str | None = None
     tags: list[str] = field(default_factory=list)
 
 

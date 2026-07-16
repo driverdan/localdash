@@ -34,6 +34,7 @@ def _serialize(event: Event, lat: float | None, lon: float | None, meters: float
         "ends_at": event.ends_at.isoformat() if event.ends_at else None,
         "venue_name": event.venue_name,
         "address": event.address,
+        "image_url": event.image_url,
         "latitude": lat,
         "longitude": lon,
         "tags": sorted(tag.name for tag in event.tags),
