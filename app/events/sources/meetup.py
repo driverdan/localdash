@@ -20,7 +20,7 @@ import logging
 
 import httpx
 
-from app.events.sources.base import EventSource, RawEvent
+from app.events.sources.base import EventSource, RawEvent, clean_image_url
 
 log = logging.getLogger("localdash.events")
 
@@ -40,6 +40,7 @@ query EventSearch($filter: SearchConnectionFilter!, $first: Int) {
             eventUrl
             dateTime
             description
+            featuredEventPhoto { source highResUrl standardUrl baseUrl }
             venue { name address city state }
             group { name }
           }
@@ -62,6 +63,24 @@ def _to_aware_utc(value: str | None) -> dt.datetime | None:
     if parsed.tzinfo is not None:
         return parsed.astimezone(dt.timezone.utc)
     return parsed.replace(tzinfo=dt.timezone.utc)
+
+
+def _photo_url(result: dict) -> str | None:
+    """The event photo URL from ``featuredEventPhoto``, or None.
+
+    Meetup's ``Image`` type exposes several sized URLs; we take the first
+    populated one. Parsed defensively so a missing/null photo yields no image
+    (the field is verified against the live schema only with a configured
+    token; a schema drift degrades to imageless events, not an error).
+    """
+    photo = result.get("featuredEventPhoto")
+    if not isinstance(photo, dict):
+        return None
+    for key in ("source", "highResUrl", "standardUrl", "baseUrl"):
+        cleaned = clean_image_url(photo.get(key))
+        if cleaned:
+            return cleaned
+    return None
 
 
 def _format_address(venue: dict | None) -> str | None:
@@ -146,6 +165,7 @@ class MeetupSource(EventSource):
                     start_time=start,
                     venue_name=(venue or {}).get("name"),
                     address=_format_address(venue),
+                    image_url=_photo_url(result),
                     source_name=self.name,
                     source_url=result.get("eventUrl") or self.endpoint,
                     source_event_id=str(event_id),

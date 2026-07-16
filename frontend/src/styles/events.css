@@ -89,6 +89,18 @@
   padding: 14px 18px;
   margin: 12px 0;
 }
+#events .event-card .image {
+  display: block;
+  margin: 0 0 10px;
+}
+#events .event-card .image img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #eef2f6;
+}
 #events .event-card h3 {
   margin: 0 0 5px;
   font-size: 17px;

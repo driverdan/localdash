@@ -209,6 +209,7 @@ async def upsert_raw_events(
                 ends_at=raw.end_time,
                 venue_name=raw.venue_name,
                 address=raw.address,
+                image_url=raw.image_url,
                 location=_point(coords) if coords else None,
                 tags=[],
                 links=[],
@@ -234,6 +235,8 @@ async def upsert_raw_events(
                 event.address = raw.address
             if event.ends_at is None and raw.end_time:
                 event.ends_at = raw.end_time
+            if event.image_url is None and raw.image_url:
+                event.image_url = raw.image_url
             if event.location is None:
                 coords = _supplied_coords(raw)
                 if coords is None:
@@ -281,6 +284,8 @@ def _merge_pair(survivor: Event, loser: Event) -> None:
         survivor.address = loser.address
     if survivor.ends_at is None and loser.ends_at:
         survivor.ends_at = loser.ends_at
+    if survivor.image_url is None and loser.image_url:
+        survivor.image_url = loser.image_url
     if survivor.location is None and loser.location is not None:
         survivor.location = loser.location
     kept = {(link.source_name, link.source_url) for link in survivor.links}

@@ -385,6 +385,37 @@ async def test_supplied_tag_names_merge_with_the_keyword_vocabulary(events_db_se
     assert {tag.name for tag in tagged[0].tags} == {"music"}
 
 
+# --- source-supplied images ---
+
+IMG_A = "http://img.test/a.jpg"
+IMG_B = "http://img.test/b.jpg"
+
+
+async def test_new_event_stores_supplied_image(events_db_session):
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", image_url=IMG_A)])
+    (event,) = await _events(events_db_session)
+    assert event.image_url == IMG_A
+
+
+async def test_merge_backfills_missing_image(events_db_session):
+    # First source has no image; a later duplicate supplies one.
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA")])
+    (event,) = await _events(events_db_session)
+    assert event.image_url is None
+
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceB", image_url=IMG_A)])
+    (event,) = await _events(events_db_session)
+    assert event.image_url == IMG_A
+
+
+async def test_merge_never_overwrites_existing_image(events_db_session):
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", image_url=IMG_A)])
+    # A second source reports a different image for the same event: first wins.
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceB", image_url=IMG_B)])
+    (event,) = await _events(events_db_session)
+    assert event.image_url == IMG_A
+
+
 async def test_event_without_coords_or_tags_behaves_exactly_as_before(events_db_session):
     geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     await upsert_raw_events(events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo)

@@ -41,7 +41,7 @@ import re
 
 import httpx
 
-from app.events.sources.base import EventSource, RawEvent
+from app.events.sources.base import EventSource, RawEvent, clean_image_url
 
 log = logging.getLogger("localdash.events")
 
@@ -116,6 +116,23 @@ def _event_url(event: dict, base_url: str) -> str:
     return f"{base_url}details/{_slugify(event.get('Name') or '')}/{event.get('PId')}"
 
 
+def _event_image(event: dict) -> str | None:
+    """The card image: MediumImg, falling back through the other size variants.
+
+    ``MediumImg`` is the purpose-built card variant; the chain guards against a
+    partially populated payload before dropping to the first ``Images`` entry.
+    """
+    for key in ("MediumImg", "LargeImg", "SmallImg"):
+        cleaned = clean_image_url(event.get(key))
+        if cleaned:
+            return cleaned
+    for image in event.get("Images") or []:
+        cleaned = clean_image_url(image.get("url") if isinstance(image, dict) else None)
+        if cleaned:
+            return cleaned
+    return None
+
+
 def _join_address(event: dict) -> str | None:
     parts = (event.get("Address"), event.get("CityState"), event.get("Zip"))
     joined = ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
@@ -148,6 +165,7 @@ def parse_payload(payload: dict) -> list[RawEvent]:
                 address=_join_address(event),
                 latitude=event.get("latitude"),
                 longitude=event.get("longitude"),
+                image_url=_event_image(event),
                 tags=_rolled_tags(event.get("Tags") or [], by_id),
                 source_name=SOURCE_NAME,
                 source_url=_event_url(event, base_url),

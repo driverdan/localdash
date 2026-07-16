@@ -30,7 +30,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from bs4 import BeautifulSoup
 
-from app.events.sources.base import EventSource, RawEvent
+from app.events.sources.base import EventSource, RawEvent, clean_image_url
 
 log = logging.getLogger("localdash.events")
 
@@ -93,6 +93,19 @@ def _join_address(location: dict) -> str | None:
     return joined or None
 
 
+def _image_url(image: Any) -> str | None:
+    """The event image from a schema.org ``image`` value (string, list, or object)."""
+    if isinstance(image, list):
+        for item in image:
+            cleaned = _image_url(item)
+            if cleaned:
+                return cleaned
+        return None
+    if isinstance(image, dict):
+        image = image.get("url")
+    return clean_image_url(image if isinstance(image, str) else None)
+
+
 def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
     """Extract raw events from the listing page's Event JSON-LD (pure, offline)."""
     soup = BeautifulSoup(html, "html.parser")
@@ -120,6 +133,7 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
                     end_time=_to_aware_utc(node.get("endDate")),
                     venue_name=_clean_text(location.get("name")) or None,
                     address=_join_address(location),
+                    image_url=_image_url(node.get("image")),
                     source_name=SOURCE_NAME,
                     source_url=url,
                     source_event_id=urlparse(url).path.strip("/") or None,

@@ -14,9 +14,38 @@ import logging
 import httpx
 from icalendar import Calendar
 
-from app.events.sources.base import EventSource, RawEvent
+from app.events.sources.base import EventSource, RawEvent, clean_image_url
 
 log = logging.getLogger("localdash.events")
+
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+
+
+def _attach_image_url(component) -> str | None:
+    """The first usable image ``ATTACH`` URI, or None.
+
+    An attachment counts as an image when its ``FMTTYPE`` parameter is an
+    ``image/*`` MIME type or, lacking that, its URL ends in an image extension.
+    Generic/placeholder images (e.g. the Cars and Coffee feed's ``Generic-*``
+    stock art) are dropped by the shared exclusion helper.
+    """
+    attach = component.get("attach")
+    if attach is None:
+        return None
+    values = attach if isinstance(attach, list) else [attach]
+    for value in values:
+        url = str(value)
+        params = getattr(value, "params", None)
+        fmttype = str(params.get("FMTTYPE") or "").lower() if params else ""
+        is_image = fmttype.startswith("image/") or url.lower().rsplit("?", 1)[0].endswith(
+            _IMAGE_EXTS
+        )
+        if not is_image:
+            continue
+        cleaned = clean_image_url(url)
+        if cleaned:
+            return cleaned
+    return None
 
 
 def _to_aware_utc(value) -> dt.datetime | None:
@@ -64,6 +93,7 @@ class ICalSource(EventSource):
                     if component.get("location")
                     else None,
                     address=str(component.get("location")) if component.get("location") else None,
+                    image_url=_attach_image_url(component),
                     source_name=self.name,
                     source_url=str(component.get("url") or self.url),
                     source_event_id=uid,

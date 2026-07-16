@@ -23,6 +23,9 @@ SAMPLE_PAYLOAD = {
                             "eventUrl": "https://www.meetup.com/chatt-python/events/302000001/",
                             "dateTime": "2026-07-15T18:30-04:00",
                             "description": "Monthly meetup for local software developers.",
+                            "featuredEventPhoto": {
+                                "source": "https://secure.meetupstatic.com/photos/event/big.jpg"
+                            },
                             "venue": {
                                 "name": "Society of Work",
                                 "address": "1800 Rossville Ave",
@@ -60,11 +63,35 @@ def test_parse_extracts_event_fields():
     assert event.source_event_id == "302000001"
     # The group name is prefixed onto the description.
     assert event.description.startswith("Chattanooga Python Coders")
+    assert event.image_url == "https://secure.meetupstatic.com/photos/event/big.jpg"
 
 
 def test_parse_handles_empty_or_malformed_payload():
     assert _source().parse({}) == []
     assert _source().parse({"data": {"keywordSearch": {"edges": []}}}) == []
+
+
+def test_missing_photo_yields_no_image():
+    payload = {
+        "data": {
+            "keywordSearch": {
+                "edges": [
+                    {
+                        "node": {
+                            "result": {
+                                "id": "1",
+                                "title": "No Photo Meetup",
+                                "eventUrl": "https://www.meetup.com/g/events/1/",
+                                "dateTime": "2026-07-15T18:30-04:00",
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    (event,) = _source().parse(payload)
+    assert event.image_url is None
 
 
 def _settings(**overrides) -> Settings:
