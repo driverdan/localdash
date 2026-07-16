@@ -1,5 +1,5 @@
 # Frontend build stage: Node is needed only here, never in the runtime image.
-FROM node:22-slim AS frontend
+FROM node:24-slim AS frontend
 
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -11,7 +11,7 @@ RUN npm run build
 # Dependency stage: builds /app/.venv from the committed uv.lock. Like the Node
 # stage above, uv is a build-time tool only — the runtime image gets the venv it
 # produced, never the uv binary itself.
-FROM python:3.12-slim AS deps
+FROM python:3.14-slim AS deps
 
 # Pinned rather than :latest so a uv release can't silently change a build;
 # Dependabot's docker ecosystem bumps this alongside the other base images.
@@ -36,7 +36,7 @@ COPY pyproject.toml uv.lock LICENSE README.md ./
 COPY app ./app
 RUN uv sync --locked --no-editable
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1

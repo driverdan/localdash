@@ -97,6 +97,6 @@ class HC911Collector(BaseCollector):
 def _as_float(value: Any) -> float | None:
     try:
         f = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return f if f == f else None  # reject NaN

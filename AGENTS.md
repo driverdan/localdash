@@ -61,12 +61,12 @@ ChattNews behavior was tuned against.
 **Python dependency locking — uv (`uv.lock`).** The project stays plain PEP 621: uv owns no
 metadata in `pyproject.toml`, so `pip install -e ".[dev]"` keeps working and uv is removable by
 deleting one file. It is used for the one thing pip cannot do here — produce a **universal**
-lock. `uv.lock` carries environment markers covering the whole `requires-python = ">=3.11"` range
-and Linux/macOS/Windows, which matters because this repo spans interpreters: Docker and CI run
-3.12 while local venvs run 3.13. The standard `pylock.toml` was the obvious alternative and was
-rejected on three counts: `pip lock` is experimental and self-describes as removable without
-warning; its output resolves against *one* interpreter (a lock built on 3.13 pins `cp313` wheels
-and hard-fails on 3.12, and vice versa), so no single file could serve both; and Dependabot cannot
+lock. `uv.lock` carries environment markers covering the `requires-python = ">=3.14"` range and
+Linux/macOS/Windows, so one file serves every machine that builds this repo — Docker, CI, and local
+venvs all run 3.14, but they do not all run the same OS. The standard `pylock.toml` was the obvious
+alternative and was rejected on three counts: `pip lock` is experimental and self-describes as
+removable without warning; its output resolves against *one* environment, so a lock built on Linux
+pins `manylinux` wheels and hard-fails on macOS; and Dependabot cannot
 read it ([dependabot-core#12094](https://github.com/dependabot/dependabot-core/issues/12094)),
 which would leave the lock silently stale on every bump PR it opens. uv is a build-time tool only —
 the Dockerfile's `deps` stage produces `/app/.venv` and the runtime image copies it without the uv

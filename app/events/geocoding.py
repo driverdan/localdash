@@ -112,6 +112,6 @@ class NominatimGeocoder(Geocoder):
                 continue
             try:
                 return float(results[0]["lat"]), float(results[0]["lon"])
-            except (KeyError, ValueError, TypeError, IndexError):
+            except KeyError, ValueError, TypeError, IndexError:
                 return None
         return None

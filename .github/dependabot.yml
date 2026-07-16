@@ -40,7 +40,7 @@ updates:
       prefix: "chore(deps)"
       prefix-development: "chore(dev-deps)"
 
-  # Base images in the multi-stage Dockerfile (node:22-slim, python:3.12-slim,
+  # Base images in the multi-stage Dockerfile (node:24-slim, python:3.14-slim,
   # and the pinned ghcr.io/astral-sh/uv used by the deps stage).
   - package-ecosystem: "docker"
     directory: "/"
