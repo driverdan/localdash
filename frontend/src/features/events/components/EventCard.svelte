@@ -17,10 +17,12 @@
     {#each item.tags as tag (tag)}
       <span class="badge cat">{tag}</span>
     {/each}
-    {when}
-    {#if item.distance_miles !== null}
-      <span class="distance">{item.distance_miles} mi</span>
-    {/if}
+    <span class="when">
+      {when}
+      {#if item.distance_miles !== null}
+        <span class="distance">{item.distance_miles} mi</span>
+      {/if}
+    </span>
   </div>
   {#if item.image_url}
     <a
