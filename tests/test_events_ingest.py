@@ -279,6 +279,121 @@ async def test_merge_path_is_exempt_from_the_filter(events_db_session):
     assert {link.source_name for link in event.links} == {"test-SourceA", "test-SourceB"}
 
 
+# --- source-supplied coordinates and tags ---
+
+
+async def test_supplied_coordinates_skip_geocoder_and_cache(events_db_session):
+    geo = FakeGeocoder({BROAD_ST: MEMPHIS})  # would resolve wrong if consulted
+    await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-SourceA",
+                address=BROAD_ST,
+                latitude=DOWNTOWN_CHATTANOOGA[0],
+                longitude=DOWNTOWN_CHATTANOOGA[1],
+            )
+        ],
+        geo,
+    )
+
+    assert geo.calls == []
+    cached = await events_db_session.scalar(
+        select(GeocodeCache).where(GeocodeCache.address == BROAD_ST)
+    )
+    assert cached is None
+    (event,) = await _events(events_db_session)
+    lat, lon = (
+        await events_db_session.execute(
+            select(func.ST_Y(Event.location), func.ST_X(Event.location)).where(Event.id == event.id)
+        )
+    ).one()
+    assert (round(lat, 4), round(lon, 4)) == DOWNTOWN_CHATTANOOGA
+
+
+async def test_supplied_coordinates_feed_the_distance_filter(events_db_session):
+    stats = await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceA", latitude=MEMPHIS[0], longitude=MEMPHIS[1])],
+        FakeGeocoder({}),
+        max_miles=100,
+    )
+
+    assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
+
+
+async def test_supplied_coordinates_backfill_a_merged_events_location(events_db_session):
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA")], FakeGeocoder({}))
+    (event,) = await _events(events_db_session)
+    assert event.location is None
+
+    geo = FakeGeocoder({})
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-SourceB",
+                latitude=DOWNTOWN_CHATTANOOGA[0],
+                longitude=DOWNTOWN_CHATTANOOGA[1],
+            )
+        ],
+        geo,
+    )
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert geo.calls == []
+    (event,) = await _events(events_db_session)
+    await events_db_session.refresh(event)
+    assert event.location is not None
+
+
+async def test_supplied_tags_replace_keyword_tagging(events_db_session):
+    # Title would keyword-tag as music; the supplied tags must win.
+    await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceA", title="Live music at the pier", tags=["Performing Arts"])],
+    )
+
+    (event,) = await _events(events_db_session)
+    assert {tag.name for tag in event.tags} == {"performing arts"}
+
+
+async def test_supplied_tag_names_merge_with_the_keyword_vocabulary(events_db_session):
+    # Keyword tagging creates (or reuses) the lowercase music tag...
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", title="Jazz Night")])
+    # ...and a supplied "Music" lands on that same row, not a new "Music" one.
+    await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-SourceB",
+                title="Symphony Under the Stars",
+                start_time=dt.datetime(2026, 7, 3, 19, 0, tzinfo=UTC),
+                tags=["Music"],
+            )
+        ],
+    )
+
+    from app.events.models import Tag
+
+    rows = (
+        await events_db_session.scalars(select(Tag).where(func.lower(Tag.name) == "music"))
+    ).all()
+    assert [tag.name for tag in rows] == ["music"]
+    events = await _events(events_db_session)
+    tagged = [e for e in events if e.title == "Symphony Under the Stars"]
+    assert {tag.name for tag in tagged[0].tags} == {"music"}
+
+
+async def test_event_without_coords_or_tags_behaves_exactly_as_before(events_db_session):
+    geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo)
+
+    assert geo.calls == [BROAD_ST]  # still geocoded from the address
+    (event,) = await _events(events_db_session)
+    assert "music" in {tag.name for tag in event.tags}  # still keyword-tagged
+
+
 # --- geocode failure retry pass ---
 
 

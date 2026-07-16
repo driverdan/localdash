@@ -15,6 +15,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -44,10 +45,19 @@ async def _get_or_create_tag(session: AsyncSession, name: str, cache: dict[str, 
         return cache[name]
     tag = await session.scalar(select(Tag).where(Tag.name == name))
     if tag is None:
-        tag = Tag(name=name)
-        session.add(tag)
+        # Race-safe against a concurrent ingest inserting the same name: the
+        # no-op insert never violates the unique constraint, and the re-select
+        # returns whichever row won.
+        await session.execute(pg_insert(Tag).values(name=name).on_conflict_do_nothing())
+        tag = await session.scalar(select(Tag).where(Tag.name == name))
     cache[name] = tag
     return tag
+
+
+def _supplied_coords(raw: RawEvent) -> Coords | None:
+    if raw.latitude is not None and raw.longitude is not None:
+        return (raw.latitude, raw.longitude)
+    return None
 
 
 async def _geocode(
@@ -173,7 +183,10 @@ async def upsert_raw_events(
 
         coords: Coords | None = None
         if event is None:
-            coords = await _geocode(session, geocoder, raw.address, geo_cache)
+            # Prefer source-supplied coordinates; geocode only when absent.
+            coords = _supplied_coords(raw)
+            if coords is None:
+                coords = await _geocode(session, geocoder, raw.address, geo_cache)
             event = await _find_fuzzy_candidate(session, raw, coords)
 
         if event is None:
@@ -202,7 +215,13 @@ async def upsert_raw_events(
             )
             session.add(event)
             created += 1
-            for name in sorted(tag_event(raw.title, raw.description or "")):
+            # Source-supplied tags (lowercased to merge with the keyword
+            # vocabulary) replace keyword tagging entirely.
+            if raw.tags:
+                names = set(name.lower() for name in raw.tags)
+            else:
+                names = tag_event(raw.title, raw.description or "")
+            for name in sorted(names):
                 event.tags.append(await _get_or_create_tag(session, name, tag_cache))
         else:
             merged += 1
@@ -216,7 +235,11 @@ async def upsert_raw_events(
             if event.ends_at is None and raw.end_time:
                 event.ends_at = raw.end_time
             if event.location is None:
-                coords = await _geocode(session, geocoder, event.address or raw.address, geo_cache)
+                coords = _supplied_coords(raw)
+                if coords is None:
+                    coords = await _geocode(
+                        session, geocoder, event.address or raw.address, geo_cache
+                    )
                 if coords:
                     event.location = _point(coords)
 

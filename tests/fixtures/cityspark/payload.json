@@ -1,0 +1,304 @@
+{
+ "Value": [
+  {
+   "PId": 19186937,
+   "Name": "Teen Artist Showcase",
+   "Description": "The Teen Artist Showcase is June 26 \u2013 July 30 in the Denise Heinly Art Center in OMN 130. The exhibit is free and open to the public.\n\n\\>\\>\\>Please join us for ",
+   "Venue": "Chattanooga State",
+   "CityState": "Chattanooga, TN",
+   "DateStart": "2026-07-15T08:00:00Z",
+   "DateEnd": "2026-07-15T19:00:00Z",
+   "Tags": [
+    15,
+    81,
+    3,
+    931,
+    42,
+    178
+   ],
+   "latitude": 35.098289,
+   "longitude": -85.243929,
+   "Address": "4501 Amicola Hwy",
+   "Zip": "37406",
+   "Id": "260702WIel1RbR8EKw3o80AWlhUg",
+   "StartUTC": "2026-07-15T12:00:00Z",
+   "EndUTC": "2026-07-15T23:00:00Z",
+   "TicketUrl": null,
+   "PrimaryUrl": "https://chattanoogastate.edu/humanities-fine-arts",
+   "Links": [
+    {
+     "name": "Teen Artist Showcase",
+     "url": "https://chattanoogastate.edu/humanities-fine-arts"
+    }
+   ]
+  },
+  {
+   "PId": 15734752,
+   "Name": "Red Bank Active Older Adult Program - Music Jam",
+   "Description": "\ud83c\udfb6 Join us for the FREE Active Older Adults \\(55\\+\\) Music Jam! \ud83c\udfb6\n\nCalling all music enthusiasts aged 55 and up! Whether you're a seasoned musician or simply lov",
+   "Venue": "Red Bank Community Center",
+   "CityState": "Red Bank, TN",
+   "DateStart": "2026-07-15T13:00:00Z",
+   "DateEnd": "2026-07-15T15:00:00Z",
+   "Tags": [
+    15,
+    84,
+    2,
+    17,
+    10262,
+    11,
+    10120,
+    6,
+    38
+   ],
+   "latitude": 35.12126,
+   "longitude": -85.30279,
+   "Address": "3653 Tom Weathers Dr",
+   "Zip": "37415",
+   "Id": "260715N8_GDl-QgEWMjD5tyCf7tQ",
+   "StartUTC": "2026-07-15T17:00:00Z",
+   "EndUTC": "2026-07-15T19:00:00Z",
+   "TicketUrl": null,
+   "PrimaryUrl": "https://www.redbanktn.gov/316/Red-Bank-Active-Older-Adults",
+   "Links": [
+    {
+     "name": "Active Older Adults (55+): Music Jam",
+     "url": "https://www.redbanktn.gov/316/Red-Bank-Active-Older-Adults"
+    }
+   ]
+  },
+  {
+   "PId": 18825031,
+   "Name": "Trivia Showdown",
+   "Description": "Trivia Showdown at Wanderlinger Brewing  Looking for something to break up the week that doesn\u2019t suck? This is it. Every Wednesday night, Wanderlinger turns int",
+   "Venue": "Fifty Fifty Wine and Martini Bar",
+   "CityState": "Chattanooga, TN",
+   "DateStart": "2026-07-15T17:30:00Z",
+   "DateEnd": "2026-07-15T19:30:00Z",
+   "Tags": [
+    76,
+    53,
+    10165,
+    12,
+    75,
+    14,
+    77
+   ],
+   "latitude": 35.036904,
+   "longitude": -85.306124,
+   "Address": "43 Station Street",
+   "Zip": "37408",
+   "Id": "260605AiY-Pg9QKUSM0nkUAk1rgQ",
+   "StartUTC": "2026-07-15T21:30:00Z",
+   "EndUTC": "2026-07-15T23:30:00Z",
+   "TicketUrl": null,
+   "PrimaryUrl": "https://www.facebook.com/events/1007506411624968/1007506464958296/?active_tab=about",
+   "Links": [
+    {
+     "name": "Wanderlinger Brewing Company",
+     "url": "https://www.facebook.com/events/1007506411624968/1007506464958296/?active_tab=about"
+    }
+   ]
+  },
+  {
+   "PId": 18320007,
+   "Name": "Open mic comedy",
+   "Description": "Jj\u2019s Bohemia\u2019s open mic comedy show, \u201cfree kittens\u201d, has been occurring weekly for over 10 years. Dozens of world class comedians have performed on the stage as",
+   "Venue": "JJ's Bohemia",
+   "CityState": "Chattanooga, TN",
+   "DateStart": "2026-07-16T20:30:00Z",
+   "DateEnd": "2026-07-16T23:00:00Z",
+   "Tags": [
+    20,
+    10298,
+    21,
+    2
+   ],
+   "latitude": 35.04512250220949,
+   "longitude": -85.30585844417672,
+   "Address": "231 E M L King Blvd #4106,",
+   "Zip": "37403",
+   "Id": "260605pXY1tXT9PUWAfUbgaY5tHA",
+   "StartUTC": "2026-07-17T00:30:00Z",
+   "EndUTC": "2026-07-17T03:00:00Z",
+   "TicketUrl": null,
+   "PrimaryUrl": null,
+   "Links": []
+  },
+  {
+   "PId": 17920271,
+   "Name": "Open Mic Night- Arts",
+   "Description": "Chattanooga's Longest Running Open Mic Show. Regional and local talent performing in a showcase format. You never know who will show up and go up. Hosted and pr",
+   "Venue": "The Comedy Catch",
+   "CityState": "Chattanooga, TN",
+   "DateStart": "2026-07-15T19:00:00Z",
+   "DateEnd": null,
+   "Tags": [
+    2,
+    21,
+    20,
+    430,
+    19,
+    8
+   ],
+   "latitude": 35.037027,
+   "longitude": -85.3085219,
+   "Address": "29 Station St",
+   "Zip": "37408",
+   "Id": "260715IK4ncWdc-kScWIWR5cL5iA",
+   "StartUTC": "2026-07-15T23:00:00Z",
+   "EndUTC": null,
+   "TicketUrl": null,
+   "PrimaryUrl": "https://www.thecomedycatch.com/shows/375439",
+   "Links": [
+    {
+     "name": "The Comedy Catch",
+     "url": "https://www.thecomedycatch.com/shows/375439"
+    }
+   ]
+  }
+ ],
+ "AllTags": [
+  {
+   "parent": 17,
+   "id": 1,
+   "name": "MusicEvent"
+  },
+  {
+   "parent": null,
+   "id": 2,
+   "name": "Performing Arts"
+  },
+  {
+   "parent": null,
+   "id": 3,
+   "name": "Visual Arts"
+  },
+  {
+   "parent": null,
+   "id": 6,
+   "name": "Sports & Outdoors"
+  },
+  {
+   "parent": null,
+   "id": 8,
+   "name": "Professional"
+  },
+  {
+   "parent": null,
+   "id": 11,
+   "name": "Civic Benefit"
+  },
+  {
+   "parent": null,
+   "id": 12,
+   "name": "Food & Drink"
+  },
+  {
+   "parent": null,
+   "id": 14,
+   "name": "Nightlife"
+  },
+  {
+   "parent": null,
+   "id": 15,
+   "name": "Special Audience"
+  },
+  {
+   "parent": 2,
+   "id": 17,
+   "name": "Music"
+  },
+  {
+   "parent": 2,
+   "id": 19,
+   "name": "Theater"
+  },
+  {
+   "parent": 2,
+   "id": 20,
+   "name": "Comedy"
+  },
+  {
+   "parent": 2,
+   "id": 21,
+   "name": "Open Mic"
+  },
+  {
+   "parent": 6,
+   "id": 38,
+   "name": "Fitness"
+  },
+  {
+   "parent": 931,
+   "id": 42,
+   "name": "Business"
+  },
+  {
+   "parent": 76,
+   "id": 53,
+   "name": "Games"
+  },
+  {
+   "parent": 12,
+   "id": 75,
+   "name": "Drinks"
+  },
+  {
+   "parent": null,
+   "id": 76,
+   "name": "Pursuits & Hobbies"
+  },
+  {
+   "parent": 14,
+   "id": 77,
+   "name": "Bars"
+  },
+  {
+   "parent": 15,
+   "id": 81,
+   "name": "Teens"
+  },
+  {
+   "parent": 15,
+   "id": 84,
+   "name": "Seniors"
+  },
+  {
+   "parent": 42,
+   "id": 178,
+   "name": "Tradeshows & Expos"
+  },
+  {
+   "parent": 20,
+   "id": 430,
+   "name": "Improv"
+  },
+  {
+   "parent": null,
+   "id": 931,
+   "name": "Topics"
+  },
+  {
+   "parent": 11,
+   "id": 10120,
+   "name": "Community Groups"
+  },
+  {
+   "parent": 53,
+   "id": 10165,
+   "name": "Trivia Games"
+  },
+  {
+   "parent": 17,
+   "id": 10262,
+   "name": "Live Music"
+  },
+  {
+   "parent": 20,
+   "id": 10298,
+   "name": "Stand Up"
+  }
+ ],
+ "baseUrl": "https://www.chattanoogapulse.com/local-events-calendar#/"
+}

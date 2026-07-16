@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     events_ical_feeds: str = "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"  # comma-separated .ics URLs
     events_meetup_token: str = ""  # Meetup OAuth2 token; empty = source not registered
     events_meetup_query: str = ""  # optional Meetup keyword filter
+    # CitySpark calendar (The Pulse's local-events widget; undocumented internal
+    # JSON API — see app/events/sources/cityspark.py). The defaults are the
+    # portal's own: 25-mile radius around the Chattanooga center, 14-day window.
+    events_cityspark_enabled: bool = True
+    events_cityspark_slug: str = "ChattanoogaPulse"
+    events_cityspark_ppid: int = 9824
+    events_cityspark_radius_miles: float = 25
+    events_cityspark_lookahead_days: int = 14
     # Nominatim's usage policy requires a descriptive User-Agent.
     events_geocoder_user_agent: str = "LocalDash/0.1 (events geocoder)"
     # Nominatim's usage policy caps clients at 1 request/second; <= 0 disables

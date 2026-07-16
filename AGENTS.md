@@ -13,8 +13,9 @@ LocalDash is a local-data dashboard with three features:
 - **News** (`/`, the homepage): an RSS aggregator for Chattanooga outlets that clusters articles
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
   source — it is a sibling feature beside the timeseries pipeline, not a collector.
-- **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (car
-  cruises, Meetup groups, configurable iCal calendars; ported from the `chattevents` PoC). Also a
+- **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (The
+  Pulse's CitySpark calendar, car cruises, Meetup groups, configurable iCal calendars; ported from
+  the `chattevents` PoC). Also a
   sibling feature — events are merged cross-source records, not entity-state-over-time, so they do
   not flow through collectors/ingest.
 
@@ -384,14 +385,29 @@ by `POST /api/v1/events/refresh`; both paths share an asyncio lock in `refresh.p
 traffic in a cycle uses one rate-limited geocoder. Events are merged cross-source records, not entity
 state over time, so they do **not** flow through collectors/ingest.
 
-- `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `MeetupSource`, and
-  `ICalSource` (one per configured calendar URL). Each yields normalized event records.
+- `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `CitySparkSource`
+  (The Pulse's calendar via CitySpark's JSON API, `events_cityspark_*` settings), `MeetupSource`,
+  and `ICalSource` (one per configured calendar URL). Each yields normalized event records.
+- A source supplies what it knows and the pipeline derives the rest: `RawEvent` may carry
+  `latitude`/`longitude` and `tags`; ingest geocodes only events without coordinates and
+  keyword-tags only events without supplied tags (supplied tag names are lowercased so they merge
+  with the keyword vocabulary). CitySpark supplies both, so the largest source adds ~zero Nominatim
+  traffic.
 - `ingest.py` — `run_sources()` fetches + upserts (dedup across sources), `tagging.py` assigns topic
   tags, and `geocoding.py` (`NominatimGeocoder`, rate-limited) resolves addresses to points;
   `retry_failed_geocodes()` reruns stale geocode misses under the same lock.
 - Distance is done in PostGIS: the API casts `Event.location` to `geography` and filters/measures in
   meters from a Chattanooga origin (`CHATTANOOGA_CENTER`).
 - Tables: `events` → `event_tags` / `event_links` (`app/events/models.py`).
+
+**Events source gotchas (don't regress):** CitySpark's `DateStart`/`DateEnd` carry a `Z` suffix on
+venue-local times — only `StartUTC`/`EndUTC` are real UTC; using the former shifts events by the
+UTC offset and corrupts `canonical_key` dedup (events without `StartUTC` are skipped, never
+defaulted). The same class of bug is why `CarCruiseFinderSource` parses only the listing page —
+its detail pages carry wrong UTC offsets. CitySpark tag ids are rolled up to one level below their
+root (`Performing Arts > Music > Live Music` → `music`) inside the source's pure parse function;
+ingest never sees the hierarchy. A source erroring must never abort the refresh cycle
+(per-source isolation in `run_sources()`).
 
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under

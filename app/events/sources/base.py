@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import datetime as dt
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class RawEvent:
     """A single event as reported by one source, before de-duplication.
 
-    Sources provide a human-readable ``address`` (and optional ``venue_name``);
-    coordinates are derived later by the ingest pipeline's geocoder.
+    A source supplies what it knows and omits the rest; the ingest pipeline
+    derives only what is omitted. An event without ``latitude``/``longitude``
+    is geocoded from its ``address``; an event with an empty ``tags`` list is
+    keyword-tagged from its title and description. Supplied tag names are
+    lowercased on ingest so they merge with the keyword topic vocabulary.
     ``start_time``/``end_time`` are timezone-aware UTC datetimes.
     """
 
@@ -30,6 +33,9 @@ class RawEvent:
     venue_name: str | None = None
     address: str | None = None
     source_event_id: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    tags: list[str] = field(default_factory=list)
 
 
 class EventSource(ABC):
