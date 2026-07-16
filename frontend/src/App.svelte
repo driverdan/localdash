@@ -3,12 +3,15 @@
   import { themes, currentTheme, applyTheme } from "./lib/theme.svelte";
   import DebugPanel from "./lib/DebugPanel.svelte";
   import { TimeseriesDashboard, connectionState } from "./features/timeseries";
+  import { HomePage } from "./features/home";
   import { NewsFeed } from "./features/news";
   import { EventsPage } from "./features/events";
 
-  // Route table: "/" -> news, "/map" -> timeseries, "/events" -> events.
+  // Route table: "/" -> home, "/news" -> news, "/map" -> timeseries,
+  // "/events" -> events.
+  const onHome = $derived(currentPath() === "/");
   const onMap = $derived(currentPath() === "/map");
-  const onNews = $derived(currentPath() === "/");
+  const onNews = $derived(currentPath() === "/news");
   const onEvents = $derived(currentPath() === "/events");
 
   // Timeseries-specific connection indicator; shown only on the map route.
@@ -36,7 +39,10 @@
 <header>
   <h1>Chattanooga LocalDash (beta)</h1>
   <nav>
-    <a href="/" class:active={onNews} onclick={(e) => go(e, "/")}>News</a>
+    <a href="/" class:active={onHome} onclick={(e) => go(e, "/")}>Home</a>
+    <a href="/news" class:active={onNews} onclick={(e) => go(e, "/news")}
+      >News</a
+    >
     <a href="/map" class:active={onMap} onclick={(e) => go(e, "/map")}>Map</a>
     <a href="/events" class:active={onEvents} onclick={(e) => go(e, "/events")}
       >Events</a
@@ -58,7 +64,9 @@
   </label>
 </header>
 
-{#if onMap}
+{#if onHome}
+  <HomePage />
+{:else if onMap}
   <TimeseriesDashboard />
 {:else if onNews}
   <NewsFeed />
@@ -67,7 +75,7 @@
 {:else}
   <p class="not-found">
     Page not found — <a href="/" onclick={(e) => go(e, "/")}
-      >go to the news feed</a
+      >go to the home page</a
     >.
   </p>
 {/if}

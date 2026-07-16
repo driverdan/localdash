@@ -282,3 +282,18 @@
 [data-theme="dark"] #news .sources {
   color: #8fa0b0;
 }
+
+/* ---- Home landing page ----------------------------------------------------- */
+/* Cards reuse #news / #events so they are themed by the rules above; only the
+   home-specific chrome (grid background, widget header, view-all link) needs
+   dark values here. */
+[data-theme="dark"] .home-grid {
+  background: #10151b;
+}
+[data-theme="dark"] .widget-head {
+  border-bottom-color: #263140;
+}
+[data-theme="dark"] .widget-head h2,
+[data-theme="dark"] .view-all {
+  color: #4da3ff;
+}

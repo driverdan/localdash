@@ -1,0 +1,69 @@
+/* Home landing page. Global hooks per the styling contract: a widget grid
+   (.home-grid) of digest widgets (.widget). Each widget reuses a feature's card
+   component inside that feature's own #news/#events scope, so the cards inherit
+   their existing (and already theme-aware) styling with no duplication here. */
+
+/* The header is 44px; the grid owns its own scroll like #news / #events do. */
+.home-grid {
+  height: calc(100vh - 44px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #f7f9fb;
+  /* auto-fit so a third/fourth widget later is a pure addition, no restructure. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 20px;
+  align-items: start;
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: 20px 16px 28px;
+}
+
+/* A widget is a pure layout container; its digest cards supply the surfaces. */
+.widget {
+  min-width: 0;
+}
+
+.widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #dde2e8;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+.widget-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #0071ce;
+}
+.view-all {
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #0071ce;
+  white-space: nowrap;
+}
+.view-all:hover {
+  text-decoration: underline;
+}
+
+/* The widget body carries #news / #events purely to inherit the card styling.
+   Those ids also set page-frame rules (full height, own scroll, page
+   background); neutralize them here since the grid owns the scroll. The
+   `.widget #id` selector outranks the bare `#id` rule it overrides. */
+.widget #news,
+.widget #events {
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+/* Trim the large feed image so full-size cards don't dominate the digest. */
+.widget #news .story-card .image img,
+.widget #events .event-card .image img {
+  max-height: 180px;
+}

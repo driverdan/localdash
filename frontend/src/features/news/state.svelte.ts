@@ -72,6 +72,16 @@ class NewsState {
 
 export const news = new NewsState();
 
+/**
+ * Set the shared category slug->label map that `StoryCard` reads for badge
+ * labels. The map is server-defined (not a user preference), so the home
+ * feature can feed it from its own stories response and a later `/news` visit
+ * simply overwrites it with an identical value — no filter leakage.
+ */
+export function setCategoryLabels(map: Record<string, string>): void {
+  news.categories = map;
+}
+
 persistPrefs(PREFS_KEY, () => ({
   activeTab: news.activeTab,
   hours: news.hours,
