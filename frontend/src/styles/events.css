@@ -133,6 +133,10 @@
   letter-spacing: 0.08em;
   font-size: 10px;
 }
+#events .meta .when {
+  display: block;
+  margin-top: 5px;
+}
 #events .distance {
   margin-left: 6px;
   font-weight: 600;

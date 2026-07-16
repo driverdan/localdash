@@ -19,6 +19,68 @@ export const fmt = (iso: string): string => {
   }
 };
 
+// Full "when" line for an event card: a natural-language start date relative to
+// the viewer's local calendar day, then a seconds-free time (end time appended
+// when present). fmt() above is deliberately left alone — the timeseries feature
+// uses it for observation timestamps, where relative-day language would mislead.
+export const fmtEventDate = (
+  startsAt: string,
+  endsAt: string | null,
+): string => {
+  try {
+    const start = new Date(startsAt);
+    const now = new Date();
+    // Diff in whole days between local midnights, so "Today" tracks the calendar
+    // day rather than a 24-hour window.
+    const startMidnight = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate(),
+    );
+    const nowMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const days = Math.round(
+      (startMidnight.getTime() - nowMidnight.getTime()) / 86400000,
+    );
+
+    let datePart: string;
+    if (days === 0) {
+      datePart = "Today";
+    } else if (days === 1) {
+      datePart = "Tomorrow";
+    } else if (days >= 2 && days <= 6) {
+      datePart = start.toLocaleDateString(undefined, { weekday: "long" });
+    } else {
+      // 7+ days out (or past — possible only transiently, since the API filters
+      // to upcoming): a formatted date, with the year only when it differs.
+      datePart = start.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        ...(start.getFullYear() !== now.getFullYear()
+          ? { year: "numeric" }
+          : {}),
+      });
+    }
+
+    const timeOpts: Intl.DateTimeFormatOptions = {
+      hour: "numeric",
+      minute: "2-digit",
+    };
+    let timePart = start.toLocaleTimeString(undefined, timeOpts);
+    if (endsAt) {
+      timePart += ` – ${new Date(endsAt).toLocaleTimeString(undefined, timeOpts)}`;
+    }
+
+    return `${datePart} · ${timePart}`;
+  } catch {
+    return startsAt;
+  }
+};
+
 export const timeAgo = (iso: string): string => {
   const mins = Math.max(0, (Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 60) return Math.round(mins) + "m ago";

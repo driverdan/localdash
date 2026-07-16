@@ -1,13 +1,10 @@
 <script lang="ts">
-  import { fmt } from "../../../lib/format";
+  import { fmtEventDate } from "../../../lib/format";
   import type { EventItem } from "../types";
 
   let { item }: { item: EventItem } = $props();
 
-  const when = $derived(
-    fmt(item.starts_at) +
-      (item.ends_at ? ` – ${new Date(item.ends_at).toLocaleTimeString()}` : ""),
-  );
+  const when = $derived(fmtEventDate(item.starts_at, item.ends_at));
   const where = $derived(
     [item.venue_name, item.venue_name === item.address ? null : item.address]
       .filter(Boolean)
@@ -20,10 +17,12 @@
     {#each item.tags as tag (tag)}
       <span class="badge cat">{tag}</span>
     {/each}
-    {when}
-    {#if item.distance_miles !== null}
-      <span class="distance">{item.distance_miles} mi</span>
-    {/if}
+    <span class="when">
+      {when}
+      {#if item.distance_miles !== null}
+        <span class="distance">{item.distance_miles} mi</span>
+      {/if}
+    </span>
   </div>
   {#if item.image_url}
     <a
