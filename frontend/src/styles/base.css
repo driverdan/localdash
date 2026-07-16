@@ -36,7 +36,18 @@ body {
   color: #1b1f24;
 }
 
+/* Shell layout: the app root is a full-height column — header on top, the
+   route's region (#layout, #news, #events, .home-grid) filling the remainder
+   via flex: 1. Regions must not size themselves against the viewport; the
+   header's height is whatever its content needs, never a hardcoded constant. */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 header {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 16px;
