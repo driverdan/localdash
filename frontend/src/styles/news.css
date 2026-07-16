@@ -1,9 +1,11 @@
 /* News feature. Styles the semantic hooks in NewsFeed, CategoryTabs, StoryCard,
    SourcesFooter — all scoped under the page's #news region. */
 
-/* The header is 44px; the page owns its own scroll like the map owns #layout. */
+/* Fills the shell column below the header; the page owns its own scroll like
+   the map owns #layout. */
 #news {
-  height: calc(100vh - 44px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: #f7f9fb;
 }

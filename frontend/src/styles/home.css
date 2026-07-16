@@ -3,9 +3,11 @@
    component inside that feature's own #news/#events scope, so the cards inherit
    their existing (and already theme-aware) styling with no duplication here. */
 
-/* The header is 44px; the grid owns its own scroll like #news / #events do. */
+/* Fills the shell column below the header; the grid owns its own scroll like
+   #news / #events do. */
 .home-grid {
-  height: calc(100vh - 44px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
   background: #f7f9fb;
@@ -14,6 +16,10 @@
   grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
   gap: 20px;
   align-items: start;
+  /* width + max-width + auto margins: fill the shell column, capped and
+     centered. width is needed because cross-axis auto margins suppress the
+     flex item's default stretch. */
+  width: 100%;
   max-width: 74rem;
   margin: 0 auto;
   padding: 20px 16px 28px;

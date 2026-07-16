@@ -1,9 +1,11 @@
 /* Events feature. Styles the semantic hooks in EventsPage and EventCard —
    all scoped under the page's #events region. */
 
-/* The header is 44px; the page owns its own scroll like the news page. */
+/* Fills the shell column below the header; the page owns its own scroll like
+   the news page. */
 #events {
-  height: calc(100vh - 44px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: #f7f9fb;
 }
