@@ -32,6 +32,12 @@ same holds for tags: keyword-guessing topics from title text when the source alr
 - Add `CitySparkSource` (`app/events/sources/cityspark.py`), reading
   `POST https://portal.cityspark.com/api/events/GetEvents/ChattanoogaPulse`, registered in
   `build_sources()`. It supplies coordinates and tags, so it exercises both new fields.
+- CitySpark ships tags as a **hierarchy** (`{id, name, parent}`, 23 roots, chains up to 5 deep). The
+  source SHALL roll each of an event's tags up to **one level below its root** — `Live Music`
+  (`Performing Arts > Music > Live Music`) becomes `music` — collapsing 250 leaf names to 95. This
+  is what makes the vocabulary merge below actually work: `music` is the single most-used tag (280
+  uses) and sits at exactly this level. Rolling all the way to the root instead would bury it in
+  `performing arts` and merge with only 1 of the 11 keyword topics rather than 5.
 - Source-supplied tag names are **lowercased on ingest**. Without this, CitySpark's `"Music"` would
   be stored beside keyword `"music"` as a separate row in the unique, case-sensitive `tags` table —
   fragmenting the vocabulary so `?topic=music` silently misses every CitySpark event. Five names
@@ -58,7 +64,7 @@ contract. Storage, API, scheduler, and frontend are untouched._
   - **Address geocoding with a permanent cache** — narrowed: ingest geocodes only events whose
     source supplied no coordinates.
   - **CitySpark events source** (new requirement) — the API contract, the mandatory
-    `StartUTC`-over-`DateStart` rule, pagination, tag resolution, and failure isolation.
+    `StartUTC`-over-`DateStart` rule, pagination, depth-1 tag rollup, and failure isolation.
 
 ## Impact
 

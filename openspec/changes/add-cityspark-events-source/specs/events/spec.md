@@ -18,9 +18,15 @@ rather than falling back to `DateStart`.
 
 The source SHALL supply each event's `latitude`/`longitude` and its resolved tag names on the
 `RawEvent`, so that ingest neither geocodes nor keyword-tags these events. Tag names SHALL be
-resolved by mapping the event's integer tag ids against the payload's tag vocabulary (`AllTags`,
-entries of `{id, name, parent}`), using each tag's own leaf name without rolling up to hierarchy
-roots. Unmappable tag ids SHALL be skipped rather than failing the event.
+resolved against the payload's tag hierarchy (`AllTags`, entries of `{id, name, parent}`, where a
+root has a null parent) by walking each of the event's tag ids to its root and taking the name of
+the node **one level below that root**; a tag id that is itself a root SHALL resolve to its own
+name. Several distinct tag ids on one event MAY resolve to the same name, in which case the event
+SHALL carry that tag once. The walk SHALL terminate on a malformed hierarchy: a parent cycle SHALL
+NOT hang, and a dangling parent id SHALL resolve to the deepest node actually reachable. Tag ids
+absent from the vocabulary SHALL be skipped rather than failing the event. Rolling up is the
+source's responsibility — ingest SHALL receive already-resolved names and SHALL NOT be aware of the
+hierarchy.
 
 #### Scenario: Start times are read from StartUTC, not DateStart
 - **WHEN** an event payload carries `DateStart: "2026-07-15T08:00:00Z"` and
@@ -39,14 +45,28 @@ roots. Unmappable tag ids SHALL be skipped rather than failing the event.
 - **WHEN** the API returns a successful response whose event list is empty
 - **THEN** the source returns zero raw events without error
 
-#### Scenario: Tag ids resolve to their own leaf names
-- **WHEN** an event carries tag ids that map to "Live Music" and "Food & Drink" in the payload's tag
-  vocabulary
-- **THEN** the raw event carries those tag names, not their hierarchy root names
+#### Scenario: Tag ids roll up to one level below their root
+- **WHEN** an event carries the tag id for "Live Music", whose hierarchy chain is
+  "Performing Arts > Music > Live Music"
+- **THEN** the raw event carries the tag `music` — neither the leaf name `live music` nor the root
+  name `performing arts`
+
+#### Scenario: A root tag resolves to itself
+- **WHEN** an event carries the tag id for "Nightlife", which is a root (null parent)
+- **THEN** the raw event carries the tag `nightlife`
+
+#### Scenario: Tags under one depth-1 node collapse to a single tag
+- **WHEN** an event carries the tag ids for both "Live Music" and "MusicEvent", whose chains are
+  "Performing Arts > Music > Live Music" and "Performing Arts > Music > MusicEvent"
+- **THEN** the raw event carries the tag `music` exactly once
 
 #### Scenario: Unmappable tag id is skipped
 - **WHEN** an event carries a tag id absent from the payload's tag vocabulary
 - **THEN** that id contributes no tag and the event is still emitted with its remaining tags
+
+#### Scenario: Malformed hierarchy does not hang the rollup
+- **WHEN** an event carries a tag id whose parent chain contains a cycle
+- **THEN** the rollup terminates and the event is still emitted
 
 #### Scenario: Coordinates and tags are supplied to ingest
 - **WHEN** a CitySpark event with coordinates and tags is ingested

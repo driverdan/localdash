@@ -19,7 +19,7 @@ breaks it. Its payload states, per event, exactly what the pipeline works to inf
 | Signal | Pipeline derives it by | CitySpark states it | Coverage (n=526) |
 |---|---|---|---|
 | Coordinates | Nominatim geocoding @ 1 req/sec | `latitude` / `longitude` | 526/526 (100%) |
-| Topics | keyword match on title+description | `Tags` (curated ids) | 520/526 (99%) |
+| Topics | keyword match on title+description | `Tags` — ids into a curated tag *tree* | 520/526 (99%) |
 
 Honoring the current convention would mean discarding both and re-deriving them — worse, and at
 cost. This design revises the convention rather than special-casing one source.
@@ -37,7 +37,7 @@ cost. This design revises the convention rather than special-casing one source.
 **Non-Goals:**
 
 - Changing `MeetupSource` to request coordinates (a clear follow-up; not here).
-- Rolling CitySpark's tag hierarchy up to its 23 roots — the user chose the event's own tags as-is.
+- Rolling CitySpark's tag hierarchy all the way up to its 23 roots (see decision 4).
 - Changing storage, migrations, API routes, scheduler, or frontend.
 - Any keyword tagging of CitySpark events.
 - Reconciling the volume shift in the UI (the API already paginates and filters).
@@ -114,13 +114,48 @@ Lowercasing on ingest merges them into the existing vocabulary. Max observed Cit
 24 chars, so `String(64)` needs no migration. Tag insertion must stay idempotent/race-safe
 (on-conflict-do-nothing), consistent with how tags are created today.
 
-*Alternative considered — roll up to the 23 hierarchy roots* (`AllTags` is a `{id,name,parent}`
-tree; roots would yield ~15 topics, close to the existing 11). Rejected: the user explicitly chose
-the event's own tags. Also, several roots are facets rather than topics (`Engagement Level`,
-`Competitive Level`, `Attendance`, `Summary`, `Topics`), so a naive rollup would import junk. The
-250 leaf names in use are more specific and directly useful.
+Lowercasing is load-bearing precisely *because* of the rollup rule in decision 5: depth-1 is what
+produces `music`, `family`, `food`, and `sports` in the first place, and lowercasing is what lets
+them land on the existing keyword rows instead of beside them. The two rules only work together —
+either one alone leaves the vocabularies split.
 
-### 5. API shape: always send `end`; paginate on `skip`
+### 5. Roll each tag up to one level below its root, not to the root itself
+
+`AllTags` is a `{id, name, parent}` tree: 23 roots (`parent: null`), chains up to 5 deep. For each
+of an event's tag ids, walk to the root and take **the node one level below it**; a tag that is
+already a root resolves to itself. Then lowercase (decision 4).
+
+```
+Performing Arts > Music > Live Music          ──► music
+Performing Arts > Music > MusicEvent          ──► music
+Performing Arts > Music > World Music > Caribbean ──► music
+Destinations > Festivals & Fairs > Carnivals  ──► festivals & fairs
+Sports & Outdoors > Sports > Auto Racing > Monster Trucks ──► sports
+Nightlife  (a root)                           ──► nightlife
+```
+
+This yields **95 distinct tags** across the measured 526 events, down from 250 leaves.
+
+*Alternative considered — the true root ("highest level").* Rejected on measured data. It yields a
+tidy 15 tags but merges with only **1** of the 11 existing keyword topics (`nightlife`), where
+depth-1 merges with **5** (`family`, `food`, `music`, `nightlife`, `sports`). The decisive case:
+`Music` is the single most-used tag (280 uses) and is a depth-1 node under the `Performing Arts`
+root, so root rollup turns every concert into `performing arts` and
+`GET /api/v1/events/items?topic=music` returns **zero** CitySpark events — while iCal, Meetup, and
+CarCruiseFinder events still keyword-tag as `music`. Since CitySpark is ~10× all other sources
+combined, that splits the vocabulary exactly where it matters most. Root rollup also collapses real
+topics into facet roots: `Archaeology`, `Business`, `Dinosaurs`, `STEM`, and `Science` all become a
+junk tag literally named `topics` (182 uses), and `Kids`, `Family`, `Teens`, `Seniors`, and `LGBT`
+all become `special audience` (222 uses).
+
+*Alternative considered — the leaf names as-is.* Rejected: 250 tags is an unwieldy filter list, and
+leaves are too specific to work as a topic facet (`Caribbean`, `Monster Trucks`).
+
+*Correction worth recording, since it motivated the first pass at this rule:* the vocabulary has no
+`Arts > Visual Arts` relationship. `Visual Arts` (id 3) is itself a root, and `Arts` (id 16) is a
+vestigial root with **zero** children. The real chain is `Performing Arts > Music > Live Music`.
+
+### 6. API shape: always send `end`; paginate on `skip`
 
 ```
 POST https://portal.cityspark.com/api/events/GetEvents/ChattanoogaPulse
@@ -144,11 +179,14 @@ is 50. Default to the portal's 25 mi and a 14-day window: 25 mi is what The Puls
 14 days is the window measured at 526 events. Both are settings precisely because they are judgment
 calls, and the existing `events_ingest_max_miles` filter still applies downstream.
 
-### 6. Structure: pure parse function + thin async fetch
+### 7. Structure: pure parse function + thin async fetch
 
 Mirrors `carcruisefinder.parse_listing` — a pure function over a captured payload, so tests run
 offline with no network, per the source registry's "fixtures live in the test suite only" rule. The
-tag id→name map (`AllTags`) is parsed alongside the events and resolved in the pure function.
+tag tree (`AllTags`) is parsed alongside the events, and the depth-1 rollup is resolved inside the
+pure function — so ingest receives already-rolled-up names and stays unaware of the hierarchy. The
+rollup walk carries a seen-set: a malformed parent cycle must terminate rather than hang, and a
+dangling parent id resolves to the deepest node actually reachable.
 
 Registration in `build_sources()` is gated by an enable setting (unlike CarCruiseFinder, which is
 unconditional): this source is large enough that an operator may reasonably want it off.
@@ -170,11 +208,30 @@ unconditional): this source is large enough that an operator may reasonably want
   tests against the fixture, and per-source isolation contains it at runtime. Events missing
   `StartUTC` are skipped with a warning rather than defaulting to `DateStart` (a silent 4h error is
   worse than a dropped event).
-- **[Trade-off: 250 leaf tags vs 11 keyword topics]** → `GET /api/v1/events/tags` grows
-  substantially and the frontend's topic filter gets a much longer list. Accepted per the user's
-  explicit choice; the vocabulary is more specific and lowercasing keeps the two vocabularies
-  merged rather than parallel. Trimming to a curated subset stays available later.
-- **[Supplied tags bypass keyword tagging entirely]** → A CitySpark event tagged only
-  `"visual arts"` will not also pick up `arts` from keywords, so cross-source topic filters can
-  behave unevenly between sources. This is the direct consequence of "use whatever tags are included
-  with the event" and is accepted deliberately.
+- **[Trade-off: 95 depth-1 tags vs 11 keyword topics]** → `GET /api/v1/events/tags` grows
+  substantially and the frontend's topic filter gets a much longer list. Accepted: 95 is the price
+  of the `music`/`family`/`food`/`sports` merges (decision 5), and it is well below the 250 leaves.
+  Trimming to a curated subset stays available later.
+- **[Semantically-empty depth-1 nodes]** → Some depth-1 nodes carry no topical meaning, because the
+  useful node sits one level deeper. The worst case is automotive: `Car Shows` and `Classic Cars`
+  both chain `Pursuits & Hobbies > Other Interests > Automotive > {…}`, so depth-1 yields
+  `other interests` and the car signal is lost — while `Automotive` sits one level below it. This
+  bites precisely where it hurts: CarCruiseFinder overlaps CitySpark heavily on exactly these
+  events and keyword-tags them `cars`, so once dedup merges the two listings the event carries both
+  `cars` and `other interests`. Accepted for now; see Open Questions.
+- **[Supplied tags bypass keyword tagging entirely]** → A CitySpark car show whose depth-1 tags are
+  `other interests` will not also pick up `cars` from keywords, so cross-source topic filters behave
+  unevenly between sources. This is the direct consequence of preferring source-supplied tags and is
+  accepted deliberately.
+
+## Open Questions
+
+- **Should a small skip-list of pass-through nodes refine the rollup?** A short list of
+  semantically-empty depth-1 nodes (`Other Interests` is the known offender) could fall through one
+  level deeper, yielding `automotive` instead of `other interests` and restoring the car signal.
+  Deferred: it needs its own survey of which nodes qualify, and hand-maintaining a list against a
+  719-entry upstream vocabulary is a real cost. **Not implemented in this change** — revisit once
+  the tag distribution has been observed against live data.
+- **Does the 95-tag vocabulary need curating before the frontend filter ships it?** The API change
+  is unconditional, but the topic filter's UX at 95 entries is a `frontend-events` question, not a
+  backend one. Out of scope here.

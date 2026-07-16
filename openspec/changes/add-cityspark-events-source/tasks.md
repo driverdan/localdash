@@ -31,27 +31,37 @@
       undocumented and internal to a commercial aggregator (read via The Pulse's `ppid 9824`); no
       auth/referer/UA-spoofing is needed or used; and — prominently — that `DateStart`/`DateEnd`
       carry a lying `Z` and `StartUTC`/`EndUTC` are the only correct time fields.
-- [ ] 3.3 Implement a **pure** parse function over a payload dict: build the `AllTags` id→name map,
-      then map each event to a `RawEvent` (Name, Description, Venue, address from
-      Address/CityState/Zip, `latitude`/`longitude`, `StartUTC`/`EndUTC`, resolved tag names, `Id`
-      as `source_event_id`, a URL from `PrimaryUrl`/`Links`/`TicketUrl`).
-- [ ] 3.4 In the parse function: skip events with no `StartUTC` (log a warning; never fall back to
-      `DateStart`), and skip tag ids absent from the vocabulary without dropping the event.
-- [ ] 3.5 Implement `CitySparkSource.fetch()`: POST the documented body with `end` always set,
+- [ ] 3.3 Implement a **pure** parse function over a payload dict: build the `AllTags` id→node map
+      (`{id, name, parent}`), then map each event to a `RawEvent` (Name, Description, Venue, address
+      from Address/CityState/Zip, `latitude`/`longitude`, `StartUTC`/`EndUTC`, rolled-up tag names,
+      `Id` as `source_event_id`, a URL from `PrimaryUrl`/`Links`/`TicketUrl`).
+- [ ] 3.4 Implement the depth-1 tag rollup in the parse function: walk each tag id to its root and
+      take the node one level below it; a root resolves to itself; de-duplicate names within an
+      event (`Live Music` + `MusicEvent` → one `music`).
+- [ ] 3.5 Harden the parse function: skip events with no `StartUTC` (log a warning; never fall back
+      to `DateStart`), skip tag ids absent from the vocabulary without dropping the event, and guard
+      the rollup walk with a seen-set so a malformed parent cycle terminates instead of hanging (a
+      dangling parent resolves to the deepest reachable node).
+- [ ] 3.6 Implement `CitySparkSource.fetch()`: POST the documented body with `end` always set,
       paginate `skip` by 100 until a page returns <100, apply a bounded page cap, and de-duplicate
       by event `Id` across pages.
-- [ ] 3.6 Register the source in `build_sources()` (`app/events/sources/__init__.py`) behind its
+- [ ] 3.7 Register the source in `build_sources()` (`app/events/sources/__init__.py`) behind its
       enable setting, and update that module's docstring to list it.
 
 ## 4. Tests
 
 - [ ] 4.1 Capture a trimmed CitySpark payload fixture (a handful of events plus the tag vocabulary
-      slice they reference) under `tests/`. No network in tests.
+      slice they reference) under `tests/`. The vocabulary slice MUST carry enough depth to exercise
+      the rollup: at least one ≥3-level chain (`Performing Arts > Music > Live Music`), a second
+      leaf under that same depth-1 node (`MusicEvent`) to prove collapsing, and a bare root
+      (`Nightlife`). No network in tests.
 - [ ] 4.2 Test `StartUTC` is used and `DateStart` ignored — assert the 4-hour trap directly
       (`DateStart 08:00:00Z` + `StartUTC 12:00:00Z` → `12:00:00+00:00`).
 - [ ] 4.3 Test an event with no `StartUTC` is skipped and does not abort the parse.
-- [ ] 4.4 Test tag id→leaf-name resolution, that names are not rolled up to hierarchy roots, and
-      that an unmappable id is skipped while the event survives.
+- [ ] 4.4 Test the depth-1 rollup: `Live Music` → `music` (asserting it is neither `live music` nor
+      `performing arts`), a root tag resolves to itself (`Nightlife` → `nightlife`), two leaves under
+      one depth-1 node collapse to a single `music` tag, an unmappable id is skipped while the event
+      survives, and a cyclic parent chain terminates rather than hanging.
 - [ ] 4.5 Test pagination terminates on a short page, dedupes by `Id`, and that an empty result
       yields zero events without error.
 - [ ] 4.6 Test coordinate passthrough in ingest: a `RawEvent` with coordinates is stored at them and
