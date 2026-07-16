@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The news feed UI served at `/` (the homepage): the frontend counterpart of the `news` spec. A
+The news feed UI served at `/news`: the frontend counterpart of the `news` spec. A
 feature namespace under `frontend/src/features/news/` that renders clustered stories from
 `/api/v1/news/stories` with category tabs, feed controls, and a sources footer showing feed health.
 ## Requirements
@@ -10,12 +10,19 @@ feature namespace under `frontend/src/features/news/` that renders clustered sto
 The news UI SHALL live in `frontend/src/features/news/` (mirroring `/api/v1/news/`), following the
 established feature layout (typed `api.ts` client, `types.ts`, a runes store, components, and an
 `index.ts` public surface) and the shell's import rules: it imports only from itself, `lib/`, and
-third-party packages, and the shell consumes it only through `index.ts`. It SHALL be mounted as the
-homepage (route `/`).
+third-party packages, and consumers (the shell and other features) consume it only through
+`index.ts`. It SHALL be mounted at route `/news`. The public surface SHALL additionally export the
+`StoryCard` component, the `Story` type, and a category-label setter so the home feature can render
+story digests without reaching into news internals.
 
 #### Scenario: News is an isolated feature
 - **WHEN** imports under `frontend/src/features/news/` are inspected
 - **THEN** none resolve into `frontend/src/features/timeseries/` or any other feature
+
+#### Scenario: News feed renders at /news
+- **WHEN** the user navigates to `/news`
+- **THEN** the full news feed (tabs, feed controls, sources footer) renders exactly as it
+  previously did at `/`
 
 ### Requirement: Story feed rendering
 The feed SHALL render one card per story from `GET /api/v1/news/stories`: category badge, a
