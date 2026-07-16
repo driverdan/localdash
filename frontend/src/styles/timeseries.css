@@ -9,9 +9,9 @@
   width: 340px;
   flex: 0 0 340px;
   overflow-y: auto;
-  border-right: 1px solid #dde2e8;
+  border-right: 1px solid var(--color-border);
   padding: 12px;
-  background: #f7f9fb;
+  background: var(--color-page-bg);
 }
 #map {
   flex: 1;
@@ -23,16 +23,18 @@
   margin-bottom: 10px;
   font-weight: 600;
   font-size: 12px;
-  color: #44505f;
+  color: var(--color-text-secondary);
 }
 .filters select,
 .filters input {
   width: 100%;
   padding: 6px;
   margin-top: 4px;
-  border: 1px solid #cfd6df;
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   font: inherit;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
 }
 .checks {
   display: flex;
@@ -58,7 +60,7 @@
   margin-bottom: 6px;
   font-weight: 600;
   font-size: 12px;
-  color: #44505f;
+  color: var(--color-text-secondary);
 }
 .source-group {
   margin-bottom: 8px;
@@ -70,7 +72,7 @@
   margin: 0 0 4px;
   font-weight: 600;
   font-size: 12px;
-  color: #44505f;
+  color: var(--color-text-secondary);
 }
 .cat-children {
   display: flex;
@@ -100,7 +102,7 @@
   cursor: pointer;
 }
 #incident-table tbody tr:hover {
-  background: #eef3f9;
+  background: var(--color-surface-subtle);
 }
 
 .dot {
@@ -116,6 +118,8 @@
   flex: none;
   align-items: center;
 }
+/* Incident category colors: data-driven identity colors shared with the map
+   markers, deliberately outside the theme token layer. */
 .cat-police {
   background: #2563eb;
 }
@@ -141,22 +145,22 @@
   opacity: 0.4;
 }
 
-/* Map status legend (EPB look). */
+/* Map status legend. */
 .map-legend {
-  background: #fff;
+  background: var(--color-panel-bg);
   padding: 8px 11px;
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.7;
-  color: #1b1f24;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+  color: var(--color-text);
+  box-shadow: var(--shadow-small);
 }
 .map-legend b {
   display: block;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5a6573;
+  color: var(--color-text-muted);
   margin-bottom: 4px;
 }
 .map-legend .lg-dot {
@@ -179,30 +183,30 @@
 .filters button.reset {
   font: inherit;
   font-size: 12px;
-  color: #44505f;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  color: var(--color-text-secondary);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   padding: 5px 9px;
   cursor: pointer;
 }
 .filters button.reset:hover {
-  border-color: #0071ce;
+  border-color: var(--color-link);
 }
 
 tr.closed-row td {
-  color: #98a2b0;
+  color: var(--color-text-faint);
   font-style: italic;
 }
 .dot.cat-closed {
-  background: #98a2b0;
+  background: var(--color-text-faint);
 }
 .badge-closed {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #98a2b0;
-  border: 1px solid #c4ccd6;
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border-strong);
   border-radius: 4px;
   padding: 0 4px;
 }
@@ -210,7 +214,7 @@ tr.closed-row td {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5a6573;
+  color: var(--color-text-muted);
   font-weight: 700;
 }
 
@@ -221,10 +225,10 @@ tr.closed-row td {
   width: 360px;
   max-height: 80vh;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-modal);
   padding: 16px;
   z-index: 1000;
 }
@@ -236,7 +240,7 @@ tr.closed-row td {
   background: none;
   font-size: 22px;
   cursor: pointer;
-  color: #888;
+  color: var(--color-text-muted);
 }
 .detail h3 {
   margin: 0 24px 8px 0;
@@ -245,7 +249,7 @@ tr.closed-row td {
   list-style: none;
   padding: 0;
   margin: 10px 0 0;
-  border-left: 2px solid #cfd6df;
+  border-left: 2px solid var(--color-border-strong);
 }
 .track li {
   position: relative;
@@ -260,10 +264,10 @@ tr.closed-row td {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #2563eb;
+  background: var(--color-primary-strong);
 }
 .track .t {
-  color: #5a6573;
+  color: var(--color-text-muted);
 }
 .kv {
   font-size: 12px;
@@ -272,5 +276,5 @@ tr.closed-row td {
 .kv b {
   display: inline-block;
   min-width: 110px;
-  color: #5a6573;
+  color: var(--color-text-muted);
 }

@@ -20,8 +20,61 @@
  *   4. A per-feature sheet styles only its own feature's hooks (mirroring the
  *      feature-isolation rule for source), so features never collide.
  *
- * This file: reset, shared element defaults, and shell chrome (header, status bar).
+ * This file: design tokens, reset, shared element defaults, and shell chrome
+ * (header, status bar).
  */
+
+/* ---- Design tokens ----------------------------------------------------------
+ * The single source of shared color, shadow, and font values; every sheet
+ * consumes these via var(). Values follow chattanooga.gov's design language
+ * (palette mined from the live site's theme CSS). A theme re-palettes the site
+ * by overriding tokens under its [data-theme] selector (see theme-dark.css).
+ * Genuinely local one-offs — map category colors, the marker halo, on-header
+ * white overlays — stay literal. */
+:root {
+  /* Brand */
+  --color-primary: #004360; /* deep navy: header, active tabs/chips */
+  --color-primary-strong: #004c93; /* royal navy: small emphatic marks */
+  --color-primary-subtle: #e6f6fa; /* pale cyan: brand-tinted badge fills */
+  --color-link: #18546e; /* steel blue: links, hover accents, brand text */
+
+  /* Text */
+  --color-text: #000f37;
+  --color-text-secondary: #3a4a5c; /* form labels, secondary emphasis */
+  --color-text-muted: #5c6b7a; /* meta lines, captions, table headers */
+  --color-text-faint: #98a2b0; /* de-emphasized (closed/expired) content */
+
+  /* Surfaces */
+  --color-page-bg: #f4f8fa; /* page regions behind cards */
+  --color-panel-bg: #fff; /* cards, panels, modals, legends */
+  --color-raised-bg: #fff; /* interactive controls (inputs, chips, buttons) */
+  --color-surface-subtle: #e9f2f7; /* hover rows, placeholders, link pills */
+
+  /* Borders */
+  --color-border-strong: #c3ced6; /* control and panel outlines */
+  --color-border: #dde3e8; /* card outlines, dividers, table rules */
+
+  /* Status */
+  --color-ok: #00874e;
+  --color-ok-subtle: #e6f4ee;
+  --color-err: #b60000;
+  --color-warn: #b35f00;
+
+  /* On the navy header the brand green/red fail contrast; these bright
+     variants exist solely for content rendered on --color-primary. */
+  --color-header-bg: var(--color-primary);
+  --color-on-primary: #fff;
+  --color-ok-on-primary: #34cf59;
+  --color-err-on-primary: #ff9a9a;
+
+  /* Shadows */
+  --shadow-modal: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --shadow-small: 0 1px 6px rgba(0, 0, 0, 0.25);
+
+  /* Type: Gabarito for headings, Inter for body (bundled via @fontsource). */
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-heading: "Gabarito", "Inter", system-ui, sans-serif;
+}
 
 * {
   box-sizing: border-box;
@@ -30,10 +83,15 @@ html,
 body {
   height: 100%;
   margin: 0;
-  font:
-    14px/1.4 system-ui,
-    sans-serif;
-  color: #1b1f24;
+  font: 14px/1.4 var(--font-body);
+  color: var(--color-text);
+  background: var(--color-page-bg);
+}
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
 }
 
 /* Shell layout: the app root is a full-height column — header on top, the
@@ -52,8 +110,8 @@ header {
   align-items: center;
   gap: 16px;
   padding: 10px 16px;
-  background: #0071ce;
-  color: #fff; /* EPB brand blue */
+  background: var(--color-header-bg);
+  color: var(--color-on-primary);
 }
 header h1 {
   font-size: 18px;
@@ -64,7 +122,7 @@ header nav {
   gap: 4px;
 }
 header nav a {
-  color: #fff;
+  color: var(--color-on-primary);
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
@@ -96,13 +154,13 @@ header nav a.active {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: var(--color-on-primary);
   opacity: 0.9;
 }
 .theme-switcher select {
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--color-on-primary);
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 6px;
@@ -110,13 +168,13 @@ header nav a.active {
   cursor: pointer;
 }
 .theme-switcher option {
-  color: #1b1f24;
+  color: var(--color-text);
 }
 .status-bar.ok {
-  color: #6ee7a8;
+  color: var(--color-ok-on-primary);
 }
 .status-bar.err {
-  color: #ff9a9a;
+  color: var(--color-err-on-primary);
 }
 
 /* Shared element defaults. */
@@ -124,7 +182,7 @@ h2 {
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5a6573;
+  color: var(--color-text-muted);
   margin: 16px 0 8px;
 }
 
@@ -137,10 +195,10 @@ th,
 td {
   text-align: left;
   padding: 5px 6px;
-  border-bottom: 1px solid #e6eaef;
+  border-bottom: 1px solid var(--color-border);
 }
 th {
-  color: #5a6573;
+  color: var(--color-text-muted);
   font-size: 11px;
   text-transform: uppercase;
 }
@@ -162,14 +220,14 @@ th {
   padding: 4px;
   border: none;
   background: none;
-  color: #111;
+  color: var(--color-text);
   font-size: 22px;
   line-height: 1;
   font-weight: 700;
   cursor: pointer;
 }
 .debug-toggle:hover {
-  color: #000;
+  color: var(--color-link);
 }
 
 .debug-modal {
@@ -179,10 +237,10 @@ th {
   width: 260px;
   max-height: 80vh;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-modal);
   padding: 16px;
   z-index: 1000;
 }
@@ -194,7 +252,7 @@ th {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5a6573;
+  color: var(--color-text-muted);
 }
 .debug-close {
   position: absolute;
@@ -205,7 +263,7 @@ th {
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  color: #888;
+  color: var(--color-text-muted);
 }
 .debug-kv {
   display: grid;
@@ -215,7 +273,7 @@ th {
   font-size: 12px;
 }
 .debug-kv dt {
-  color: #5a6573;
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 .debug-kv dd {
@@ -225,7 +283,7 @@ th {
 .debug-empty {
   margin: 0;
   font-size: 12px;
-  color: #5a6573;
+  color: var(--color-text-muted);
 }
 .debug-action {
   display: flex;
@@ -235,15 +293,15 @@ th {
 }
 .debug-action button {
   font: inherit;
-  color: #1b1f24;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   padding: 4px 9px;
   cursor: pointer;
 }
 .debug-action button:hover:enabled {
-  border-color: #0071ce;
+  border-color: var(--color-link);
 }
 .debug-action button:disabled {
   opacity: 0.6;
@@ -251,7 +309,7 @@ th {
 }
 .debug-action-status {
   font-size: 12px;
-  color: #5a6573;
+  color: var(--color-text-muted);
 }
 .debug-setting {
   margin-bottom: 10px;
@@ -271,16 +329,16 @@ th {
   flex: none;
   font: inherit;
   font-size: 11px;
-  color: #1b1f24;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   padding: 2px 7px;
   cursor: pointer;
 }
 .debug-setting-delete:hover:enabled {
-  border-color: #c0392b;
-  color: #c0392b;
+  border-color: var(--color-err);
+  color: var(--color-err);
 }
 .debug-setting-delete:disabled {
   opacity: 0.6;
@@ -291,7 +349,7 @@ th {
 .debug-setting-value {
   margin: 4px 0 0;
   padding: 6px 8px;
-  background: #f4f6f9;
+  background: var(--color-surface-subtle);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
@@ -304,7 +362,7 @@ th {
 .debug-setting-notice {
   margin: 4px 0 0;
   font-size: 11px;
-  color: #a15c00;
+  color: var(--color-warn);
 }
 
 @media (max-width: 640px) {

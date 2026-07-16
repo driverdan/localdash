@@ -1,299 +1,80 @@
 /*
  * Dark theme — layered over the global styling contract (base + feature sheets).
  * Every rule is scoped under `[data-theme="dark"]` on the document root, so it
- * only takes effect when the theme registry applies that id. This sheet targets
- * the same semantic hooks the light styling uses; it deliberately changes
- * surfaces, typography, AND color (not color alone) to prove the contract
- * supports full restyling:
- *   - surfaces: dark page/panel/card backgrounds and borders
- *   - typography: a distinct heading treatment (tighter tracking, heavier weight)
- *   - color: inverted text, muted greys, and a brighter accent for dark contrast
+ * only takes effect when the theme registry applies that id.
  *
- * Palette:            page #10151b · panel #171d25 · raised #1e2632
- *   border #263140 · text #e4e9ef · muted #8fa0b0 · accent #4da3ff (links)
+ * The palette is chattanooga.gov's own dark mode (mined from the live site's
+ * theme CSS: #212529 surfaces, #dee2e6 text, #668ea0 links, navy undertones)
+ * and is expressed entirely as overrides of the base.css design tokens — every
+ * token consumer re-colors with no per-element rule here. The per-element rules
+ * that remain are what tokens cannot express:
+ *   - typography: heavier, tighter-tracked headings (the deliberate type shift
+ *     proving themes restyle more than color)
+ *   - structure: a header border, dark Leaflet popup surfaces
  */
 
-/* ---- Base / shell ---------------------------------------------------------- */
 [data-theme="dark"] {
   color-scheme: dark;
-}
-[data-theme="dark"] body {
-  background: #10151b;
-  color: #e4e9ef;
+
+  /* Brand: navy brightened for dark surfaces; near-black navy header. */
+  --color-header-bg: #001d2b;
+  --color-primary: #18546e;
+  --color-primary-strong: #668ea0;
+  --color-primary-subtle: #06293a;
+  --color-link: #668ea0;
+
+  /* Text */
+  --color-text: #dee2e6;
+  --color-text-secondary: #b6c1c9;
+  --color-text-muted: #98a5ad;
+  --color-text-faint: #6c757d;
+
+  /* Surfaces */
+  --color-page-bg: #212529;
+  --color-panel-bg: #2b3035;
+  --color-raised-bg: #343a40;
+  --color-surface-subtle: #343a40;
+
+  /* Borders */
+  --color-border-strong: #4a5157;
+  --color-border: #3d4348;
+
+  /* Status (brightened for dark contrast; gold is chattanooga.gov's #ffb949) */
+  --color-ok: #34cf59;
+  --color-ok-subtle: #0f3524;
+  --color-err: #f28b82;
+  --color-warn: #ffb949;
+
+  /* Shadows carry more weight on dark surfaces. */
+  --shadow-modal: 0 8px 30px rgba(0, 0, 0, 0.55);
+  --shadow-small: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
+/* ---- Structure -------------------------------------------------------------- */
+/* The near-black header needs a seam against the dark page. */
 [data-theme="dark"] header {
-  background: #0a1017;
-  border-bottom: 1px solid #223;
-  color: #e4e9ef;
+  border-bottom: 1px solid var(--color-border);
 }
-/* Typography shift: headings get tighter tracking and a heavier weight in dark. */
+
+/* Leaflet's own stylesheet paints popups white; re-surface them for the dark
+   basemap (these hooks belong to Leaflet, so the light sheets never set them). */
+[data-theme="dark"] .leaflet-popup-content-wrapper,
+[data-theme="dark"] .leaflet-popup-tip {
+  background: var(--color-panel-bg);
+  color: var(--color-text);
+}
+
+/* ---- Typography shift ------------------------------------------------------- */
+/* Headings get heavier weight and tighter tracking in dark. */
 [data-theme="dark"] header h1 {
   font-weight: 800;
   letter-spacing: -0.01em;
 }
-[data-theme="dark"] header nav a {
-  color: #e4e9ef;
-}
-[data-theme="dark"] header nav a.active {
-  background: rgba(255, 255, 255, 0.12);
-}
-
 [data-theme="dark"] h2 {
-  color: #8fa0b0;
   font-weight: 700;
-}
-
-[data-theme="dark"] th,
-[data-theme="dark"] td {
-  border-bottom-color: #263140;
-}
-[data-theme="dark"] th {
-  color: #8fa0b0;
-}
-
-[data-theme="dark"] .theme-switcher select {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-[data-theme="dark"] .theme-switcher option {
-  color: #e4e9ef;
-  background: #171d25;
-}
-
-/* ---- Timeseries / map ------------------------------------------------------ */
-[data-theme="dark"] #sidebar {
-  background: #171d25;
-  border-right-color: #263140;
-}
-[data-theme="dark"] .filters label,
-[data-theme="dark"] .tree-heading {
-  color: #b3c0cc;
-}
-[data-theme="dark"] .filters select,
-[data-theme="dark"] .filters input,
-[data-theme="dark"] .filters button.reset {
-  background: #1e2632;
-  color: #e4e9ef;
-  border-color: #33404e;
-}
-[data-theme="dark"] .filters button.reset:hover {
-  border-color: #4da3ff;
-}
-
-[data-theme="dark"] #incident-table tbody tr:hover {
-  background: #1e2632;
-}
-[data-theme="dark"] tr.closed-row td {
-  color: #6f7c8a;
-}
-[data-theme="dark"] .badge-closed {
-  color: #8b96a3;
-  border-color: #3a4655;
-}
-[data-theme="dark"] .popup-src {
-  color: #8fa0b0;
-}
-
-[data-theme="dark"] .map-legend {
-  background: #171d25;
-  color: #e4e9ef;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
-}
-[data-theme="dark"] .map-legend b {
-  color: #8fa0b0;
-}
-
-[data-theme="dark"] .detail {
-  background: #171d25;
-  border-color: #33404e;
-  color: #e4e9ef;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
-}
-[data-theme="dark"] .detail .close {
-  color: #8fa0b0;
-}
-[data-theme="dark"] .track {
-  border-left-color: #33404e;
-}
-[data-theme="dark"] .track .t {
-  color: #8fa0b0;
-}
-[data-theme="dark"] .kv b {
-  color: #8fa0b0;
-}
-
-/* ---- Debug overlay --------------------------------------------------------- */
-[data-theme="dark"] .debug-toggle {
-  color: #e4e9ef;
-}
-[data-theme="dark"] .debug-toggle:hover {
-  color: #fff;
-}
-[data-theme="dark"] .debug-modal {
-  background: #171d25;
-  border-color: #33404e;
-  color: #e4e9ef;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
-}
-[data-theme="dark"] .debug-modal h4,
-[data-theme="dark"] .debug-kv dt,
-[data-theme="dark"] .debug-empty,
-[data-theme="dark"] .debug-action-status,
-[data-theme="dark"] .debug-close {
-  color: #8fa0b0;
-}
-[data-theme="dark"] .debug-action button {
-  background: #1e2632;
-  color: #e4e9ef;
-  border-color: #33404e;
-}
-[data-theme="dark"] .debug-action button:hover:enabled {
-  border-color: #4da3ff;
-}
-[data-theme="dark"] .debug-setting-delete {
-  background: #1e2632;
-  color: #e4e9ef;
-  border-color: #33404e;
-}
-[data-theme="dark"] .debug-setting-delete:hover:enabled {
-  border-color: #ff6b5a;
-  color: #ff6b5a;
-}
-[data-theme="dark"] .debug-setting-value {
-  background: #1e2632;
-  color: #e4e9ef;
-}
-[data-theme="dark"] .debug-setting-notice {
-  color: #ffb454;
-}
-
-/* Leaflet popups (default white) so they don't glare under the dark basemap. */
-[data-theme="dark"] .leaflet-popup-content-wrapper,
-[data-theme="dark"] .leaflet-popup-tip {
-  background: #1e2632;
-  color: #e4e9ef;
-}
-
-/* ---- Shared page chrome (news + events) ------------------------------------ */
-[data-theme="dark"] #news,
-[data-theme="dark"] #events {
-  background: #10151b;
-}
-
-[data-theme="dark"] #news .toolbar label,
-[data-theme="dark"] #events .toolbar label {
-  color: #b3c0cc;
-}
-[data-theme="dark"] #news .toolbar select,
-[data-theme="dark"] #events .toolbar input[type="search"],
-[data-theme="dark"] #events .toolbar select {
-  background: #1e2632;
-  color: #e4e9ef;
-  border-color: #33404e;
-}
-
-[data-theme="dark"] #news .tabs button,
-[data-theme="dark"] #events .chip {
-  background: #1e2632;
-  color: #cdd7e1;
-  border-color: #33404e;
-}
-[data-theme="dark"] #news .tabs button:hover,
-[data-theme="dark"] #events .chip:hover {
-  border-color: #4da3ff;
-}
-[data-theme="dark"] #news .tabs button.active,
-[data-theme="dark"] #events .chip.active {
-  background: #4da3ff;
-  border-color: #4da3ff;
-  color: #0a1017;
-}
-
-[data-theme="dark"] #news .section-head {
-  color: #4da3ff;
-  border-bottom-color: #263140;
-}
-[data-theme="dark"] #news .notice,
-[data-theme="dark"] #events .notice {
-  color: #8fa0b0;
-}
-[data-theme="dark"] #news .notice.error,
-[data-theme="dark"] #events .notice.error {
-  color: #f0a17a;
-}
-
-/* Cards: raised dark surfaces with heavier heading weight (the type shift). */
-[data-theme="dark"] #news .story-card,
-[data-theme="dark"] #events .event-card {
-  background: #171d25;
-  border-color: #263140;
 }
 [data-theme="dark"] #news .story-card h3,
 [data-theme="dark"] #events .event-card h3 {
   font-weight: 700;
   letter-spacing: -0.01em;
-}
-[data-theme="dark"] #news .story-card h3 a:hover,
-[data-theme="dark"] #events .event-card h3 a:hover {
-  color: #4da3ff;
-}
-[data-theme="dark"] #news .meta,
-[data-theme="dark"] #events .meta {
-  color: #8fa0b0;
-}
-
-[data-theme="dark"] #news .badge {
-  background: #12314f;
-  color: #7cc0ff;
-}
-[data-theme="dark"] #news .badge.multi {
-  background: #123a2b;
-  color: #7fd6a8;
-}
-[data-theme="dark"] #news .badge.cat,
-[data-theme="dark"] #events .badge.cat {
-  border-color: #3a4655;
-  color: #9aa6b3;
-}
-[data-theme="dark"] #news .summary,
-[data-theme="dark"] #events .summary {
-  color: #cdd7e1;
-}
-[data-theme="dark"] #events .where {
-  color: #b3c0cc;
-}
-[data-theme="dark"] #events .distance {
-  color: #7fd6a8;
-}
-
-[data-theme="dark"] #news .links a,
-[data-theme="dark"] #events .links a {
-  background: #1e2632;
-  color: #cdd7e1;
-  border-color: #33404e;
-}
-[data-theme="dark"] #news .links a:hover,
-[data-theme="dark"] #events .links a:hover {
-  border-color: #4da3ff;
-  color: #4da3ff;
-}
-
-[data-theme="dark"] #news .sources {
-  color: #8fa0b0;
-}
-
-/* ---- Home landing page ----------------------------------------------------- */
-/* Cards reuse #news / #events so they are themed by the rules above; only the
-   home-specific chrome (grid background, widget header, view-all link) needs
-   dark values here. */
-[data-theme="dark"] .home-grid {
-  background: #10151b;
-}
-[data-theme="dark"] .widget-head {
-  border-bottom-color: #263140;
-}
-[data-theme="dark"] .widget-head h2,
-[data-theme="dark"] .view-all {
-  color: #4da3ff;
 }
