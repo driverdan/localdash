@@ -6,8 +6,11 @@ endpoint at ``https://api.meetup.com/gql`` and requires an OAuth2 bearer token
 query filtered to a latitude/longitude and radius to find events in the
 Chattanooga area.
 
-In keeping with the rest of the pipeline, only an address is emitted per event;
-coordinates are derived later by the ingest pipeline's geocoder.
+This source emits only an address per event — its GraphQL selection does not
+request venue coordinates — so the ingest pipeline's geocoder derives them.
+(Sources may supply coordinates directly via ``RawEvent.latitude``/
+``longitude``; requesting them from Meetup's ``venue`` selection is a known
+follow-up.)
 """
 
 from __future__ import annotations
