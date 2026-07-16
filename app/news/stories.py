@@ -71,7 +71,9 @@ def build_stories(rows: list[dict]) -> list[dict]:
     return stories
 
 
-async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
+async def get_stories(
+    session: AsyncSession, hours: int = 72, limit: int | None = None
+) -> list[dict]:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     rows = (
         await session.execute(
@@ -92,7 +94,7 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
             .order_by(NewsArticle.published.asc())
         )
     ).all()
-    return build_stories(
+    stories = build_stories(
         [
             {
                 "id": r.id,
@@ -109,6 +111,9 @@ async def get_stories(session: AsyncSession, hours: int = 72) -> list[dict]:
             for r in rows
         ]
     )
+    # Stories are clusters built in Python, so the limit is a post-sort slice of
+    # the newest-activity-first list, not a SQL LIMIT on the article rows.
+    return stories[:limit] if limit is not None else stories
 
 
 async def get_sources(session: AsyncSession) -> list[dict]:

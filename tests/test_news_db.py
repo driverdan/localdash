@@ -7,7 +7,7 @@ rows use 'test-' slugs so real registry data is untouched.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -171,3 +171,52 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
         r for r in sources if r["slug"] == "test-outlet" and r["category"] == "sports"
     )
     assert sports_row["last_status"] is None  # never fetched in this test
+
+
+async def _seed_singleton_stories(session, monkeypatch, count: int) -> list[int]:
+    """Seed `count` articles, each its own single-article cluster, published at
+    staggered times so their stories sort deterministically newest-first.
+
+    Returns the cluster ids in newest-activity-first order.
+    """
+    sid = await _seed_source(session, monkeypatch)
+    now = datetime.now(timezone.utc)
+    arts = [_article(sid, f"lim-{i}", "news", title=f"test-limit story {i}") for i in range(count)]
+    # Stagger published times: lim-0 newest, lim-{count-1} oldest.
+    for i, a in enumerate(arts):
+        a["published"] = now - timedelta(minutes=i)
+    await upsert_articles(session, arts)
+    await session.commit()
+    rows = (
+        (
+            await session.execute(
+                select(NewsArticle)
+                .where(NewsArticle.source_id == sid)
+                .order_by(NewsArticle.published.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for a in rows:  # each article is its own cluster
+        a.cluster_id = a.id
+    await session.commit()
+    return [a.id for a in rows]
+
+
+async def test_stories_limit_returns_newest_slice(news_db_session, monkeypatch):
+    ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=8)
+
+    payload = await api_get_stories(hours=24, limit=5, session=news_db_session)
+    ours = [s for s in payload["stories"] if s["id"] in set(ids_newest_first)]
+    # Exactly the 5 newest, still sorted latest-activity first, with the label map.
+    assert [s["id"] for s in ours] == ids_newest_first[:5]
+    assert payload["categories"]["news"] == "News"
+
+
+async def test_stories_omitted_limit_returns_full_window(news_db_session, monkeypatch):
+    ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=8)
+
+    payload = await api_get_stories(hours=24, session=news_db_session)
+    ours = [s["id"] for s in payload["stories"] if s["id"] in set(ids_newest_first)]
+    assert ours == ids_newest_first  # all 8, newest-first, nothing dropped
