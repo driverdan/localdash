@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "station": "https://api.weather.gov/stations/KCHA",
+    "timestamp": "2026-07-16T14:53:00+00:00",
+    "textDescription": "Partly Cloudy",
+    "icon": "https://api.weather.gov/icons/land/day/sct?size=medium",
+    "temperature": { "unitCode": "wmoUnit:degC", "value": 31.7 },
+    "windDirection": { "unitCode": "wmoUnit:degree_(angle)", "value": 230 },
+    "windSpeed": { "unitCode": "wmoUnit:km_h-1", "value": 9.36 },
+    "relativeHumidity": { "unitCode": "wmoUnit:percent", "value": 58.42 }
+  }
+}

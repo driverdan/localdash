@@ -63,6 +63,11 @@ class Settings(BaseSettings):
 
     user_agent: str = "LocalDash/0.1"
 
+    # Shared app-level center coordinate (Chattanooga by default): the events
+    # distance origin / source defaults and the weather location.
+    center_lat: float = 35.0456
+    center_lon: float = -85.3097
+
     # News feature (RSS aggregation; outlets/feeds live in app/news/registry.py).
     news_enabled: bool = True
     news_refresh_minutes: int = 15
@@ -97,6 +102,11 @@ class Settings(BaseSettings):
     # miles from the Chattanooga center; non-positive disables the filter.
     events_ingest_max_miles: float = 100
 
+    # Weather feature (NWS proxy for the homepage strip; no DB, no scheduler —
+    # fetch-on-demand at the shared center, cached in-process for the TTL below).
+    weather_enabled: bool = True
+    weather_cache_minutes: int = 10
+
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
     # but their key is domain-locked. CARTO Voyager is the closest no-key match and
@@ -105,6 +115,11 @@ class Settings(BaseSettings):
     tile_attribution: str = "&copy; OpenStreetMap &copy; CARTO"
 
     retention_days: int = 0
+
+    @property
+    def center(self) -> tuple[float, float]:
+        """Shared center as a (lat, lon) tuple for distance/geo call sites."""
+        return (self.center_lat, self.center_lon)
 
     @property
     def database_url_sync(self) -> str:

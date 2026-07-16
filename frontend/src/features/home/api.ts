@@ -9,6 +9,32 @@ interface StoriesResponse {
   stories: Story[];
 }
 
+// Shape of /api/v1/weather/current (app/api/weather.py): NWS station
+// observation + the leading forecast periods, names passed through verbatim.
+export interface WeatherCurrent {
+  temperature_f: number;
+  description: string;
+  icon: string | null;
+  wind_mph: number | null;
+  wind_direction: string | null;
+  humidity_percent: number | null;
+  observed_at: string | null;
+}
+
+export interface WeatherPeriod {
+  name: string;
+  temperature: number;
+  temperature_unit: string;
+  precip_percent: number | null;
+  short_forecast: string;
+  detailed_forecast: string;
+}
+
+export interface Weather {
+  current: WeatherCurrent | null;
+  periods: WeatherPeriod[];
+}
+
 interface ItemsResponse {
   items: EventItem[];
 }
@@ -26,6 +52,20 @@ export async function loadStories(): Promise<void> {
     home.storiesError = true;
   } finally {
     home.storiesLoaded = true;
+  }
+}
+
+/** Load the weather strip: current conditions + today's leading forecast
+ *  periods. A partial payload (either half missing) still resolves — the strip
+ *  renders whichever half is present. */
+export async function loadWeather(): Promise<void> {
+  try {
+    home.weather = await getJSON<Weather>("/api/v1/weather/current");
+    home.weatherError = false;
+  } catch {
+    home.weatherError = true;
+  } finally {
+    home.weatherLoaded = true;
   }
 }
 

@@ -1,0 +1,13 @@
+{
+  "id": "https://api.weather.gov/points/35.0456,-85.3097",
+  "properties": {
+    "@id": "https://api.weather.gov/points/35.0456,-85.3097",
+    "gridId": "MRX",
+    "gridX": 57,
+    "gridY": 51,
+    "forecast": "https://api.weather.gov/gridpoints/MRX/57,51/forecast",
+    "forecastHourly": "https://api.weather.gov/gridpoints/MRX/57,51/forecast/hourly",
+    "observationStations": "https://api.weather.gov/gridpoints/MRX/57,51/stations",
+    "timeZone": "America/New_York"
+  }
+}
