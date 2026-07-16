@@ -7,7 +7,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: #f7f9fb;
+  background: var(--color-page-bg);
 }
 
 /* Toolbar */
@@ -22,7 +22,7 @@
 }
 #news .toolbar label {
   font-weight: 600;
-  color: #44505f;
+  color: var(--color-text-secondary);
 }
 #news .toolbar label.inline {
   display: flex;
@@ -31,9 +31,9 @@
 }
 #news .toolbar select {
   font: inherit;
-  color: #1b1f24;
-  background: #fff;
-  border: 1px solid #cfd6df;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   padding: 5px 9px;
   cursor: pointer;
@@ -50,20 +50,20 @@
 #news .tabs button {
   font: inherit;
   font-size: 13px;
-  background: #fff;
-  color: #1b1f24;
-  border: 1px solid #cfd6df;
+  background: var(--color-raised-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
   border-radius: 999px;
   padding: 4px 14px;
   cursor: pointer;
 }
 #news .tabs button:hover {
-  border-color: #0071ce;
+  border-color: var(--color-link);
 }
 #news .tabs button.active {
-  background: #0071ce;
-  border-color: #0071ce;
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 /* Feed */
@@ -77,24 +77,24 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #0071ce;
-  border-bottom: 1px solid #dde2e8;
+  color: var(--color-link);
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 4px;
   margin: 26px 0 2px;
 }
 #news .notice {
   text-align: center;
-  color: #5a6573;
+  color: var(--color-text-muted);
   padding: 48px 0;
 }
 #news .notice.error {
-  color: #b4552d;
+  color: var(--color-err);
 }
 
 /* Story card */
 #news .story-card {
-  background: #fff;
-  border: 1px solid #dde2e8;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 14px 18px;
   margin: 12px 0;
@@ -109,7 +109,7 @@
   max-height: 260px;
   object-fit: cover;
   border-radius: 8px;
-  background: #eef2f6;
+  background: var(--color-surface-subtle);
 }
 #news .story-card h3 {
   margin: 0 0 5px;
@@ -121,11 +121,11 @@
   text-decoration: none;
 }
 #news .story-card h3 a:hover {
-  color: #0071ce;
+  color: var(--color-link);
 }
 #news .meta {
   font-size: 11px;
-  color: #5a6573;
+  color: var(--color-text-muted);
   margin-bottom: 7px;
 }
 #news .badge {
@@ -134,17 +134,17 @@
   border-radius: 999px;
   padding: 1px 8px;
   margin-right: 6px;
-  background: #e8f0fa;
-  color: #0071ce;
+  background: var(--color-primary-subtle);
+  color: var(--color-link);
 }
 #news .badge.multi {
-  background: #dcebe3;
-  color: #2d6a4f;
+  background: var(--color-ok-subtle);
+  color: var(--color-ok);
 }
 #news .badge.cat {
   background: transparent;
-  border: 1px solid #cfd6df;
-  color: #5a6573;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 10px;
@@ -162,15 +162,15 @@
 }
 #news .links a {
   text-decoration: none;
-  color: #1b1f24;
-  background: #f7f9fb;
-  border: 1px solid #cfd6df;
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border-strong);
   border-radius: 999px;
   padding: 2px 10px;
 }
 #news .links a:hover {
-  border-color: #0071ce;
-  color: #0071ce;
+  border-color: var(--color-link);
+  color: var(--color-link);
 }
 
 /* Sources footer. The table itself uses the shared defaults in base.css. */
@@ -179,7 +179,7 @@
   margin: 0 auto;
   padding: 8px 16px 32px;
   font-size: 12px;
-  color: #5a6573;
+  color: var(--color-text-muted);
 }
 #news .sources a {
   color: inherit;

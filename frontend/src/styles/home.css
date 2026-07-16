@@ -10,7 +10,7 @@
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  background: #f7f9fb;
+  background: var(--color-page-bg);
   /* auto-fit so a third/fourth widget later is a pure addition, no restructure. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
@@ -35,7 +35,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #dde2e8;
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 6px;
   margin-bottom: 4px;
 }
@@ -45,13 +45,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #0071ce;
+  color: var(--color-link);
 }
 .view-all {
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
-  color: #0071ce;
+  color: var(--color-link);
   white-space: nowrap;
 }
 .view-all:hover {
