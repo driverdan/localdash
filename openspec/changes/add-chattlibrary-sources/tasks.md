@@ -8,7 +8,7 @@
   choice (site-wide `/feed/` is identical today but unscoped; `/news/feed/` is an empty page
   feed) per the other outlets' annotation style, and update the requirement-level outlet count
   references if any test pins it
-- [ ] 1.2 Add per-source feed-tag suppression (design.md D6): registry entries accept
+- [x] 1.2 Add per-source feed-tag suppression (design.md D6): registry entries accept
   `use_feed_tags: False` (set on `chattlibrary` only — its posts all carry boilerplate
   `News`/`Featured` tags that would misfile every announcement under `news`), a registry helper
   exposes the flag by slug, and the fetcher passes an empty tag list to `classify()` for exempt
@@ -43,7 +43,7 @@
   the CitySpark module owns its own `build_sources` tests): default registers the library calendar, override
   replaces it, empty disables, malformed entry skipped with warning (extend the existing
   sources-registry tests)
-- [ ] 3.4 Add tag-suppression tests: an exempt source's mapped `News` tag is ignored (article
+- [x] 3.4 Add tag-suppression tests: an exempt source's mapped `News` tag is ignored (article
   falls through to the feed registration), a non-exempt source's tags still map, and the
   registry helper defaults to using tags when the key is absent
 
@@ -60,3 +60,5 @@
   zero Nominatim calls; second refresh created 0. Caveat: every library post carries a WP
   `<category>News</category>` tag, so tier-1 classification stores all articles as `news` and
   the registered `life` fallback never fires (see PR discussion)
+  — resolved by tasks 1.2/3.4 (`use_feed_tags: False`): re-verified 2026-07-17, all 10
+  stored library articles reclassified to `life` on the next refresh
