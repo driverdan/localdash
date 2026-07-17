@@ -30,10 +30,12 @@ CATEGORIES = {
 
 # Local Chattanooga, TN news sources. Feeds verified 2026-07. Categorization is
 # content-derived per article (see classify.py): a mapped feed <category> tag
-# (only the two WordPress outlets — WDEF and the News Chronicle — emit per-item
-# tags), else a keyword match, else a feed's registered category below as the
-# fallback. List specific sections before the general news feed so that fallback
-# prefers the specific category when an article appears in both.
+# (only the WordPress outlets — WDEF, the News Chronicle, and the library —
+# emit per-item tags), else a keyword match, else a feed's registered category
+# below as the fallback. List specific sections before the general news feed so
+# that fallback prefers the specific category when an article appears in both.
+# A source whose tags are boilerplate rather than per-article signal opts out
+# of the tag tier with "use_feed_tags": False (default True).
 SOURCES = [
     {
         "slug": "chattanoogan",
@@ -127,7 +129,28 @@ SOURCES = [
             {"category": "life", "url": "https://www.chattanoogapulse.com/api/rss/content.rss"},
         ],
     },
+    {
+        "slug": "chattlibrary",
+        "name": "Chattanooga Public Library",
+        "homepage": "https://chattlibrary.org",
+        # WordPress site. The News category feed is scoped to announcements;
+        # the site-wide /feed/ is identical today but unscoped, and /news/feed/
+        # is an empty WP page feed. Announcement/press-release content, so it
+        # registers under "life" like The Pulse. Every post carries the same
+        # News + Featured tags — pure boilerplate that would misfile everything
+        # under "news" via the tag tier, hence use_feed_tags: False.
+        "enabled": True,
+        "use_feed_tags": False,
+        "feeds": [
+            {"category": "life", "url": "https://chattlibrary.org/category/news/feed/"},
+        ],
+    },
 ]
+
+
+def uses_feed_tags(slug: str) -> bool:
+    """Whether a source's per-item feed tags may drive categorization."""
+    return next((s.get("use_feed_tags", True) for s in SOURCES if s["slug"] == slug), True)
 
 
 async def sync_registry(session: AsyncSession) -> None:

@@ -72,7 +72,9 @@ separate from the geo pipeline.
 
 Aggregates, de-duplicates, tags, and geocodes local happenings (ported from the
 `chattevents` PoC), served at `/events`. Sources include **CarCruiseFinder**,
-**Meetup**, and configurable **iCal** calendars.
+**Meetup**, The Pulse's **CitySpark** calendar, configurable **iCal** calendars,
+and configurable **The Events Calendar (tribe)** WordPress calendars (by default
+the Chattanooga Public Library's).
 
 Pipeline: **fetch sources → ingest (dedup + tag + geocode) → serve**, run as one
 scheduler job and on demand via `POST /api/v1/events/refresh`. Geocoding uses a

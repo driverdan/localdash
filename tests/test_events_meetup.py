@@ -96,7 +96,12 @@ def test_missing_photo_yields_no_image():
 
 def _settings(**overrides) -> Settings:
     """Settings isolated from .env and the ambient environment."""
-    base = dict(events_ical_feeds="", events_meetup_token="", events_meetup_query="")
+    base = dict(
+        events_ical_feeds="",
+        events_tribe_calendars="",
+        events_meetup_token="",
+        events_meetup_query="",
+    )
     base.update(overrides)
     return Settings(_env_file=None, **base)
 

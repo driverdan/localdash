@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.news.classify import classify
 from app.news.models import NewsArticle, NewsFeed, NewsSource
-from app.news.registry import USER_AGENT
+from app.news.registry import USER_AGENT, uses_feed_tags
 from app.news.textutil import strip_html, truncate_sentences
 
 log = logging.getLogger("localdash.news.fetcher")
@@ -111,7 +111,7 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     return result.rowcount
 
 
-async def fetch_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, str]:
+async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) -> tuple[int, str]:
     """Fetch one feed. Returns (changed article count, status)."""
     parsed = await asyncio.to_thread(_parse_feed, feed.url)
     status = getattr(parsed, "status", None)
@@ -138,8 +138,15 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, str]:
                 "summary": summary,
                 "image_url": _entry_image(entry),
                 # Content-derived, not the feed section (feed.category is the
-                # last-resort fallback inside classify()).
-                "category": classify(title, summary, _entry_tags(entry), feed.category),
+                # last-resort fallback inside classify()). Sources registered
+                # with use_feed_tags: False carry only boilerplate tags, so the
+                # tag tier is suppressed for them.
+                "category": classify(
+                    title,
+                    summary,
+                    _entry_tags(entry) if uses_feed_tags(source_slug) else [],
+                    feed.category,
+                ),
                 "published": _entry_published(entry),
                 "fetched_at": now,
             }
@@ -163,7 +170,7 @@ async def fetch_all(session: AsyncSession) -> dict:
     for feed, source_slug in feeds:
         label = f"{source_slug}/{feed.category}"
         try:
-            _, status = await fetch_feed(session, feed)
+            _, status = await fetch_feed(session, feed, source_slug)
         except Exception as exc:  # a broken feed must not kill the cycle
             status = f"error ({exc})"
             log.warning("fetch failed for %s: %s", label, exc)

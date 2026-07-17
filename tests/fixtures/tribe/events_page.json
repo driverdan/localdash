@@ -1,0 +1,177 @@
+{
+ "events": [
+  {
+   "id": 10047982,
+   "title": "Baby Bounce Downtown (Ages 0-18 Months)",
+   "description": "<p>Baby Bounce is a 30-minute program for parents and caregivers of tiny tots aged 1 day to 18 months. With your baby on your lap, together we\u2019ll sing and play and begin the fascinating and lifelong journey of joyful learning.</p>\n<p>Join us at the Downtown Branch Monday, Thursday and Saturday mornings at 10am and Tuesdays at 12 pm.</p>",
+   "url": "https://chattlibrary.org/event/baby-bounce-at-downtown-monday-thursday-and-saturday-10am-2/2026-07-20/",
+   "utc_start_date": "2026-07-20 14:00:00",
+   "utc_end_date": "2026-07-20 14:30:00",
+   "start_date": "2026-07-20 10:00:00",
+   "timezone": "America/New_York",
+   "all_day": false,
+   "image": {
+    "url": "https://chattlibrary.org/wp-content/uploads/2025/05/Baby-Bounce-updated.png"
+   },
+   "categories": [
+    {
+     "name": "babies",
+     "slug": "babies"
+    },
+    {
+     "name": "infants",
+     "slug": "infants"
+    },
+    {
+     "name": "literacy",
+     "slug": "literacy"
+    },
+    {
+     "name": "parents",
+     "slug": "parents"
+    },
+    {
+     "name": "reading",
+     "slug": "reading"
+    }
+   ],
+   "venue": {
+    "id": 1670,
+    "venue": "Downtown Library",
+    "address": "1001 Broad Street",
+    "city": "Chattanooga",
+    "stateprovince": "TN",
+    "zip": "37402",
+    "geo_lat": 35.0443426,
+    "geo_lng": -85.3108154
+   }
+  },
+  {
+   "id": 10047983,
+   "title": "Baby Bounce Downtown (Ages 0-18 Months)",
+   "description": "<p>Baby Bounce is a 30-minute program for parents and caregivers of tiny tots aged 1 day to 18 months. With your baby on your lap, together we\u2019ll sing and play and begin the fascinating and lifelong journey of joyful learning.</p>\n<p>Join us at the Downtown Branch Monday, Thursday and Saturday mornings at 10am and Tuesdays at 12 pm.</p>",
+   "url": "https://chattlibrary.org/event/baby-bounce-at-downtown-monday-thursday-and-saturday-10am-2/2026-07-23/",
+   "utc_start_date": "2026-07-23 14:00:00",
+   "utc_end_date": "2026-07-23 14:30:00",
+   "start_date": "2026-07-23 10:00:00",
+   "timezone": "America/New_York",
+   "all_day": false,
+   "image": {
+    "url": "https://chattlibrary.org/wp-content/uploads/2025/05/Baby-Bounce-updated.png"
+   },
+   "categories": [
+    {
+     "name": "babies",
+     "slug": "babies"
+    },
+    {
+     "name": "infants",
+     "slug": "infants"
+    },
+    {
+     "name": "literacy",
+     "slug": "literacy"
+    },
+    {
+     "name": "parents",
+     "slug": "parents"
+    },
+    {
+     "name": "reading",
+     "slug": "reading"
+    }
+   ],
+   "venue": {
+    "id": 1670,
+    "venue": "Downtown Library",
+    "address": "1001 Broad Street",
+    "city": "Chattanooga",
+    "stateprovince": "TN",
+    "zip": "37402",
+    "geo_lat": 35.0443426,
+    "geo_lng": -85.3108154
+   }
+  },
+  {
+   "id": 10050299,
+   "title": "Baby Bounce Eastgate (Ages 0-18 Months)",
+   "description": "<p>Baby Bounce is a 30-minute program for parents and caregivers of tiny tots aged 1 day to 18 months. With your baby on your lap, together we\u2019ll sing and play and begin the fascinating and lifelong journey of joyful learning.</p>\n<p>Join us at the Eastgate Branch Tuesday mornings at 10am.</p>",
+   "url": "https://chattlibrary.org/event/baby-bounce-at-eastgate-tuesday-10am/2026-07-21/",
+   "utc_start_date": "2026-07-21 14:00:00",
+   "utc_end_date": "2026-07-21 14:30:00",
+   "start_date": "2026-07-21 10:00:00",
+   "timezone": "America/New_York",
+   "all_day": false,
+   "image": {
+    "url": "https://chattlibrary.org/wp-content/uploads/2025/05/Baby-Bounce-updated.png"
+   },
+   "categories": [
+    {
+     "name": "babies",
+     "slug": "babies"
+    },
+    {
+     "name": "educational",
+     "slug": "educational"
+    },
+    {
+     "name": "family",
+     "slug": "family"
+    },
+    {
+     "name": "infants",
+     "slug": "infants"
+    },
+    {
+     "name": "literacy",
+     "slug": "literacy"
+    }
+   ],
+   "venue": {
+    "id": 1671,
+    "venue": "Eastgate Library",
+    "address": "5705 Marlin Road",
+    "city": "Chattanooga",
+    "stateprovince": "TN",
+    "zip": "37411",
+    "geo_lat": 35.0085682,
+    "geo_lng": -85.2113813
+   }
+  },
+  {
+   "id": 9999001,
+   "title": "Author Talk &#8211; Judith Garrison&#8217;s &quot;See Rock City Barns&quot;",
+   "description": "<p>Meet the <strong>author</strong> &amp; hear the story.</p>",
+   "url": "https://chattlibrary.org/event/author-talk/",
+   "utc_start_date": "2026-07-24 22:00:00",
+   "utc_end_date": "2026-07-24 23:00:00",
+   "start_date": "2026-07-24 18:00:00",
+   "timezone": "America/New_York",
+   "all_day": false,
+   "image": false,
+   "categories": [],
+   "venue": {
+    "id": 9999,
+    "venue": "South Chattanooga Library",
+    "address": "925 W 39th St",
+    "city": "Chattanooga",
+    "stateprovince": "TN",
+    "zip": "37409"
+   }
+  },
+  {
+   "id": 9999002,
+   "title": "Broken Event",
+   "description": "",
+   "url": "https://chattlibrary.org/event/broken/",
+   "start_date": "2026-07-25 10:00:00",
+   "timezone": "America/New_York",
+   "all_day": false,
+   "image": false,
+   "categories": [],
+   "venue": []
+  }
+ ],
+ "total": 5,
+ "total_pages": 1
+}

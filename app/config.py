@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     events_ical_feeds: str = "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"  # comma-separated .ics URLs
     events_meetup_token: str = ""  # Meetup OAuth2 token; empty = source not registered
     events_meetup_query: str = ""  # optional Meetup keyword filter
+    # The Events Calendar (tribe) REST calendars: comma-separated Name=BaseURL
+    # entries (name before the first "="); empty disables tribe ingestion.
+    events_tribe_calendars: str = "Chattanooga Public Library=https://chattlibrary.org"
+    events_tribe_lookahead_days: int = 14
     # CitySpark calendar (The Pulse's local-events widget; undocumented internal
     # JSON API — see app/events/sources/cityspark.py). The defaults are the
     # portal's own: 25-mile radius around the Chattanooga center, 14-day window.
