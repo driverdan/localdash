@@ -30,9 +30,20 @@ export interface WeatherPeriod {
   detailed_forecast: string;
 }
 
+// AirNow overall AQI (worst pollutant); null when AirNow is unconfigured,
+// unreachable, or reports nothing usable. category is the EPA number (1-6),
+// the chip's color key; category_name is display text passed through verbatim.
+export interface WeatherAqi {
+  value: number;
+  category: number | null;
+  category_name: string | null;
+  pollutant: string | null;
+}
+
 export interface Weather {
   current: WeatherCurrent | null;
   periods: WeatherPeriod[];
+  aqi: WeatherAqi | null;
 }
 
 interface ItemsResponse {

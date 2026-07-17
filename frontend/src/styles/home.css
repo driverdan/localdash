@@ -84,6 +84,18 @@
   display: flex;
   flex-direction: column;
 }
+/* AirNow AQI pill in the current-conditions row. The EPA category colors
+   arrive as an inline style from the component's category map; these muted
+   colors are only the fallback for an unknown category number. */
+.weather-widget .aqi-chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--color-border);
+  color: var(--color-text);
+}
 .weather-widget .desc {
   font-weight: 600;
   color: var(--color-text);

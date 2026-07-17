@@ -14,11 +14,31 @@
     }
   };
 
+  // EPA AQI category colors (1 Good .. 6 Hazardous): the standardized scale
+  // users know from every AQI product, kept verbatim and confined to the chip.
+  // Text flips to white on the darker bands for contrast.
+  const AQI_COLORS: Record<number, { bg: string; fg: string }> = {
+    1: { bg: "#00e400", fg: "#000" },
+    2: { bg: "#ffff00", fg: "#000" },
+    3: { bg: "#ff7e00", fg: "#000" },
+    4: { bg: "#ff0000", fg: "#fff" },
+    5: { bg: "#8f3f97", fg: "#fff" },
+    6: { bg: "#7e0023", fg: "#fff" },
+  };
+
+  // Unknown/null category yields no inline style; the stylesheet's muted
+  // fallback colors apply instead.
+  const aqiStyle = (category: number | null): string => {
+    const colors = category !== null ? AQI_COLORS[category] : undefined;
+    return colors ? `background:${colors.bg};color:${colors.fg}` : "";
+  };
+
   const weather = $derived(home.weather);
   const empty = $derived(
     weather !== null &&
       weather.current === null &&
-      weather.periods.length === 0,
+      weather.periods.length === 0 &&
+      weather.aqi === null,
   );
 </script>
 
@@ -35,27 +55,44 @@
     {:else if weather === null || empty}
       <div class="notice error">Could not load weather.</div>
     {:else}
-      {#if weather.current}
+      <!-- One flex row hosts both conditions and the AQI chip, so the chip
+           still renders (alone) when no station observation is usable. -->
+      {#if weather.current || weather.aqi}
         <div class="current">
-          {#if weather.current.icon}
-            <img src={weather.current.icon} alt="" width="36" height="36" />
-          {/if}
-          <span class="temp">{weather.current.temperature_f}°F</span>
-          <span class="conditions">
-            <span class="desc">{weather.current.description}</span>
-            <span class="meta">
-              {#if weather.current.wind_mph !== null}
-                wind {weather.current.wind_direction ?? ""}
-                {weather.current.wind_mph} mph ·
-              {/if}
-              {#if weather.current.humidity_percent !== null}
-                {weather.current.humidity_percent}% humidity ·
-              {/if}
-              {#if weather.current.observed_at}
-                as of {fmtAsOf(weather.current.observed_at)}
-              {/if}
+          {#if weather.current}
+            {#if weather.current.icon}
+              <img src={weather.current.icon} alt="" width="36" height="36" />
+            {/if}
+            <span class="temp">{weather.current.temperature_f}°F</span>
+            <span class="conditions">
+              <span class="desc">{weather.current.description}</span>
+              <span class="meta">
+                {#if weather.current.wind_mph !== null}
+                  wind {weather.current.wind_direction ?? ""}
+                  {weather.current.wind_mph} mph ·
+                {/if}
+                {#if weather.current.humidity_percent !== null}
+                  {weather.current.humidity_percent}% humidity ·
+                {/if}
+                {#if weather.current.observed_at}
+                  as of {fmtAsOf(weather.current.observed_at)}
+                {/if}
+              </span>
             </span>
-          </span>
+          {/if}
+          {#if weather.aqi}
+            <span
+              class="aqi-chip"
+              style={aqiStyle(weather.aqi.category)}
+              title={weather.aqi.pollutant
+                ? `Primary pollutant: ${weather.aqi.pollutant}`
+                : null}
+            >
+              AQI {weather.aqi.value}{weather.aqi.category_name
+                ? ` · ${weather.aqi.category_name}`
+                : ""}
+            </span>
+          {/if}
         </div>
       {/if}
       <!-- Period names come from NWS ("Today" becomes "Tonight" through the

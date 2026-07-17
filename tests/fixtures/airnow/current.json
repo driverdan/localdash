@@ -1,0 +1,32 @@
+[
+  {
+    "DateObserved": "2026-07-16",
+    "HourObserved": 14,
+    "LocalTimeZone": "EST",
+    "ReportingArea": "Chattanooga",
+    "StateCode": "TN",
+    "Latitude": 35.0456,
+    "Longitude": -85.3097,
+    "ParameterName": "O3",
+    "AQI": 41,
+    "Category": {
+      "Number": 1,
+      "Name": "Good"
+    }
+  },
+  {
+    "DateObserved": "2026-07-16",
+    "HourObserved": 14,
+    "LocalTimeZone": "EST",
+    "ReportingArea": "Chattanooga",
+    "StateCode": "TN",
+    "Latitude": 35.0456,
+    "Longitude": -85.3097,
+    "ParameterName": "PM2.5",
+    "AQI": 62,
+    "Category": {
+      "Number": 2,
+      "Name": "Moderate"
+    }
+  }
+]
