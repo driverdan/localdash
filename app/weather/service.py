@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 
 import httpx
 
@@ -62,9 +63,45 @@ class WeatherService:
                     raise
                 log.warning("weather refresh failed; serving stale payload", exc_info=True)
                 return self._payload
+            payload = self._carry_forward_aqi(payload, settings)
             self._payload = payload
             self._fetched_at = time.monotonic()
             return payload
+
+    def _carry_forward_aqi(self, payload: dict, settings: Settings) -> dict:
+        """Preserve the last-good AQI when a refresh produced none.
+
+        A partial (AirNow-only) refresh failure yields aqi=None but succeeds
+        overall, so without this the good prior AQI would be discarded for a
+        full TTL — the intermittent-AQI bug. Carry the prior AQI forward while
+        its observation is within airnow_stale_minutes; past that it drops to
+        null so a dead feed does not linger indefinitely.
+        """
+        if payload.get("aqi") is not None:
+            return payload
+        prior = self._payload
+        if prior is None or prior.get("aqi") is None:
+            return payload
+        if not self._aqi_within_max_age(prior["aqi"], settings):
+            return payload
+        return {**payload, "aqi": prior["aqi"]}
+
+    def _aqi_within_max_age(self, aqi: dict, settings: Settings) -> bool:
+        max_age = settings.airnow_stale_minutes * 60
+        observed = aqi.get("observed_at")
+        if observed:
+            try:
+                ts = datetime.fromisoformat(observed)
+            except ValueError:
+                ts = None
+            # tz-aware observation time is the real bound; a naive one (unknown
+            # AirNow zone) is display-only, so fall through to the fetch-age bound.
+            if ts is not None and ts.tzinfo is not None:
+                age = (datetime.now(timezone.utc) - ts).total_seconds()
+                return age <= max_age
+        # No usable observation time: bound by how long the prior payload (which
+        # carried this AQI) has been cached. _fetched_at still holds its time here.
+        return time.monotonic() - self._fetched_at <= max_age
 
     def _make_client(self, settings: Settings) -> httpx.AsyncClient:
         # NWS asks for an identifying User-Agent; geo+json is its native shape.

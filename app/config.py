@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     # AirNow AQI, folded into the weather payload and riding its cache. The key
     # doubles as the switch: empty means no AirNow requests and `aqi` null.
     airnow_api_key: str = ""
+    # How long a last-good AQI may be carried forward when a refresh produces no
+    # usable AQI (transient AirNow failure, top-of-hour gap). Measured against
+    # the reading's observation time; past this it drops to null. AirNow reports
+    # hourly, so the default tolerates a missed hour plus a top-of-hour gap.
+    airnow_stale_minutes: int = 120
 
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),

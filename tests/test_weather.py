@@ -8,6 +8,7 @@ api.weather.gov.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -97,7 +98,17 @@ def test_parse_airnow_overall_aqi_is_the_worst_pollutant():
         "category": 2,
         "category_name": "Moderate",
         "pollutant": "PM2.5",
+        # DateObserved 2026-07-16, HourObserved 14, LocalTimeZone EST -> UTC-5.
+        "observed_at": "2026-07-16T14:00:00-05:00",
     }
+
+
+def test_parse_airnow_unknown_timezone_yields_naive_observed_at():
+    entries = _load_airnow("current")
+    for entry in entries:
+        entry["LocalTimeZone"] = "ZZZ"  # not in the offset table
+    aqi = parse_airnow(entries)
+    assert aqi["observed_at"] == "2026-07-16T14:00:00"  # naive, display-only
 
 
 def test_parse_airnow_skips_sentinel_values():
@@ -270,3 +281,52 @@ async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch):
     nws.failing.update({FORECAST, OBS_KCHA})
     with pytest.raises(RuntimeError):
         await nws.service().get_current()
+
+
+# --- last-good AQI carry-forward ---
+
+
+def _airnow_at(minutes_ago: int) -> list:
+    """`current` fixture stamped so its observation is ~`minutes_ago` old.
+
+    AirNow reports hourly, so the parsed observed_at floors to the top of the
+    hour — the reading ends up between `minutes_ago` and `minutes_ago`+59 old.
+    Stamped in a known zone (EST) so parse_airnow yields a tz-aware timestamp.
+    """
+    entries = _load_airnow("current")
+    ts = datetime.now(timezone(timedelta(hours=-5))) - timedelta(minutes=minutes_ago)
+    for entry in entries:
+        entry["DateObserved"] = ts.strftime("%Y-%m-%d")
+        entry["HourObserved"] = ts.hour
+        entry["LocalTimeZone"] = "EST"
+    return entries
+
+
+async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _airnow_at(0)  # fresh, well within the max age
+    svc = nws.service()
+    first = await svc.get_current()
+    good_aqi = first["aqi"]
+    assert good_aqi["value"] == 62
+    # Next refresh: TTL expired, AirNow now fails, NWS still succeeds.
+    svc._fetched_at = float("-inf")
+    del nws.routes[AIRNOW_URL]  # unrouted -> 500
+    second = await svc.get_current()
+    assert second["aqi"] == good_aqi  # carried forward verbatim, observed_at intact
+    assert second["current"]["temperature_f"] == 89  # NWS half fresh
+
+
+async def test_stale_aqi_dropped_past_max_age(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _airnow_at(240)  # older than airnow_stale_minutes (120)
+    svc = nws.service()
+    first = await svc.get_current()
+    assert first["aqi"]["value"] == 62  # shaping never age-checks; first fetch shows it
+    svc._fetched_at = float("-inf")
+    del nws.routes[AIRNOW_URL]
+    second = await svc.get_current()
+    assert second["aqi"] is None  # too old to carry forward
+    assert second["current"]["temperature_f"] == 89
