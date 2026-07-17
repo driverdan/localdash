@@ -15,7 +15,7 @@
 
 - [x] 2.1 Validate the workflow YAML locally (e.g. `actionlint` or a YAML parse) before opening
       the PR
-- [ ] 2.2 Open the phase PR and confirm the PR run builds the image without pushing and without
+- [x] 2.2 Open the phase PR and confirm the PR run builds the image without pushing and without
       needing secrets
 - [ ] 2.3 After merge, confirm the main run pushes `driverdan/localdash:latest` and the SHA tag
       to Docker Hub
