@@ -1,0 +1,32 @@
+{
+  "features": [
+    {
+      "id": "https://api.weather.gov/stations/KCHA",
+      "properties": {
+        "stationIdentifier": "KCHA",
+        "name": "Chattanooga, Lovell Field"
+      }
+    },
+    {
+      "id": "https://api.weather.gov/stations/KDNT",
+      "properties": {
+        "stationIdentifier": "KDNT",
+        "name": "Dayton, Mark Anton Airport"
+      }
+    },
+    {
+      "id": "https://api.weather.gov/stations/KCQN",
+      "properties": {
+        "stationIdentifier": "KCQN",
+        "name": "Chatsworth, Cohutta Field"
+      }
+    },
+    {
+      "id": "https://api.weather.gov/stations/KRMG",
+      "properties": {
+        "stationIdentifier": "KRMG",
+        "name": "Rome, R. B. Russell Airport"
+      }
+    }
+  ]
+}

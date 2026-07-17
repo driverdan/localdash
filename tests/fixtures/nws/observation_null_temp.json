@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "station": "https://api.weather.gov/stations/KDNT",
+    "timestamp": "2026-07-16T14:15:00+00:00",
+    "textDescription": "",
+    "icon": null,
+    "temperature": { "unitCode": "wmoUnit:degC", "value": null },
+    "windDirection": { "unitCode": "wmoUnit:degree_(angle)", "value": null },
+    "windSpeed": { "unitCode": "wmoUnit:km_h-1", "value": null },
+    "relativeHumidity": { "unitCode": "wmoUnit:percent", "value": null }
+  }
+}

@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-LocalDash is a local-data dashboard with three features:
+LocalDash is a local-data dashboard with four features (composed into a widget-digest home page
+at `/` by the frontend's `home` feature):
 
 - **Timeseries** (`/map`): stores, serves, and views **time-series geolocation data** — active 911
   incidents for Hamilton County TN, TDOT SmartWay roadway events, EPB outages, and TN American Water
   advisories. The geo stack is deliberately source-agnostic so APRS / weather / other geo feeds can
   be added without schema changes.
-- **News** (`/`, the homepage): an RSS aggregator for Chattanooga outlets that clusters articles
+- **News** (`/news`): an RSS aggregator for Chattanooga outlets that clusters articles
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
   source — it is a sibling feature beside the timeseries pipeline, not a collector.
 - **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (The
@@ -18,6 +19,10 @@ LocalDash is a local-data dashboard with three features:
   the `chattevents` PoC). Also a
   sibling feature — events are merged cross-source records, not entity-state-over-time, so they do
   not flow through collectors/ingest.
+- **Weather** (the homepage strip): current conditions + today's forecast proxied from the
+  National Weather Service API. The smallest feature by design — no DB tables, no scheduler job,
+  just an in-process TTL cache; also a sibling feature, not a collector (weather-on-the-map as a
+  geo feed remains a separate future idea).
 
 ## Tech stack & why
 
@@ -397,7 +402,8 @@ state over time, so they do **not** flow through collectors/ingest.
   tags, and `geocoding.py` (`NominatimGeocoder`, rate-limited) resolves addresses to points;
   `retry_failed_geocodes()` reruns stale geocode misses under the same lock.
 - Distance is done in PostGIS: the API casts `Event.location` to `geography` and filters/measures in
-  meters from a Chattanooga origin (`CHATTANOOGA_CENTER`).
+  meters from the shared center origin (`center_lat`/`center_lon` in `config.py`, Chattanooga by
+  default — also used by the CitySpark/Meetup source defaults and the weather feature).
 - Tables: `events` → `event_tags` / `event_links` (`app/events/models.py`).
 
 **Events source gotchas (don't regress):** CitySpark's `DateStart`/`DateEnd` carry a `Z` suffix on
@@ -408,6 +414,27 @@ its detail pages carry wrong UTC offsets. CitySpark tag ids are rolled up to one
 root (`Performing Arts > Music > Live Music` → `music`) inside the source's pure parse function;
 ingest never sees the hierarchy. A source erroring must never abort the refresh cycle
 (per-source isolation in `run_sources()`).
+
+### The weather feature (`app/weather/`)
+Pipeline: **discover → fetch → cache → serve**, entirely on demand — no DB tables, no migration,
+no scheduler job. `app/weather/nws.py` holds pure payload-shaping functions (offline-testable
+against `tests/fixtures/nws/`); `app/weather/service.py` fetches and caches; `app/api/weather.py`
+serves `GET /api/v1/weather/current` (registration gated by `weather_enabled`). The location is
+the shared `center_lat`/`center_lon` from `config.py`.
+
+NWS is two-hop: `GET /points/{lat},{lon}` yields the gridpoint forecast URL + station list, which
+are static for a fixed coordinate and resolved once per process (failed discovery is retried, not
+cached). Steady state per cache expiry (`weather_cache_minutes`, default 10) is two calls:
+forecast periods + latest station observation. Concurrent requests coalesce behind an asyncio
+lock; a failed refresh serves the previous payload, a cold failure 502s (the home strip degrades
+to a one-line notice without touching the other widgets).
+
+**NWS gotchas (don't regress):** requests must send an identifying `User-Agent` (the global
+`user_agent` setting); observations are °C / km/h and are converted to °F / mph; stations
+sometimes report a **null temperature** — fall back to the next station, never render an empty
+reading; the leading forecast period is **renamed through the day** ("Today" → "This Afternoon" →
+"Tonight"), so period names are passed through verbatim and never hardcoded; station observations
+can lag 20–60 min, so the response carries `observed_at` and the UI shows an "as of" time.
 
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
@@ -429,6 +456,9 @@ ingest never sees the hierarchy. A source erroring must never abort the refresh 
 - Events routes (JSON, not GeoJSON): `GET /api/v1/events/items` (filters: `topic`, `max_miles` +
   `lat`/`lon` origin, `upcoming` [default true], `search`, `limit`; each item carries
   `distance_miles`), `GET /api/v1/events/tags`, `POST /api/v1/events/refresh`.
+- Weather route: `GET /api/v1/weather/current` (current station observation + the leading NWS
+  forecast periods; served from the in-process cache, 502 only when NWS is unreachable with a
+  cold cache).
 - The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
   `src/features/timeseries/` loads `/api/v1/timeseries/entities`, then opens the WebSocket and
   applies diffs into a runes store; `src/features/news/` loads stories/sources into its own runes
@@ -437,7 +467,10 @@ ingest never sees the hierarchy. A source erroring must never abort the refresh 
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911
-token/origin, tile layer, poll intervals, retention, and the news knobs (`news_enabled`,
+token/origin, tile layer, poll intervals, retention, the news knobs (`news_enabled`,
 `news_refresh_minutes`, `news_story_window_days`; the outlet/feed list itself is code in
-`app/news/registry.py`). There is no `.env` by default; the code runs on the defaults in
+`app/news/registry.py`), the weather knobs (`weather_enabled`, `weather_cache_minutes`), and the
+shared center coordinate (`center_lat`/`center_lon`, exposed as the `settings.center` tuple) used
+by the events distance origin, the CitySpark/Meetup source defaults, and the weather location.
+There is no `.env` by default; the code runs on the defaults in
 `config.py`. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.

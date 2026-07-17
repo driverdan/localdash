@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from starlette.types import Scope
 
-from app.api import events, news, root, timeseries
+from app.api import events, news, root, timeseries, weather
+from app.config import get_settings
 from app.db import SessionLocal
 from app.news.registry import sync_registry
 from app.scheduler import build_scheduler
@@ -70,6 +71,8 @@ app = FastAPI(title="LocalDash", version="0.1.0", lifespan=lifespan)
 app.include_router(timeseries.router, prefix="/api/v1/timeseries")
 app.include_router(news.router, prefix="/api/v1/news")
 app.include_router(events.router, prefix="/api/v1/events")
+if get_settings().weather_enabled:
+    app.include_router(weather.router, prefix="/api/v1/weather")
 app.include_router(root.router, prefix="/api/v1")
 
 # Serve the dashboard at / (mounted last so /api wins).

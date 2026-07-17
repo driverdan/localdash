@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.events import CHATTANOOGA_CENTER
+from app.config import get_settings
 from app.events.ingest import (
     _haversine_miles,
     retry_failed_geocodes,
@@ -204,7 +204,7 @@ async def test_unresolvable_address_is_recorded_and_not_retried(events_db_sessio
 
 
 def test_haversine_known_distance_and_zero():
-    assert _haversine_miles(CHATTANOOGA_CENTER, MEMPHIS) == pytest.approx(268, abs=10)
+    assert _haversine_miles(get_settings().center, MEMPHIS) == pytest.approx(268, abs=10)
     assert _haversine_miles(MEMPHIS, MEMPHIS) == 0
 
 

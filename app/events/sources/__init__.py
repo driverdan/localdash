@@ -15,7 +15,7 @@ suite only.
 from __future__ import annotations
 
 from app.config import Settings
-from app.events import CHATTANOOGA_CENTER, MEETUP_RADIUS_MILES
+from app.events import MEETUP_RADIUS_MILES
 from app.events.sources.base import EventSource
 from app.events.sources.carcruisefinder import CarCruiseFinderSource
 from app.events.sources.cityspark import CitySparkSource
@@ -32,8 +32,8 @@ def build_sources(settings: Settings) -> list[EventSource]:
             CitySparkSource(
                 slug=settings.events_cityspark_slug,
                 ppid=settings.events_cityspark_ppid,
-                lat=CHATTANOOGA_CENTER[0],
-                lon=CHATTANOOGA_CENTER[1],
+                lat=settings.center_lat,
+                lon=settings.center_lon,
                 radius_miles=settings.events_cityspark_radius_miles,
                 lookahead_days=settings.events_cityspark_lookahead_days,
             )
@@ -46,8 +46,8 @@ def build_sources(settings: Settings) -> list[EventSource]:
         sources.append(
             MeetupSource(
                 token=settings.events_meetup_token,
-                lat=CHATTANOOGA_CENTER[0],
-                lon=CHATTANOOGA_CENTER[1],
+                lat=settings.center_lat,
+                lon=settings.center_lon,
                 radius_miles=MEETUP_RADIUS_MILES,
                 query=settings.events_meetup_query,
             )

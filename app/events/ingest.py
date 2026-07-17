@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.events import CHATTANOOGA_CENTER
+from app.config import get_settings
 from app.events.dedup import MatchSide, canonical_key, events_match
 from app.events.dedup import haversine_miles as _haversine_miles
 from app.events.geocoding import Coords, Geocoder, NullGeocoder
@@ -191,7 +191,7 @@ async def upsert_raw_events(
 
         if event is None:
             if max_miles > 0 and coords is not None:
-                distance = _haversine_miles(CHATTANOOGA_CENTER, coords)
+                distance = _haversine_miles(get_settings().center, coords)
                 if distance > max_miles:
                     skipped_far += 1
                     log.debug(

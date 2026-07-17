@@ -23,3 +23,14 @@ def test_defaults_present():
 
 def test_get_settings_is_cached():
     assert get_settings() is get_settings()
+
+
+def test_center_defaults_and_tuple_property():
+    s = Settings()
+    assert s.center == (35.0456, -85.3097)  # Chattanooga defaults
+    assert s.center == (s.center_lat, s.center_lon)
+
+
+def test_center_is_env_overridable():
+    s = Settings(center_lat=36.0, center_lon=-86.0)
+    assert s.center == (36.0, -86.0)

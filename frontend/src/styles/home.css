@@ -3,19 +3,20 @@
    component inside that feature's own #news/#events scope, so the cards inherit
    their existing (and already theme-aware) styling with no duplication here. */
 
-/* Fills the shell column below the header; the grid owns its own scroll like
-   #news / #events do. */
-.home-grid {
+/* Fills the shell column below the header and owns the scroll (like #news /
+   #events do): the weather strip and the widget grid scroll as one column.
+   The strip lives beside the grid, not in it — a full-width item spanning an
+   auto-fit grid would pin its empty trailing tracks open (spanned tracks
+   can't collapse), squeezing the widgets and leaving dead space. */
+.home-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
   background: var(--color-page-bg);
-  /* auto-fit so a third/fourth widget later is a pure addition, no restructure. */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 20px;
-  align-items: start;
   /* width + max-width + auto margins: fill the shell column, capped and
      centered. width is needed because cross-axis auto margins suppress the
      flex item's default stretch. */
@@ -25,9 +26,78 @@
   padding: 20px 16px 28px;
 }
 
+.home-grid {
+  /* auto-fit so a third/fourth widget later is a pure addition, no restructure. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
 /* A widget is a pure layout container; its digest cards supply the surfaces. */
 .widget {
   min-width: 0;
+}
+
+/* Full-width weather strip above the widget grid (see .home-scroll above for
+   why it is a sibling of the grid rather than a spanning first child). */
+.weather-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 16px;
+}
+.weather-strip .notice {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.weather-strip .notice.error {
+  color: var(--color-err);
+}
+.weather-strip .current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.weather-strip .current img {
+  border-radius: 6px;
+}
+.weather-strip .temp {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.weather-strip .conditions {
+  display: flex;
+  flex-direction: column;
+}
+.weather-strip .desc {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.weather-strip .meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.weather-strip .period {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.weather-strip .period-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-link);
+}
+.weather-strip .period-detail {
+  font-size: 13px;
+  color: var(--color-text-secondary);
 }
 
 .widget-head {
