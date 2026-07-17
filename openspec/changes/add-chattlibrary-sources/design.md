@@ -87,6 +87,21 @@ per-calendar enable flags like CitySpark (doesn't scale past one calendar); reus
 | `source_url` | `url` | the event page (occurrence-dated for recurring events) |
 | `source_name` | configured calendar name | e.g. "Chattanooga Public Library" |
 
+### D6: Per-source feed-tag suppression (`use_feed_tags`)
+
+Live verification (2026-07-17) showed every library post carries exactly the WordPress category
+tags `News` + `Featured`; classify.py's tier-1 tag map turns `News` into category `news`, so all
+ten stored articles landed under `news` and the registered `life` fallback never fired. The
+library's tags are boilerplate applied to the whole press page, not per-article signal, so the
+fix is a per-source opt-out: registry entries accept `use_feed_tags: False` (default `True`; set
+only on `chattlibrary`), and the fetcher passes an empty tag list to `classify()` for such
+sources — tier 2 (keywords) and tier 3 (feed registration, `life`) proceed unchanged. Kept in
+code (a registry key plus a lookup helper), not the DB, so no migration; the article upsert
+already reclassifies on conflict, so existing rows self-correct on the next refresh. Alternatives
+rejected: accepting `news` (defeats the deliberate `life` registration); a global rule that
+generic `news` tags never override a non-news feed registration (silently changes WDEF/News
+Chronicle behavior this change has no reason to touch).
+
 ### D5: Plain User-Agent, no auth
 
 The endpoint accepts httpx's default UA (verified), matching the CitySpark requirement's

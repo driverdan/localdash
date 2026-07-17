@@ -8,6 +8,11 @@
   choice (site-wide `/feed/` is identical today but unscoped; `/news/feed/` is an empty page
   feed) per the other outlets' annotation style, and update the requirement-level outlet count
   references if any test pins it
+- [ ] 1.2 Add per-source feed-tag suppression (design.md D6): registry entries accept
+  `use_feed_tags: False` (set on `chattlibrary` only — its posts all carry boilerplate
+  `News`/`Featured` tags that would misfile every announcement under `news`), a registry helper
+  exposes the flag by slug, and the fetcher passes an empty tag list to `classify()` for exempt
+  sources so tiers 2/3 categorize instead
 
 ## 2. Tribe events source
 
@@ -37,6 +42,9 @@
 - [ ] 3.3 Add `build_sources()` config tests: default registers the library calendar, override
   replaces it, empty disables, malformed entry skipped with warning (extend the existing
   sources-registry tests)
+- [ ] 3.4 Add tag-suppression tests: an exempt source's mapped `News` tag is ignored (article
+  falls through to the feed registration), a non-exempt source's tags still map, and the
+  registry helper defaults to using tags when the key is absent
 
 ## 4. Verify and document
 
