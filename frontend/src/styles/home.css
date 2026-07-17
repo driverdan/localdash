@@ -1,7 +1,8 @@
 /* Home landing page. Global hooks per the styling contract: a widget grid
-   (.home-grid) of digest widgets (.widget). Each widget reuses a feature's card
-   component inside that feature's own #news/#events scope, so the cards inherit
-   their existing (and already theme-aware) styling with no duplication here. */
+   (.home-grid) of digest widgets (.widget). Where the digest IS the full card
+   (news), the widget reuses the feature's card component inside its own #news
+   scope so styling is inherited with no duplication. Elsewhere home owns a
+   compact rendering styled here (weather strip, events digest). */
 
 /* Fills the shell column below the header and owns the scroll (like #news /
    #events do): the widget grid scrolls as one column. */
@@ -136,18 +137,53 @@
   text-decoration: underline;
 }
 
-/* The widget body carries #news / #events purely to inherit the card styling.
-   Those ids also set page-frame rules (full height, own scroll, page
-   background); neutralize them here since the grid owns the scroll. The
-   `.widget #id` selector outranks the bare `#id` rule it overrides. */
-.widget #news,
-.widget #events {
+/* The news widget body carries #news purely to inherit the card styling. That
+   id also sets page-frame rules (full height, own scroll, page background);
+   neutralize them here since the grid owns the scroll. The `.widget #id`
+   selector outranks the bare `#id` rule it overrides. */
+.widget #news {
   height: auto;
   overflow: visible;
   background: transparent;
 }
 /* Trim the large feed image so full-size cards don't dominate the digest. */
-.widget #news .story-card .image img,
-.widget #events .event-card .image img {
+.widget #news .story-card .image img {
   max-height: 180px;
+}
+
+/* Events digest body: one panel of abbreviated rows (linked title, date/time,
+   distance), matching the weather widget's single-surface pattern beside it. */
+.events-digest {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.events-digest .notice {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.events-digest .notice.error {
+  color: var(--color-err);
+}
+.event-digest h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.event-digest h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+.event-digest h3 a:hover {
+  color: var(--color-link);
+}
+.event-digest .when {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }

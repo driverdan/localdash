@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import { navigate } from "../../../lib/router.svelte";
   import { StoryCard } from "../../news";
-  import { EventCard } from "../../events";
   import WeatherStrip from "./WeatherStrip.svelte";
+  import EventDigest from "./EventDigest.svelte";
   import { loadStories, loadEvents, loadWeather } from "../api";
   import { home } from "../state.svelte";
 
@@ -61,7 +61,10 @@
             >View all →</a
           >
         </div>
-        <div id="events" class="widget-body">
+        <!-- Abbreviated home-owned rows (linked title + date/time + distance),
+           not the events feature's full card; styled by home.css like the
+           weather strip. -->
+        <div class="widget-body events-digest">
           {#if home.eventsError && home.events.length === 0}
             <div class="notice error">Could not load events.</div>
           {:else if !home.eventsLoaded}
@@ -70,7 +73,7 @@
             <div class="notice">No upcoming events.</div>
           {:else}
             {#each home.events as item (item.id)}
-              <EventCard {item} />
+              <EventDigest {item} />
             {/each}
           {/if}
         </div>
