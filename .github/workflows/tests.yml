@@ -111,3 +111,52 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Builds the production image on every run so a broken Dockerfile can't
+  # merge — neither test job above exercises it. Pushes to Docker Hub happen
+  # only on pushes to main (the push trigger is filtered to that branch, so
+  # the event name alone is the branch check), and `needs` keeps any push
+  # behind green tests.
+  docker:
+    runs-on: ubuntu-latest
+    needs: [pytest, frontend]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Conditioned on the event, not just present: PR runs build without
+      # credentials, so fork PRs (which never see secrets) stay green, and a
+      # build-only run has no reason to touch the registry at all.
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # latest tracks the newest green main commit; the sha- tag pins each
+      # published build so a rollback can name an exact image.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: driverdan/localdash
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # mode=max caches every stage, not just the final image's layers —
+          # the frontend (npm ci) and deps (uv sync) stages are the expensive
+          # ones, and they only exist as cache.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
