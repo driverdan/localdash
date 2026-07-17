@@ -80,13 +80,15 @@ is not among the available tabs once stories load, the feed SHALL display the "A
 ### Requirement: Feed controls
 The feed SHALL provide: a time-window selector (24 h / 2 d / 3 d / 7 d, default 3 d) that refetches
 stories with the corresponding `hours` value; and a "multi-source only" toggle filtering client-side to
-stories with more than one outlet. Stories and sources SHALL also auto-reload every 5 minutes without
-user action. The manual "Refresh feeds" control SHALL NOT appear in the feed toolbar; it is provided
-as a debug-panel action (see `frontend-debug`) — the feed registers a refresh action that POSTs
-`/api/v1/news/refresh`, reloads stories and sources on completion, exposes progress/completion status
-text, and reports a disabled state while a refresh is in flight. The time-window selection and
-multi-source-only toggle SHALL persist in `localdash.news` and restore on load, with the initial story
-fetch using the restored `hours` value.
+stories with more than one outlet. Stories and sources SHALL auto-reload when a `news` update ping
+arrives on the shared live-update bus (see `frontend-live`) via a permanent subscription registered
+from the app shell (not tied to the `/news` route mount), and on bus reconnect; the feed SHALL NOT
+run its own polling interval. The manual "Refresh feeds" control SHALL NOT appear in the feed toolbar;
+it is provided as a debug-panel action (see `frontend-debug`) — the feed registers a refresh action
+that POSTs `/api/v1/news/refresh`, reloads stories and sources on completion, exposes
+progress/completion status text, and reports a disabled state while a refresh is in flight. The
+time-window selection and multi-source-only toggle SHALL persist in `localdash.news` and restore on
+load, with the initial story fetch using the restored `hours` value.
 
 #### Scenario: Window change refetches
 - **WHEN** the user changes the window from 3 days to 24 hours
@@ -104,6 +106,11 @@ fetch using the restored `hours` value.
 #### Scenario: Feed controls survive a reload
 - **WHEN** the user sets the window to 24 h, enables "multi-source only", and reloads the page
 - **THEN** the initial fetch uses `hours=24` and the multi-source-only toggle restores as on
+
+#### Scenario: Update ping reloads the feed
+- **WHEN** a `{topic: "news", type: "updated"}` message arrives on the shared bus
+- **THEN** stories and sources refetch with the current `hours` value, on whatever route the user
+  is viewing
 
 ### Requirement: Sources footer with feed health
 The page SHALL show a sources table from `GET /api/v1/news/sources`: one row per feed with the
