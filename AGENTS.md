@@ -15,7 +15,8 @@ at `/` by the frontend's `home` feature):
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
   source — it is a sibling feature beside the timeseries pipeline, not a collector.
 - **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (The
-  Pulse's CitySpark calendar, car cruises, Meetup groups, configurable iCal calendars; ported from
+  Pulse's CitySpark calendar, car cruises, Meetup groups, configurable iCal calendars, The Events
+  Calendar (tribe) WordPress calendars — by default the Chattanooga Public Library's; ported from
   the `chattevents` PoC). Also a
   sibling feature — events are merged cross-source records, not entity-state-over-time, so they do
   not flow through collectors/ingest.
@@ -394,7 +395,9 @@ state over time, so they do **not** flow through collectors/ingest.
 
 - `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `CitySparkSource`
   (The Pulse's calendar via CitySpark's JSON API, `events_cityspark_*` settings), `MeetupSource`,
-  and `ICalSource` (one per configured calendar URL). Each yields normalized event records.
+  `ICalSource` (one per configured calendar URL), and `TribeEventsSource` (The Events Calendar
+  REST API on WordPress sites, one per `events_tribe_calendars` `Name=BaseURL` entry — by default
+  the Chattanooga Public Library). Each yields normalized event records.
 - A source supplies what it knows and the pipeline derives the rest: `RawEvent` may carry
   `latitude`/`longitude` and `tags`; ingest geocodes only events without coordinates and
   keyword-tags only events without supplied tags (supplied tag names are lowercased so they merge

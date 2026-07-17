@@ -127,6 +127,19 @@ SOURCES = [
             {"category": "life", "url": "https://www.chattanoogapulse.com/api/rss/content.rss"},
         ],
     },
+    {
+        "slug": "chattlibrary",
+        "name": "Chattanooga Public Library",
+        "homepage": "https://chattlibrary.org",
+        # WordPress site. The News category feed is scoped to announcements;
+        # the site-wide /feed/ is identical today but unscoped, and /news/feed/
+        # is an empty WP page feed. Announcement/press-release content, so it
+        # registers under "life" like The Pulse.
+        "enabled": True,
+        "feeds": [
+            {"category": "life", "url": "https://chattlibrary.org/category/news/feed/"},
+        ],
+    },
 ]
 
 
