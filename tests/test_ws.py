@@ -27,36 +27,50 @@ class FakeWS:
 async def test_connect_accepts_and_registers():
     mgr = ConnectionManager()
     ws = FakeWS()
-    await mgr.connect(ws, source="hc911")
+    await mgr.connect(ws)
     assert ws.accepted
     assert ws in mgr._clients
 
 
-async def test_broadcast_respects_source_subscription():
+async def test_broadcast_reaches_every_client():
     mgr = ConnectionManager()
-    hc911 = FakeWS()
-    everything = FakeWS()
-    aprs = FakeWS()
-    await mgr.connect(hc911, source="hc911")
-    await mgr.connect(everything, source=None)  # subscribes to all
-    await mgr.connect(aprs, source="aprs")
+    a = FakeWS()
+    b = FakeWS()
+    await mgr.connect(a)
+    await mgr.connect(b)
 
-    msg = {"type": "diff", "source": "hc911", "new": [], "updated": [], "closed": []}
+    msg = {
+        "topic": "timeseries",
+        "type": "diff",
+        "source": "hc911",
+        "new": [],
+        "updated": [],
+        "closed": [],
+    }
     await mgr.broadcast(msg)
 
-    assert hc911.sent == [msg]
-    assert everything.sent == [msg]
-    assert aprs.sent == []  # different source
+    assert a.sent == [msg]
+    assert b.sent == [msg]
+
+
+async def test_ping_broadcasts_topic_envelope():
+    mgr = ConnectionManager()
+    ws = FakeWS()
+    await mgr.connect(ws)
+
+    await mgr.ping("news")
+
+    assert ws.sent == [{"topic": "news", "type": "updated"}]
 
 
 async def test_broadcast_drops_dead_clients():
     mgr = ConnectionManager()
     good = FakeWS()
     dead = FakeWS(fail=True)
-    await mgr.connect(good, source=None)
-    await mgr.connect(dead, source=None)
+    await mgr.connect(good)
+    await mgr.connect(dead)
 
-    await mgr.broadcast({"source": "hc911"})
+    await mgr.broadcast({"topic": "timeseries", "source": "hc911"})
 
     assert good.sent  # delivered
     assert dead not in mgr._clients  # pruned after failure
@@ -66,7 +80,7 @@ async def test_broadcast_drops_dead_clients():
 async def test_disconnect_removes_client():
     mgr = ConnectionManager()
     ws = FakeWS()
-    await mgr.connect(ws, source=None)
+    await mgr.connect(ws)
     await mgr.disconnect(ws)
     assert ws not in mgr._clients
     # idempotent

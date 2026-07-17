@@ -22,6 +22,7 @@ def test_to_message_shape():
     d = Diff(source_key="hc911", new=[{"a": 1}], updated=[{"b": 2}], closed=[9])
     msg = d.to_message()
     assert msg == {
+        "topic": "timeseries",
         "type": "diff",
         "source": "hc911",
         "new": [{"a": 1}],

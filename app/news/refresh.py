@@ -13,6 +13,7 @@ import logging
 from app.db import SessionLocal
 from app.news.clustering import recluster
 from app.news.fetcher import fetch_all
+from app.ws import manager
 
 log = logging.getLogger("localdash.news")
 
@@ -26,4 +27,7 @@ async def refresh() -> dict:
             results = await fetch_all(session)
             cluster_count = await recluster(session)
         log.info("news refresh done: %d clusters", cluster_count)
+        # Reclustering makes precise change detection unreliable, so every
+        # completed cycle pings; a failed cycle raises before reaching this.
+        await manager.ping("news")
         return {"sources": results, "clusters": cluster_count}

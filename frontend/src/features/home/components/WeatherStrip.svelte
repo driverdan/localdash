@@ -25,7 +25,9 @@
 <section class="weather-strip">
   {#if !home.weatherLoaded}
     <div class="notice">Loading weather…</div>
-  {:else if home.weatherError || weather === null || empty}
+    <!-- Error shows only with no payload to render: a failed live refetch
+       keeps the previous conditions on screen instead of blanking them. -->
+  {:else if weather === null || empty}
     <div class="notice error">Could not load weather.</div>
   {:else}
     {#if weather.current}

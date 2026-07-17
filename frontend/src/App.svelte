@@ -1,11 +1,19 @@
 <script lang="ts">
   import { currentPath, navigate } from "./lib/router.svelte";
   import { themes, currentTheme, applyTheme } from "./lib/theme.svelte";
+  import { startLive, liveState } from "./lib/live.svelte";
   import DebugPanel from "./lib/DebugPanel.svelte";
-  import { TimeseriesDashboard, connectionState } from "./features/timeseries";
-  import { HomePage } from "./features/home";
-  import { NewsFeed } from "./features/news";
-  import { EventsPage } from "./features/events";
+  import { TimeseriesDashboard } from "./features/timeseries";
+  import { HomePage, registerHomeLive } from "./features/home";
+  import { NewsFeed, registerNewsLive } from "./features/news";
+  import { EventsPage, registerEventsLive } from "./features/events";
+
+  // The one live-update connection plus each feature's permanent subscriptions
+  // (timeseries subscribes mount-scoped from its dashboard instead).
+  startLive();
+  registerNewsLive();
+  registerEventsLive();
+  registerHomeLive();
 
   // Route table: "/" -> home, "/news" -> news, "/map" -> timeseries,
   // "/events" -> events.
@@ -14,20 +22,16 @@
   const onNews = $derived(currentPath() === "/news");
   const onEvents = $derived(currentPath() === "/events");
 
-  // Timeseries-specific connection indicator; shown only on the map route.
+  // Connection indicator for the shared bus; every route is live now.
   const label = $derived(
-    connectionState() === "live"
+    liveState() === "live"
       ? "live"
-      : connectionState() === "connecting"
+      : liveState() === "connecting"
         ? "connecting…"
         : "disconnected — retrying",
   );
   const klass = $derived(
-    connectionState() === "live"
-      ? "ok"
-      : connectionState() === "connecting"
-        ? ""
-        : "err",
+    liveState() === "live" ? "ok" : liveState() === "connecting" ? "" : "err",
   );
 
   function go(event: MouseEvent, to: string) {
@@ -48,9 +52,7 @@
       >Events</a
     >
   </nav>
-  {#if onMap}
-    <span class="status-bar {klass}">{label}</span>
-  {/if}
+  <span class="status-bar {klass}">{label}</span>
   <label class="theme-switcher">
     Theme
     <select

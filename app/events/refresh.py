@@ -18,6 +18,7 @@ from app.db import SessionLocal
 from app.events.geocoding import NominatimGeocoder
 from app.events.ingest import reconcile_events, retry_failed_geocodes, run_sources
 from app.events.sources import build_sources
+from app.ws import manager
 
 log = logging.getLogger("localdash.events")
 
@@ -57,4 +58,8 @@ async def refresh() -> dict:
             stats["resolved"],
             stats["reconciled"],
         )
+        # Ping only when the cycle changed data clients can see; a cycle that
+        # merely re-fetched unchanged sources stays silent.
+        if any(stats[k] for k in ("created", "merged", "resolved", "reconciled")):
+            await manager.ping("events")
         return stats

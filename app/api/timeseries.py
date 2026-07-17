@@ -1,7 +1,8 @@
-"""Timeseries feature: entities, observation history, sources, live WebSocket.
+"""Timeseries feature: entities, observation history, sources.
 
 Mounted at /api/v1/timeseries (see app/main.py). All geo responses are GeoJSON
-FeatureCollections.
+FeatureCollections. Live diffs are broadcast on the global /api/v1/ws bus
+(app/api/root.py), not a feature-scoped socket.
 """
 
 from __future__ import annotations
@@ -16,8 +17,6 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
-    WebSocket,
-    WebSocketDisconnect,
 )
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.geojson import feature_collection, feature_geom
 from app.models import Entity, Observation, Source
-from app.ws import manager
 
 router = APIRouter()
 
@@ -263,16 +261,3 @@ async def refresh(key: str, request: Request):
     from app.scheduler import run_collector
 
     return await run_collector(collector)
-
-
-@router.websocket("/ws")
-async def ws_live(ws: WebSocket, source: str | None = Query(None)):
-    await manager.connect(ws, source)
-    try:
-        while True:
-            # We don't expect client messages; this keeps the socket open.
-            await ws.receive_text()
-    except WebSocketDisconnect:
-        await manager.disconnect(ws)
-    except Exception:  # noqa: BLE001
-        await manager.disconnect(ws)
