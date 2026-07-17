@@ -136,7 +136,12 @@ conditions first, then the forecast periods stacked vertically as rows. It SHALL
 `GET /api/v1/weather/current` into home-owned state, in parallel with the other widgets' fetches,
 and render current conditions (temperature, description, icon, and an "as of" time from the
 observation timestamp, so a lagging station reading is not presented as live) plus the returned
-forecast periods labeled with their NWS-assigned period names — never a hardcoded "Today". A
+forecast periods labeled with their NWS-assigned period names — never a hardcoded "Today". When
+the payload carries a non-null `aqi`, the widget SHALL render it in the current-conditions area
+as a compact chip showing the AQI value and category name, colored with the standard EPA AQI
+category color for the payload's category number (1 green through 6 maroon) with legible text
+contrast; when `aqi` is `null` the widget SHALL render nothing AQI-related. The AQI chip SHALL
+render whenever `aqi` is present, including when `current` is `null`. A
 failed load SHALL show a one-line notice inside the widget body and SHALL NOT affect the news or
 events widgets; a partial response (missing `current` or empty `periods`) SHALL render whichever
 half is present.
@@ -158,6 +163,20 @@ half is present.
 #### Scenario: Observation age is visible
 - **WHEN** the endpoint returns current conditions observed 45 minutes ago
 - **THEN** the widget shows the observation's "as of" time alongside the conditions
+
+#### Scenario: AQI chip renders with its category color
+- **WHEN** the endpoint returns `aqi` with value 62, category 2, and name "Moderate"
+- **THEN** the widget shows a chip reading "AQI 62 · Moderate" colored with the EPA Moderate
+  (yellow) category color
+
+#### Scenario: No AQI, no chip
+- **WHEN** the endpoint returns `aqi: null`
+- **THEN** the widget renders current conditions and periods with no AQI chip and no empty
+  placeholder
+
+#### Scenario: AQI outlives a missing observation
+- **WHEN** the endpoint returns `current: null` with a non-null `aqi`
+- **THEN** the widget renders the AQI chip alongside the forecast periods
 
 #### Scenario: Weather failure does not break the other widgets
 - **WHEN** the weather request fails but the news and events requests succeed
