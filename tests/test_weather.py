@@ -124,7 +124,9 @@ async def test_discovery_happens_once_per_process():
     nws = FakeNWS()
     svc = nws.service()
     await svc.get_current()
-    svc._fetched_at = 0.0  # expire the TTL
+    # Expire the TTL. -inf, not 0: time.monotonic() is seconds since boot on
+    # Linux, so on a freshly booted machine (CI) 0 can still be within the TTL.
+    svc._fetched_at = float("-inf")
     await svc.get_current()
     assert nws.calls.count(POINTS) == 1
     assert nws.calls.count(STATIONS) == 1
@@ -147,7 +149,9 @@ async def test_stale_payload_served_on_refresh_failure():
     nws = FakeNWS()
     svc = nws.service()
     fresh = await svc.get_current()
-    svc._fetched_at = 0.0  # expire the TTL
+    # Expire the TTL. -inf, not 0: time.monotonic() is seconds since boot on
+    # Linux, so on a freshly booted machine (CI) 0 can still be within the TTL.
+    svc._fetched_at = float("-inf")
     nws.failing.update({FORECAST, OBS_KCHA, OBS_KDNT})
     nws.routes[OBS_KDNT] = {}  # ensure fallback also fails
     assert await svc.get_current() is fresh
