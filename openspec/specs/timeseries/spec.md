@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Time-series geolocation data over collected sources: the entities collection (current state), per-entity observation tracks, windowed observation queries, the source registry/telemetry, manual refresh, and the live-diff WebSocket. All routes live under the feature's namespace `/api/v1/timeseries/` (see the `app-shell` spec for the namespace convention).
+Time-series geolocation data over collected sources: the entities collection (current state), per-entity observation tracks, windowed observation queries, the source registry/telemetry, and manual refresh. All routes live under the feature's namespace `/api/v1/timeseries/` (see the `app-shell` spec for the namespace convention). Live diffs are delivered as `topic: "timeseries"` messages on the global bus (see the `live-updates` spec), not a feature-scoped WebSocket.
 
 ## Requirements
 
@@ -87,17 +87,6 @@ The system SHALL trigger one collection cycle for a source via `POST /api/v1/tim
 #### Scenario: Refreshing an unknown source
 - **WHEN** a client posts a refresh for a key with no registered collector
 - **THEN** the API responds `404`
-
-### Requirement: Live diff WebSocket
-The system SHALL expose a WebSocket at `/api/v1/timeseries/ws` that pushes each poll cycle's diff (`new` / `updated` / `closed` entities) to connected clients, with an optional `source` query parameter restricting the stream to one source.
-
-#### Scenario: Receiving diffs
-- **WHEN** a client is connected to `/api/v1/timeseries/ws` and a poll cycle produces changes
-- **THEN** the client receives the diff so it can update its view incrementally
-
-#### Scenario: Source-filtered stream
-- **WHEN** a client connects with `?source=<key>`
-- **THEN** it receives only diffs originating from that source
 
 ### Requirement: Arbitrary entity and observation geometry
 The system SHALL store and track each entity's and observation's geometry as an arbitrary PostGIS geometry (`geometry(Geometry,4326)`), supporting at least `Point`, `Polygon`, and `MultiPolygon`, so that area-based sources are first-class. The normalized-observation contract SHALL accept either a point (via `lat`/`lon`) or an explicit GeoJSON `geometry`; when both are absent the entity SHALL have `null` geometry. Change detection SHALL record a new observation when an entity's `status` changes OR its geometry changes, where geometry change is determined by a geometry fingerprint whose point form preserves the prior ~0.1 m movement threshold. Existing point sources SHALL record the same observations they did before this change.

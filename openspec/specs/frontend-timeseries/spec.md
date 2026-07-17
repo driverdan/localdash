@@ -223,11 +223,13 @@ clear any track drawing from the map.
 - **THEN** the track polyline and points are removed from the map
 
 ### Requirement: Live updates over WebSocket
-The feature SHALL connect to `/api/v1/timeseries/ws` (unfiltered) and apply each diff incrementally:
+The feature SHALL subscribe to the `timeseries` topic on the shared live-update bus (see `frontend-live`; unfiltered — every source) and apply each diff incrementally:
 `new` and `updated` features upsert into state, `closed` ids either disappear (default) or flip to
-muted closed styling (when show-closed is on); diffs from unselected sources are ignored. A
-connection indicator SHALL show "live" while connected and an error state while disconnected, and
-the client SHALL reconnect automatically 3 seconds after a close. Applying a diff SHALL NOT require
+muted closed styling (when show-closed is on); diffs from unselected sources are ignored. The
+subscription SHALL be mount-scoped: registered when the dashboard mounts and disposed on unmount.
+The connection indicator SHALL reflect the shared bus connection state (the bus owns reconnection;
+the feature SHALL NOT open its own socket), and on a bus reconnect while mounted the feature SHALL
+reload active entities to recover diffs missed while disconnected. Applying a diff SHALL NOT require
 refetching or re-rendering unaffected entities.
 
 #### Scenario: Diff applies incrementally
@@ -240,9 +242,9 @@ refetching or re-rendering unaffected entities.
 - **THEN** the UI state does not change
 
 #### Scenario: Reconnect after disconnect
-- **WHEN** the WebSocket closes unexpectedly
-- **THEN** the indicator shows the disconnected state and a reconnect attempt starts after ~3 seconds,
-  restoring "live" on success
+- **WHEN** the shared connection closes unexpectedly while the dashboard is mounted
+- **THEN** the indicator shows the disconnected state, the bus reconnects automatically, and on
+  reconnect the feature reloads active entities so no missed diffs are lost
 
 ### Requirement: Behavioral parity with the replaced UI
 The Svelte implementation SHALL be a straight port of the vanilla-JS dashboard: no feature of the
