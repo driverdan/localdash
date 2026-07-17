@@ -9,15 +9,10 @@
 
   let loaded = $state(false);
 
+  // Ongoing freshness comes from the shell-registered live subscription (see
+  // live.ts) — no polling timer; mount only does the initial load.
   onMount(() => {
     Promise.all([loadStories(), loadSources()]).finally(() => (loaded = true));
-    const timer = setInterval(
-      () => {
-        loadStories();
-        loadSources();
-      },
-      5 * 60 * 1000,
-    );
     // Manual refresh lives in the shell debug panel, not the toolbar. Getters keep
     // disabled/status live so the panel reflects an in-flight refresh.
     debug.registerAction({
@@ -32,7 +27,6 @@
       },
     });
     return () => {
-      clearInterval(timer);
       debug.unregisterAction("news-refresh");
     };
   });

@@ -25,6 +25,7 @@ class Diff:
 
     def to_message(self) -> dict[str, Any]:
         return {
+            "topic": "timeseries",
             "type": "diff",
             "source": self.source_key,
             "new": self.new,

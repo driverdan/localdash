@@ -10,7 +10,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // ws: true also upgrades /api/v1/timeseries/ws connections.
+      // ws: true also upgrades /api/v1/ws connections.
       "/api": { target: "http://localhost:8000", ws: true },
     },
   },

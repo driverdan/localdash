@@ -20,9 +20,13 @@ from app.events.refresh import refresh as events_refresh
 from app.ingest import ingest
 from app.models import Source
 from app.news.refresh import refresh as news_refresh
+from app.weather.service import service as weather_service
 from app.ws import manager
 
 log = logging.getLogger("localdash.scheduler")
+
+# Last payload the weather job saw; pings fire only when it changes.
+_last_weather_payload: dict | None = None
 
 
 async def run_news_refresh() -> None:
@@ -39,6 +43,23 @@ async def run_events_refresh() -> None:
         await events_refresh()
     except Exception:  # noqa: BLE001
         log.exception("events refresh failed")
+
+
+async def run_weather_refresh() -> None:
+    """Proactive weather cache refresh; ping clients when conditions changed.
+
+    The cache is otherwise lazy (refreshed on request), so without this job a
+    client waiting for a ping before refetching would never hear anything.
+    """
+    global _last_weather_payload
+    try:
+        payload = await weather_service.get_current()
+    except Exception:  # noqa: BLE001
+        log.exception("weather refresh failed")
+        return
+    if payload != _last_weather_payload:
+        _last_weather_payload = payload
+        await manager.ping("weather")
 
 
 async def run_collector(collector: BaseCollector) -> dict:
@@ -117,6 +138,16 @@ def build_scheduler() -> tuple[AsyncIOScheduler, dict[str, BaseCollector]]:
             "interval",
             minutes=settings.events_refresh_minutes,
             id="events_refresh",
+            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
+            max_instances=1,
+            coalesce=True,
+        )
+    if settings.weather_enabled:
+        scheduler.add_job(
+            run_weather_refresh,
+            "interval",
+            minutes=settings.weather_cache_minutes,
+            id="weather_refresh",
             next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
             max_instances=1,
             coalesce=True,

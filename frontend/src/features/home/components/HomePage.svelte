@@ -35,7 +35,9 @@
       <!-- Reuse the news scope so StoryCard's feature-scoped styling applies
          verbatim; home.css neutralizes the page-frame rules on this wrapper. -->
       <div id="news" class="widget-body">
-        {#if home.storiesError}
+        <!-- Error shows only with nothing to render: a failed live refetch
+           keeps the previous stories on screen instead of blanking them. -->
+        {#if home.storiesError && home.stories.length === 0}
           <div class="notice error">Could not load news.</div>
         {:else if !home.storiesLoaded}
           <div class="notice">Loading…</div>
@@ -57,7 +59,7 @@
         >
       </div>
       <div id="events" class="widget-body">
-        {#if home.eventsError}
+        {#if home.eventsError && home.events.length === 0}
           <div class="notice error">Could not load events.</div>
         {:else if !home.eventsLoaded}
           <div class="notice">Loading…</div>

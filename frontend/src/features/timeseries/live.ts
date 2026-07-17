@@ -1,4 +1,5 @@
-import { connectWebSocket } from "../../lib/ws";
+import { onReconnect, subscribe } from "../../lib/live.svelte";
+import { loadActive } from "./api";
 import { ts } from "./state.svelte";
 import type { DiffMessage, EntityId } from "./types";
 
@@ -22,18 +23,22 @@ function closeEntity(id: EntityId): void {
   });
 }
 
-/** Subscribe to the live diff stream; returns a disposer. */
+/** Subscribe to the shared bus's timeseries diffs; returns a disposer.
+ *  Mount-scoped: the dashboard reloads active entities on every mount, so an
+ *  off-route subscription would buy nothing. */
 export function connectLive(): () => void {
-  return connectWebSocket({
-    // No source filter: subscribe to every source and filter client-side by selectedSources.
-    path: "/api/v1/timeseries/ws",
-    onStatus: (state) => (ts.connection = state),
-    onMessage: (raw) => {
-      const msg = raw as DiffMessage;
-      if (msg.type !== "diff" || !ts.selectedSources.has(msg.source)) return; // ignore muted sources
-      for (const f of msg.new) ts.features.set(f.id, f);
-      for (const f of msg.updated) ts.features.set(f.id, f);
-      for (const id of msg.closed) closeEntity(id);
-    },
+  const disposeDiff = subscribe("timeseries", (raw) => {
+    const msg = raw as unknown as DiffMessage;
+    // Every source arrives on the bus; filter client-side by selectedSources.
+    if (msg.type !== "diff" || !ts.selectedSources.has(msg.source)) return;
+    for (const f of msg.new) ts.features.set(f.id, f);
+    for (const f of msg.updated) ts.features.set(f.id, f);
+    for (const id of msg.closed) closeEntity(id);
   });
+  // Diffs broadcast while disconnected are gone; reload the world instead.
+  const disposeReconnect = onReconnect(() => void loadActive());
+  return () => {
+    disposeDiff();
+    disposeReconnect();
+  };
 }

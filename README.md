@@ -164,6 +164,7 @@ FeatureCollections; `bbox` is `minLon,minLat,maxLon,maxLat` and times are ISO-86
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/v1/config` | Frontend bootstrap (map tile layer + attribution) |
+| WS | `/api/v1/ws` | Global live-update bus: `{topic: "timeseries", type: "diff"}` diffs each poll cycle, plus `{topic: "news"\|"events"\|"weather", type: "updated"}` refetch pings |
 
 **Timeseries** — prefix `/api/v1/timeseries`
 
@@ -175,7 +176,6 @@ FeatureCollections; `bbox` is `minLon,minLat,maxLon,maxLat` and times are ISO-86
 | GET | `/entities/{id}/track` | Full observation history, oldest first |
 | GET | `/observations?source=&category=&bbox=&start=&end=&limit=` | Historical observations (GeoJSON) |
 | POST | `/sources/{key}/refresh` | Trigger one collection cycle now |
-| WS | `/ws?source=` | Pushes `{new, updated, closed}` diffs each cycle |
 
 **News** — prefix `/api/v1/news`
 

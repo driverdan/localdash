@@ -36,6 +36,15 @@ class NoCacheStaticFiles(StaticFiles):
     unmatched API paths land here because this mount catches everything.
     """
 
+    async def __call__(self, scope, receive, send):
+        # Websocket upgrades on unmatched paths (e.g. an old bundle retrying the
+        # removed /api/v1/timeseries/ws) land on this catch-all mount, which only
+        # speaks http; close them cleanly instead of tracebacking per attempt.
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close"})
+            return
+        await super().__call__(scope, receive, send)
+
     async def get_response(self, path: str, scope: Scope):
         try:
             response = await super().get_response(path, scope)

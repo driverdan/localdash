@@ -57,8 +57,9 @@ export interface EntityDetail {
   latest_properties: Record<string, unknown>;
 }
 
-/** Diff pushed over /api/v1/timeseries/ws after each poll cycle. */
+/** Diff pushed on the global /api/v1/ws bus after each poll cycle. */
 export interface DiffMessage {
+  topic: "timeseries";
   type: "diff";
   source: string;
   new: TrackedFeature[];

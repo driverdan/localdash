@@ -6,3 +6,4 @@ export { default as NewsFeed } from "./components/NewsFeed.svelte";
 export { default as StoryCard } from "./components/StoryCard.svelte";
 export type { Story } from "./types";
 export { setCategoryLabels } from "./state.svelte";
+export { registerLive as registerNewsLive } from "./live";

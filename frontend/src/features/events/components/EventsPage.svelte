@@ -8,15 +8,10 @@
   let loaded = $state(false);
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Ongoing freshness comes from the shell-registered live subscription (see
+  // live.ts) — no polling timer; mount only does the initial load.
   onMount(() => {
     Promise.all([loadItems(), loadTags()]).finally(() => (loaded = true));
-    const timer = setInterval(
-      () => {
-        loadItems();
-        loadTags();
-      },
-      5 * 60 * 1000,
-    );
     // Manual refresh lives in the shell debug panel, not the toolbar. Getters keep
     // disabled/status live so the panel reflects an in-flight refresh.
     debug.registerAction({
@@ -31,7 +26,6 @@
       },
     });
     return () => {
-      clearInterval(timer);
       clearTimeout(searchTimer);
       debug.unregisterAction("events-refresh");
     };

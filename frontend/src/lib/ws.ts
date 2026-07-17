@@ -4,7 +4,7 @@
 export type ConnectionState = "connecting" | "live" | "disconnected";
 
 export interface WsOptions {
-  path: string; // e.g. /api/v1/timeseries/ws (same-origin; ws/wss follows the page protocol)
+  path: string; // e.g. /api/v1/ws (same-origin; ws/wss follows the page protocol)
   onMessage: (data: unknown) => void;
   onStatus?: (state: ConnectionState) => void;
   retryMs?: number;

@@ -330,8 +330,10 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
    - **closure sweep**: entities that were active but are absent from this payload are flipped
      `is_active=false` with a final `Closed` observation.
    - returns a `Diff` (`new`/`updated`/`closed`).
-4. The scheduler broadcasts that `Diff` over the **`/api/v1/timeseries/ws` WebSocket** (`ws.py`); the
-   frontend applies it incrementally.
+4. The scheduler broadcasts that `Diff` over the **global `/api/v1/ws` WebSocket bus** (`ws.py`,
+   endpoint in `app/api/root.py`) as a `{topic: "timeseries", type: "diff"}` message; the frontend
+   applies it incrementally. The same bus carries payload-free `{topic, type: "updated"}` pings for
+   news/events/weather, which the frontend answers by refetching over REST.
 
 ### Non-obvious decisions
 - **`observed_at` is the poll time, not the source's timestamp.** The feed uses a `1900-01-01` sentinel
@@ -460,10 +462,11 @@ can lag 20–60 min, so the response carries `observed_at` and the UI shows an "
   forecast periods; served from the in-process cache, 502 only when NWS is unreachable with a
   cold cache).
 - The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
-  `src/features/timeseries/` loads `/api/v1/timeseries/entities`, then opens the WebSocket and
-  applies diffs into a runes store; `src/features/news/` loads stories/sources into its own runes
-  store (5-minute auto-reload, no WebSocket); `src/features/events/` loads `/api/v1/events/items`
-  into its own store; `src/lib/` holds the feature-agnostic shell code (including the path router).
+  `src/features/timeseries/` loads `/api/v1/timeseries/entities` and applies bus diffs into a runes
+  store; `src/features/news/` and `src/features/events/` load into their own runes stores and
+  refetch when their bus ping arrives (no polling timers); `src/lib/` holds the feature-agnostic
+  shell code, including the path router and the singleton live-update bus (`live.svelte.ts`, one
+  WebSocket to `/api/v1/ws` shared by every feature).
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911

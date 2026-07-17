@@ -5,3 +5,4 @@ export { default as EventsPage } from "./components/EventsPage.svelte";
 // reaching into events internals (see openspec add-home-landing-page).
 export { default as EventCard } from "./components/EventCard.svelte";
 export type { EventItem } from "./types";
+export { registerLive as registerEventsLive } from "./live";

@@ -6,7 +6,6 @@ import {
   loadPrefs,
   persistPrefs,
 } from "../../lib/prefs.svelte";
-import type { ConnectionState } from "../../lib/ws";
 import { SOURCES, catKey, cfgFor, isClosed } from "./sources";
 import type { EntityId, TrackedFeature, TrackPoint } from "./types";
 
@@ -39,7 +38,6 @@ class TimeseriesState {
   showClosed = $state(false);
   closedWindow = $state(60);
 
-  connection = $state<ConnectionState>("connecting");
   /** Entity whose detail panel is open, if any. */
   detailId = $state<EntityId | null>(null);
   /** Track of the open detail entity, drawn on the map by MapView. */
@@ -150,6 +148,3 @@ const persister = persistPrefs(PREFS_KEY, () => ({
   showClosed: ts.showClosed,
   closedWindow: ts.closedWindow,
 }));
-
-/** Read-only view of the live-connection state, for the app shell's status bar. */
-export const connectionState = (): ConnectionState => ts.connection;
