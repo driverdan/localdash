@@ -35,3 +35,22 @@ def test_summary_contributes_to_the_match():
     assert (
         classify("Weekend roundup", "The Mocs clinched the championship.", [], "news") == "sports"
     )
+
+
+def test_tag_exempt_source_flag_is_read_from_the_registry():
+    from app.news.registry import uses_feed_tags
+
+    # The library's News/Featured tags are boilerplate on every post; sources
+    # without the key (and unknown slugs) keep the default tag behavior.
+    assert uses_feed_tags("chattlibrary") is False
+    assert uses_feed_tags("wdef") is True
+    assert uses_feed_tags("no-such-source") is True
+
+
+def test_suppressed_tags_let_the_feed_registration_categorize():
+    # What the fetcher does for a use_feed_tags: False source — the same
+    # library announcement flips from tag-driven "news" to the "life"
+    # registration once its boilerplate tags are withheld.
+    title = "Chattanooga Public Library Hosts Summer Reading Finale"
+    assert classify(title, "", ["News", "Featured"], "life") == "news"
+    assert classify(title, "", [], "life") == "life"

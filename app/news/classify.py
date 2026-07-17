@@ -4,9 +4,11 @@ An article's category is derived from the article itself, not inherited wholesal
 from the feed (outlet section) it arrived in. Resolution is a three-tier rule,
 first match wins, and always yields one of registry.CATEGORIES:
 
-  1. a mapped feed ``<category>`` tag (the two WordPress outlets, WDEF and the
-     News Chronicle, emit per-item tags; only a curated, high-confidence subset
-     maps into our vocabulary — everything else is ignored);
+  1. a mapped feed ``<category>`` tag (the WordPress outlets emit per-item
+     tags; only a curated, high-confidence subset maps into our vocabulary —
+     everything else is ignored, and a source registered with
+     ``use_feed_tags: False`` skips this tier entirely because its tags are
+     boilerplate — the fetcher passes it an empty tag list);
   2. a keyword match on the title + summary (topic->keywords, modeled on the
      sibling events classifier, app/events/tagging.py);
   3. the feed's registered section category, as the last-resort fallback so an
