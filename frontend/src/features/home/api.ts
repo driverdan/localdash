@@ -38,6 +38,9 @@ export interface WeatherAqi {
   category: number | null;
   category_name: string | null;
   pollutant: string | null;
+  // Observation time of the reading (AirNow reports hourly). May be older than
+  // the rest of the payload when a transient AirNow failure carried it forward.
+  observed_at: string | null;
 }
 
 export interface Weather {

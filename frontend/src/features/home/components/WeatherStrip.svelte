@@ -1,5 +1,6 @@
 <script lang="ts">
   import { home } from "../state.svelte";
+  import type { WeatherAqi } from "../api";
 
   // Station observations can lag 20-60 min; the "as of" time keeps a stale
   // reading from presenting as live. Seconds-free local time.
@@ -31,6 +32,16 @@
   const aqiStyle = (category: number | null): string => {
     const colors = category !== null ? AQI_COLORS[category] : undefined;
     return colors ? `background:${colors.bg};color:${colors.fg}` : "";
+  };
+
+  // Chip tooltip: the primary pollutant plus the reading's observation time.
+  // The "as of" time is how a carried-forward AQI (kept across a transient
+  // AirNow failure) reveals it is older than the rest of the strip.
+  const aqiTitle = (aqi: WeatherAqi): string | null => {
+    const parts: string[] = [];
+    if (aqi.pollutant) parts.push(`Primary pollutant: ${aqi.pollutant}`);
+    if (aqi.observed_at) parts.push(`as of ${fmtAsOf(aqi.observed_at)}`);
+    return parts.length ? parts.join(" · ") : null;
   };
 
   const weather = $derived(home.weather);
@@ -84,9 +95,7 @@
             <span
               class="aqi-chip"
               style={aqiStyle(weather.aqi.category)}
-              title={weather.aqi.pollutant
-                ? `Primary pollutant: ${weather.aqi.pollutant}`
-                : null}
+              title={aqiTitle(weather.aqi)}
             >
               AQI {weather.aqi.value}{weather.aqi.category_name
                 ? ` · ${weather.aqi.category_name}`
