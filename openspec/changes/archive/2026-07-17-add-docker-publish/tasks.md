@@ -17,12 +17,12 @@
       the PR
 - [x] 2.2 Open the phase PR and confirm the PR run builds the image without pushing and without
       needing secrets
-- [ ] 2.3 After merge, confirm the main run pushes `driverdan/localdash:latest` and the SHA tag
+- [x] 2.3 After merge, confirm the main run pushes `driverdan/localdash:latest` and the SHA tag
       to Docker Hub
 
 ## 3. Manual setup (outside the repo)
 
-- [ ] 3.1 Create the `driverdan/localdash` repository on Docker Hub and generate a read/write
+- [x] 3.1 Create the `driverdan/localdash` repository on Docker Hub and generate a read/write
       access token
-- [ ] 3.2 Add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets to the GitHub repository
+- [x] 3.2 Add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets to the GitHub repository
       (needed before the first main push; PR builds work without them)
