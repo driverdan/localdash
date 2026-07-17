@@ -1,4 +1,5 @@
 import { getJSON } from "../../lib/api";
+import type { FeatureCollection } from "../../lib/api";
 import { setCategoryLabels } from "../news";
 import type { Story } from "../news";
 import type { EventItem } from "../events";
@@ -49,6 +50,24 @@ export interface Weather {
   aqi: WeatherAqi | null;
 }
 
+// Per-service rollup of active EPB outages, computed client-side from the
+// timeseries entities endpoint (active-only default). `customers` sums each
+// outage's customer_quantity; missing/non-positive values count as zero.
+export interface OutageCounts {
+  count: number;
+  customers: number;
+}
+
+export interface OutageSummary {
+  energy: OutageCounts;
+  fiber: OutageCounts;
+}
+
+// The one slice of a timeseries entity feature the digest reads.
+interface OutageFeature {
+  properties: { category?: string | null; customer_quantity?: unknown };
+}
+
 interface ItemsResponse {
   items: EventItem[];
 }
@@ -80,6 +99,35 @@ export async function loadWeather(): Promise<void> {
     home.weatherError = true;
   } finally {
     home.weatherLoaded = true;
+  }
+}
+
+/** Load the outages digest: reduce the active EPB entities to per-service
+ *  counts + customers affected. The endpoint is active-only by default, so an
+ *  empty collection is the "no current outages" happy state, not an error. */
+export async function loadOutages(): Promise<void> {
+  try {
+    const data = await getJSON<FeatureCollection<OutageFeature>>(
+      "/api/v1/timeseries/entities?source=epb",
+    );
+    const summary: OutageSummary = {
+      energy: { count: 0, customers: 0 },
+      fiber: { count: 0, customers: 0 },
+    };
+    for (const feature of data.features) {
+      const { category, customer_quantity } = feature.properties;
+      if (category !== "energy" && category !== "fiber") continue;
+      summary[category].count += 1;
+      if (typeof customer_quantity === "number" && customer_quantity > 0) {
+        summary[category].customers += customer_quantity;
+      }
+    }
+    home.outages = summary;
+    home.outagesError = false;
+  } catch {
+    home.outagesError = true;
+  } finally {
+    home.outagesLoaded = true;
   }
 }
 

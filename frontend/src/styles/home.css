@@ -37,8 +37,8 @@
   min-width: 0;
 }
 
-/* One grid item holding the weather widget above the events widget: the
-   auto-fit grid still sees two items, so a third top-level widget later is
+/* One grid item holding the weather, outages, and events widgets stacked: the
+   auto-fit grid still sees two items, so another top-level widget later is
    still a pure addition. */
 .widget-column {
   display: flex;
@@ -161,6 +161,34 @@
 /* Trim the large feed image so full-size cards don't dominate the digest. */
 .widget #news .story-card .image img {
   max-height: 180px;
+}
+
+/* Outages digest body: one panel of per-service summary rows, matching the
+   weather widget's single-surface pattern above it. */
+.outages-digest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.outages-digest .notice {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.outages-digest .notice.error {
+  color: var(--color-err);
+}
+.outage-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.outage-customers {
+  font-size: 13px;
+  color: var(--color-text-muted);
 }
 
 /* Events digest body: one panel of abbreviated rows (linked title, date/time,

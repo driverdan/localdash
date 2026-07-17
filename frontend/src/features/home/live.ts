@@ -1,5 +1,5 @@
 import { onReconnect, subscribe } from "../../lib/live.svelte";
-import { loadEvents, loadStories, loadWeather } from "./api";
+import { loadEvents, loadOutages, loadStories, loadWeather } from "./api";
 
 let registered = false;
 
@@ -12,9 +12,15 @@ export function registerLive(): void {
   subscribe("news", () => void loadStories());
   subscribe("events", () => void loadEvents());
   subscribe("weather", () => void loadWeather());
+  // Timeseries diffs carry their source; only epb ones affect the outages
+  // digest (the diff payload itself is the map's concern — we just refetch).
+  subscribe("timeseries", (msg) => {
+    if (msg.source === "epb") void loadOutages();
+  });
   onReconnect(() => {
     loadStories();
     loadEvents();
     loadWeather();
+    loadOutages();
   });
 }
