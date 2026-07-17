@@ -16,8 +16,7 @@ This change is frontend-only: a new digest widget that reads existing APIs.
 - An at-a-glance outage summary (counts + customers affected per service) beneath the weather
   strip, live-updating with the same latency as the map.
 - Zero backend changes.
-- Hidden when the EPB source is disabled; reassuring "No current outages" when it's enabled
-  and quiet.
+- Always present, with a reassuring "No current outages" state when quiet.
 
 **Non-Goals:**
 - TN American Water advisories (different vocabulary — polygons, advisory text; the widget name
@@ -25,6 +24,9 @@ This change is frontend-only: a new digest widget that reads existing APIs.
 - Status-level detail (crews en route etc.) or per-outage rows; this is a two-line summary.
 - A dedicated summary endpoint — client-side aggregation over the tiny active set is enough.
 - Map deep-linking pre-filtered to EPB (the map has no such URL contract today).
+- Reflecting source admin state: the widget never consults `/timeseries/sources` or other
+  configuration — it is unconditionally rendered, and an empty active set is simply the
+  zero state.
 
 ## Decisions
 
@@ -39,16 +41,15 @@ treated as zero; a service whose sum is zero renders its count without a custome
 *Alternative considered:* a `/timeseries/summary` endpoint. Rejected — new API surface with a
 single consumer, and it would duplicate aggregation the client can do trivially.
 
-### Source enablement via `/timeseries/sources`, fetched once per load
-The widget hides entirely when the `epb` source row from `GET /api/v1/timeseries/sources`
-reports `enabled: false`. The loader fetches entities and sources concurrently; enablement is
-only re-checked by full loads (mount, reconnect), not by diff-triggered refetches — toggling a
-source is an admin action, not a live signal. If the sources fetch fails, the widget falls
-back to rendering from the entities result alone (visibility should not be more fragile than
-the data).
+### Always rendered; no dependence on source configuration
+The widget renders unconditionally — it never consults `/timeseries/sources` or any other
+admin/config state. An empty active set shows the "No current outages" zero state regardless
+of why it is empty. One endpoint, one loader, no visibility logic.
 
-*Alternative considered:* inferring enablement from an empty entities response. Rejected — an
-empty set is exactly the "No current outages" happy state; the two must not be conflated.
+*Alternative considered:* hiding the widget when the `epb` source is disabled (via the
+`enabled` flag on `/timeseries/sources`). Rejected per review — the widget should not depend
+on map/source settings, and the zero state covers the quiet case; the extra fetch and hidden
+state bought complexity, not clarity.
 
 ### Permanent `timeseries` subscription, filtered client-side to `epb`
 `live.ts` subscribes to the `timeseries` topic permanently (like the news/events/weather
@@ -78,9 +79,9 @@ feature's import-isolation rule trivially satisfied.
 - **`customer_quantity` semantics differ between services** (fiber counts may be estimates) →
   the widget presents the number verbatim per service and never sums across services, so a
   skewed fiber estimate cannot distort the power figure.
-- **Sources fetch adds a request to every home load** → it is tiny and concurrent with the
-  entities fetch; acceptable. If it ever matters, enablement could ride the app's existing
-  `/api/config` payload instead — noted as future simplification, not done now.
+- **With the `epb` source disabled the widget shows "No current outages" rather than
+  disappearing** → accepted by design: the widget is unconditional, and a disabled collector
+  is an admin-side state the home digest deliberately does not model.
 - **Widget count in the right column grows** → the column stacks; on narrow viewports the
   documented stack order becomes news, weather, outages, events. Vertical budget is ~2 lines
   plus a heading in the common (quiet) case.

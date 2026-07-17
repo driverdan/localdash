@@ -22,8 +22,8 @@ pure additions").
   digest when a diff's `source` is `epb`; the loader also joins the home reconnect refetch
   list. This makes the home feature the first *permanent* subscriber to the `timeseries`
   topic (previously route-scoped to the map).
-- Visibility: the widget hides entirely when the `epb` source is disabled (learned from
-  `GET /api/v1/timeseries/sources`, which carries `enabled` per source).
+- The widget is always shown — it does not consult source admin state; with no active
+  outages (for any reason) it renders the zero state.
 - Scope: EPB only. TN American Water advisories stay out; the widget name "Outages" leaves
   that door open.
 
@@ -42,8 +42,8 @@ pure additions").
 
 ## Impact
 
-- `frontend/src/features/home/api.ts` — outage digest loader + types (fetches entities and
-  source enablement).
+- `frontend/src/features/home/api.ts` — outage digest loader + types (fetches the epb
+  entities and reduces them to the summary).
 - `frontend/src/features/home/state.svelte.ts` — outage digest state + loaded/error flags.
 - `frontend/src/features/home/components/OutageDigest.svelte` — new widget component.
 - `frontend/src/features/home/components/HomePage.svelte` — mount the widget in the column.

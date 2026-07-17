@@ -12,10 +12,10 @@ affected (e.g. "3 power outages · 1,240 customers"). When no outages are active
 SHALL show a "No current outages" state (not an error). The widget SHALL have a "View all" link
 that navigates client-side to `/map`.
 
-The widget SHALL hide entirely (render nothing, not an empty card) when the `epb` source is
-reported disabled by `GET /api/v1/timeseries/sources`; when source enablement cannot be
-determined, the widget SHALL render based on the entities fetch alone. A failed entities load
-SHALL show an error message inside the widget without affecting other widgets.
+The widget SHALL always render — it SHALL NOT consult source configuration or admin state
+(e.g. `GET /api/v1/timeseries/sources`), and an empty active set renders the zero state
+regardless of why it is empty. A failed entities load SHALL show an error message inside the
+widget without affecting other widgets.
 
 #### Scenario: Active outages summarize per service
 - **WHEN** the entities endpoint returns three active `energy` outages totaling 1,240 customers
@@ -28,12 +28,8 @@ SHALL show an error message inside the widget without affecting other widgets.
 - **THEN** that service's row shows the outage count without a customers fragment
 
 #### Scenario: No outages is a reassuring empty state
-- **WHEN** the entities endpoint returns no active `epb` entities and the `epb` source is enabled
+- **WHEN** the entities endpoint returns no active `epb` entities
 - **THEN** the widget renders with a "No current outages" message, not an error and not hidden
-
-#### Scenario: Widget hides when the source is disabled
-- **WHEN** the sources endpoint reports the `epb` source as disabled
-- **THEN** the outages widget does not render at all
 
 #### Scenario: View-all navigates to the map
 - **WHEN** the user clicks the outages widget's "view all" link
