@@ -5,16 +5,16 @@
 The landing page served at `/`: a widget grid composing at-a-glance digest widgets — latest
 news beside a right column of weather above upcoming events — all with independent, unfiltered
 data fetches, and "view all" links into the full feature pages. A feature namespace under
-`frontend/src/features/home/` that reuses the news and events card components through their
-public surfaces, and is designed so future widgets (timeseries summary) are added as pure
-additions.
+`frontend/src/features/home/` that reuses the news card component through its public surface
+and renders its own compact weather and events digests, designed so future widgets (timeseries
+summary) are added as pure additions.
 ## Requirements
 ### Requirement: Home feature namespace
 The home landing UI SHALL live in `frontend/src/features/home/`, following the established
 feature layout (typed `api.ts` client, a runes store, components, and an `index.ts` public
 surface exporting only the page component). It SHALL be mounted at the root route (`/`).
-Cross-feature imports SHALL resolve only to other features' `index.ts` public surfaces (for the
-shared card components), never to their internals.
+Cross-feature imports SHALL resolve only to other features' `index.ts` public surfaces (the
+news feature's shared card component and the events feature's types), never to their internals.
 
 #### Scenario: Home is an isolated feature
 - **WHEN** imports under `frontend/src/features/home/` are inspected
@@ -62,18 +62,33 @@ widget.
 ### Requirement: Upcoming events digest widget
 The events widget SHALL fetch `GET /api/v1/events/items?limit=5` with no topic, distance, or
 search parameters — ignoring any event filter preferences persisted by the events feature — and
-render up to 5 upcoming events, soonest first, reusing the events feature's `EventCard`
-component. A failed load SHALL show an error message inside the widget; an empty result SHALL
-show an empty-state message.
+render up to 5 upcoming events, soonest first, as abbreviated digest rows owned by the home
+feature (not the events feature's `EventCard`). Each row SHALL show only: the event title linked
+to the event's primary source URL (opening in a new tab; plain text when the event has no
+links), and the full formatted date/time produced by the shared `fmtEventDate(starts_at,
+ends_at)` formatter, followed by the distance in miles when `distance_miles` is non-null. Rows
+SHALL NOT show tags, images, venue/address, descriptions, or a source-link list. A failed load
+SHALL show an error message inside the widget; an empty result SHALL show an empty-state
+message.
 
 #### Scenario: Saved event filters are ignored
 - **WHEN** the user has topic and distance filters saved from the events page and opens `/`
 - **THEN** the widget's request carries no filter parameters and shows the next 5 events
   regardless of those saved filters
 
-#### Scenario: Next five upcoming events render
+#### Scenario: Next five upcoming events render as abbreviated rows
 - **WHEN** the events endpoint returns events
-- **THEN** the widget shows at most 5 event cards ordered by start time ascending
+- **THEN** the widget shows at most 5 digest rows ordered by start time ascending, each showing
+  only a linked title and a formatted date/time with distance — no tags, image, venue,
+  description, or source-link list
+
+#### Scenario: Title links to the primary source
+- **WHEN** a digest row renders for an event whose first link has a source URL
+- **THEN** the title is a link to that URL that opens in a new tab
+
+#### Scenario: Distance is omitted when unknown
+- **WHEN** a digest row renders for an event whose `distance_miles` is null
+- **THEN** the row shows the formatted date/time with no distance fragment
 
 #### Scenario: No upcoming events
 - **WHEN** the events endpoint returns an empty list
