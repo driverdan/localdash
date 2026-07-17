@@ -3,14 +3,16 @@
   import { navigate } from "../../../lib/router.svelte";
   import { StoryCard } from "../../news";
   import WeatherStrip from "./WeatherStrip.svelte";
+  import OutageDigest from "./OutageDigest.svelte";
   import EventDigest from "./EventDigest.svelte";
-  import { loadStories, loadEvents, loadWeather } from "../api";
+  import { loadStories, loadEvents, loadWeather, loadOutages } from "../api";
   import { home } from "../state.svelte";
 
   // Fire all digest fetches on mount; each resolves into its own widget's
   // state independently (a failure in one leaves the others untouched).
   onMount(() => {
     loadWeather();
+    loadOutages();
     loadStories();
     loadEvents();
   });
@@ -49,10 +51,12 @@
       </div>
     </article>
 
-    <!-- Weather and events share one grid item so the auto-fit grid still sees
-       two columns and future top-level widgets stay pure additions. -->
+    <!-- Weather, outages, and events share one grid item so the auto-fit grid
+       still sees two columns and future top-level widgets stay pure additions. -->
     <div class="widget-column">
       <WeatherStrip />
+
+      <OutageDigest />
 
       <article class="widget">
         <div class="widget-head">
