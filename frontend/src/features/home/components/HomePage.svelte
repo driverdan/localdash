@@ -22,8 +22,6 @@
 </script>
 
 <div class="home-scroll">
-  <WeatherStrip />
-
   <section class="home-grid">
     <article class="widget">
       <div class="widget-head">
@@ -51,26 +49,32 @@
       </div>
     </article>
 
-    <article class="widget">
-      <div class="widget-head">
-        <h2>Upcoming events</h2>
-        <a class="view-all" href="/events" onclick={(e) => go(e, "/events")}
-          >View all →</a
-        >
-      </div>
-      <div id="events" class="widget-body">
-        {#if home.eventsError && home.events.length === 0}
-          <div class="notice error">Could not load events.</div>
-        {:else if !home.eventsLoaded}
-          <div class="notice">Loading…</div>
-        {:else if home.events.length === 0}
-          <div class="notice">No upcoming events.</div>
-        {:else}
-          {#each home.events as item (item.id)}
-            <EventCard {item} />
-          {/each}
-        {/if}
-      </div>
-    </article>
+    <!-- Weather and events share one grid item so the auto-fit grid still sees
+       two columns and future top-level widgets stay pure additions. -->
+    <div class="widget-column">
+      <WeatherStrip />
+
+      <article class="widget">
+        <div class="widget-head">
+          <h2>Upcoming events</h2>
+          <a class="view-all" href="/events" onclick={(e) => go(e, "/events")}
+            >View all →</a
+          >
+        </div>
+        <div id="events" class="widget-body">
+          {#if home.eventsError && home.events.length === 0}
+            <div class="notice error">Could not load events.</div>
+          {:else if !home.eventsLoaded}
+            <div class="notice">Loading…</div>
+          {:else if home.events.length === 0}
+            <div class="notice">No upcoming events.</div>
+          {:else}
+            {#each home.events as item (item.id)}
+              <EventCard {item} />
+            {/each}
+          {/if}
+        </div>
+      </article>
+    </div>
   </section>
 </div>

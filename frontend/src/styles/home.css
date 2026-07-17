@@ -4,10 +4,7 @@
    their existing (and already theme-aware) styling with no duplication here. */
 
 /* Fills the shell column below the header and owns the scroll (like #news /
-   #events do): the weather strip and the widget grid scroll as one column.
-   The strip lives beside the grid, not in it — a full-width item spanning an
-   auto-fit grid would pin its empty trailing tracks open (spanned tracks
-   can't collapse), squeezing the widgets and leaving dead space. */
+   #events do): the widget grid scrolls as one column. */
 .home-scroll {
   flex: 1;
   min-height: 0;
@@ -39,63 +36,74 @@
   min-width: 0;
 }
 
-/* Full-width weather strip above the widget grid (see .home-scroll above for
-   why it is a sibling of the grid rather than a spanning first child). */
-.weather-strip {
+/* One grid item holding the weather widget above the events widget: the
+   auto-fit grid still sees two items, so a third top-level widget later is
+   still a pure addition. */
+.widget-column {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 28px;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Weather widget body. The widget itself stays a bare container like the
+   others; this body is weather's single "card", matching the surfaces of the
+   story/event cards beside it. Current conditions first, then forecast
+   periods stacked as rows. */
+.weather-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   background: var(--color-panel-bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 10px 16px;
+  padding: 12px 16px;
 }
-.weather-strip .notice {
+.weather-widget .notice {
   color: var(--color-text-muted);
   font-size: 13px;
 }
-.weather-strip .notice.error {
+.weather-widget .notice.error {
   color: var(--color-err);
 }
-.weather-strip .current {
+.weather-widget .current {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.weather-strip .current img {
+.weather-widget .current img {
   border-radius: 6px;
 }
-.weather-strip .temp {
+.weather-widget .temp {
   font-size: 24px;
   font-weight: 700;
   color: var(--color-text);
 }
-.weather-strip .conditions {
+.weather-widget .conditions {
   display: flex;
   flex-direction: column;
 }
-.weather-strip .desc {
+.weather-widget .desc {
   font-weight: 600;
   color: var(--color-text);
 }
-.weather-strip .meta {
+.weather-widget .meta {
   font-size: 12px;
   color: var(--color-text-muted);
 }
-.weather-strip .period {
+.weather-widget .period {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.weather-strip .period-name {
+.weather-widget .period-name {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-link);
 }
-.weather-strip .period-detail {
+.weather-widget .period-detail {
   font-size: 13px;
   color: var(--color-text-secondary);
 }
