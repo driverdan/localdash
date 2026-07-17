@@ -82,7 +82,8 @@ feed URL) → the source link.
 
 ### Requirement: Meetup source
 The system SHALL provide a Meetup source backed by the Meetup GraphQL API (`keywordSearch`
-filtered to a 50-mile radius around the Chattanooga center), registered only when
+filtered to a 50-mile radius around the configured center, `center_lat`/`center_lon`), registered
+only when
 `events_meetup_token` is set (sent as an OAuth2 bearer token), with `events_meetup_query` as an
 optional keyword filter. Parsing SHALL keep only `Event` results that have an id and a start time,
 coerce start times to UTC, prefix the group name onto the description when present, build the
@@ -161,8 +162,8 @@ The system SHALL ingest The Pulse's CitySpark events calendar via its JSON API,
 `POST https://portal.cityspark.com/api/events/GetEvents/<slug>`, sending a JSON body carrying the
 portal id, an ISO start and end, a radius in miles with an origin latitude/longitude, and a `skip`
 offset. The source SHALL be gated by an enable setting and SHALL expose its portal id/slug, radius,
-and lookahead window as configuration, defaulting to the portal's own 25-mile radius around
-`CHATTANOOGA_CENTER` and a 14-day lookahead. Requests SHALL NOT require or send authentication,
+and lookahead window as configuration, defaulting to the portal's own 25-mile radius around the
+configured center (`center_lat`/`center_lon`) and a 14-day lookahead. Requests SHALL NOT require or send authentication,
 referer, or a spoofed browser User-Agent. Parsing SHALL be a pure function of the API payload so it
 is testable offline with no network.
 
@@ -389,8 +390,8 @@ hotlinked source URLs; the system SHALL NOT download or store image content.
 ### Requirement: Configurable ingest radius filter
 Ingest SHALL drop a new event — storing no event row, tags, or link — when its address geocodes
 to coordinates farther than a configurable radius (`events_ingest_max_miles`, default 100, miles
-from the Chattanooga center at 35.0456, -85.3097) using a haversine distance computed at ingest
-time. A non-positive setting value SHALL disable the filter entirely. Events with no address,
+from the configured center `center_lat`/`center_lon`, default 35.0456, -85.3097) using a
+haversine distance computed at ingest time. A non-positive setting value SHALL disable the filter entirely. Events with no address,
 whose geocoding fails, or whose failure is already cached SHALL be kept and stored with a null
 location — only a successful geocode beyond the radius causes a drop. The filter SHALL apply
 only when an event is first created: existing events are merged normally regardless of
@@ -610,14 +611,15 @@ with count and the distance origin. Each item SHALL include title, description, 
 venue name, address, latitude/longitude (null when unlocated), sorted tag names, all source links,
 and `distance_miles` from the origin (null when unlocated). Filters SHALL be: repeatable `topic`
 (events carrying any requested tag), `max_miles` with optional `lat`/`lon` origin (defaulting to
-the Chattanooga center; when bounded, unlocated events are excluded), `upcoming` (default true —
+the configured center, `center_lat`/`center_lon`; when bounded, unlocated events are excluded),
+`upcoming` (default true —
 only events starting at or after now), case-insensitive `search` on the title, and a result
 `limit` (default 500). Distance filtering SHALL be computed in SQL against the PostGIS geometry.
 
 #### Scenario: Default listing is upcoming events
 - **WHEN** a client requests `GET /api/v1/events/items` with no parameters
 - **THEN** only events starting at or after the current time are returned, ordered by start time,
-  with distances measured from the Chattanooga center
+  with distances measured from the configured center
 
 #### Scenario: Distance filter excludes far and unlocated events
 - **WHEN** a client requests `?max_miles=15`
@@ -631,6 +633,11 @@ only events starting at or after now), case-insensitive `search` on the title, a
 #### Scenario: Title search
 - **WHEN** a client requests `?search=jazz`
 - **THEN** only events whose title contains "jazz" case-insensitively are returned
+
+#### Scenario: Overridden center moves the default origin
+- **WHEN** the app runs with `center_lat`/`center_lon` overridden via environment and a client
+  requests `GET /api/v1/events/items` with no `lat`/`lon`
+- **THEN** `distance_miles` and any `max_miles` filtering are measured from the overridden center
 
 ### Requirement: Tags and refresh API
 The system SHALL serve `GET /api/v1/events/tags` returning all known tag names sorted, and
