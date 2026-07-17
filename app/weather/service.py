@@ -22,11 +22,16 @@ import time
 import httpx
 
 from app.config import Settings, get_settings
+from app.weather.airnow import parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 
 log = logging.getLogger("localdash.weather")
 
 POINTS_URL = "https://api.weather.gov/points/{lat},{lon}"
+AIRNOW_URL = "https://www.airnowapi.org/aq/observation/latLong/current/"
+# AirNow monitor search radius in miles, matching the app's Chattanooga-radius
+# conventions elsewhere (e.g. the CitySpark events default).
+AIRNOW_DISTANCE_MILES = 25
 # Stations tried (nearest first) before giving up on current conditions.
 STATION_LIMIT = 3
 
@@ -74,14 +79,16 @@ class WeatherService:
         async with self._make_client(settings) as client:
             if self._forecast_url is None or not self._station_urls:
                 await self._discover(client, settings)
-            periods, current = await asyncio.gather(
+            periods, current, aqi = await asyncio.gather(
                 self._fetch_periods(client),
                 self._fetch_current(client),
+                self._fetch_aqi(client, settings),
             )
-        # The two halves fail independently; only a fully empty refresh is an error.
+        # The halves fail independently. AQI is additive: only a refresh with
+        # both NWS halves empty is an error, whether or not AirNow succeeded.
         if periods is None and current is None:
             raise RuntimeError("both NWS fetches failed")
-        return {"current": current, "periods": periods or []}
+        return {"current": current, "periods": periods or [], "aqi": aqi}
 
     async def _discover(self, client: httpx.AsyncClient, settings: Settings) -> None:
         response = await client.get(
@@ -103,6 +110,27 @@ class WeatherService:
             return parse_forecast(response.json())
         except Exception:
             log.warning("NWS forecast fetch failed", exc_info=True)
+            return None
+
+    async def _fetch_aqi(self, client: httpx.AsyncClient, settings: Settings) -> dict | None:
+        # The key doubles as the feature switch: empty means no request at all.
+        if not settings.airnow_api_key:
+            return None
+        try:
+            response = await client.get(
+                AIRNOW_URL,
+                params={
+                    "format": "application/json",
+                    "latitude": settings.center_lat,
+                    "longitude": settings.center_lon,
+                    "distance": AIRNOW_DISTANCE_MILES,
+                    "API_KEY": settings.airnow_api_key,
+                },
+            )
+            response.raise_for_status()
+            return parse_airnow(response.json())
+        except Exception:
+            log.warning("AirNow AQI fetch failed", exc_info=True)
             return None
 
     async def _fetch_current(self, client: httpx.AsyncClient) -> dict | None:

@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # fetch-on-demand at the shared center, cached in-process for the TTL below).
     weather_enabled: bool = True
     weather_cache_minutes: int = 10
+    # AirNow AQI, folded into the weather payload and riding its cache. The key
+    # doubles as the switch: empty means no AirNow requests and `aqi` null.
+    airnow_api_key: str = ""
 
     # Frontend map config (served to the browser via /api/config). EPB's outage map
     # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),

@@ -13,14 +13,36 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.config import get_settings
+from app.weather.airnow import parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
-from app.weather.service import STATION_LIMIT, WeatherService
+from app.weather.service import AIRNOW_URL, STATION_LIMIT, WeatherService
 
 FIXTURES = Path(__file__).parent / "fixtures" / "nws"
+AIRNOW_FIXTURES = Path(__file__).parent / "fixtures" / "airnow"
 
 
 def _load(name: str) -> dict:
     return json.loads((FIXTURES / f"{name}.json").read_text())
+
+
+def _load_airnow(name: str) -> list:
+    return json.loads((AIRNOW_FIXTURES / f"{name}.json").read_text())
+
+
+@pytest.fixture(autouse=True)
+def _pin_airnow_key(monkeypatch):
+    """Pin AIRNOW_API_KEY empty so a developer .env key can't leak AirNow
+    fetches into the NWS tests; AQI tests opt in via _set_airnow_key."""
+    monkeypatch.setenv("AIRNOW_API_KEY", "")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+def _set_airnow_key(monkeypatch, key: str = "test-key") -> None:
+    monkeypatch.setenv("AIRNOW_API_KEY", key)
+    get_settings.cache_clear()
 
 
 # --- pure shaping ---
@@ -68,6 +90,28 @@ def test_parse_observation_null_temperature_is_unusable():
     assert parse_observation(_load("observation_null_temp")) is None
 
 
+def test_parse_airnow_overall_aqi_is_the_worst_pollutant():
+    aqi = parse_airnow(_load_airnow("current"))
+    assert aqi == {
+        "value": 62,
+        "category": 2,
+        "category_name": "Moderate",
+        "pollutant": "PM2.5",
+    }
+
+
+def test_parse_airnow_skips_sentinel_values():
+    entries = _load_airnow("current")
+    entries[1]["AQI"] = -999  # AirNow's missing-value sentinel on PM2.5
+    aqi = parse_airnow(entries)
+    assert aqi["pollutant"] == "O3" and aqi["value"] == 41
+
+
+def test_parse_airnow_no_usable_entries_is_none():
+    assert parse_airnow([]) is None
+    assert parse_airnow([{"ParameterName": "O3", "AQI": -999}]) is None
+
+
 # --- fetch/cache layer ---
 
 POINTS = "https://api.weather.gov/points/35.0456,-85.3097"
@@ -78,7 +122,12 @@ OBS_KDNT = "https://api.weather.gov/stations/KDNT/observations/latest"
 
 
 class FakeNWS:
-    """MockTransport handler: fixture per URL, per-URL failure toggles, call log."""
+    """MockTransport handler: fixture per URL, per-URL failure toggles, call log.
+
+    Also stands in for airnowapi.org (same client, same transport). Routes are
+    keyed query-free — AirNow's params vary per request — while the call log
+    keeps full URLs so tests can assert on query contents.
+    """
 
     def __init__(self) -> None:
         self.routes = {
@@ -96,9 +145,9 @@ class FakeNWS:
         return svc
 
     def handle(self, request: httpx.Request) -> httpx.Response:
-        url = str(request.url)
-        self.calls.append(url)
+        self.calls.append(str(request.url))
         assert request.headers["User-Agent"] == "LocalDash/0.1"  # NWS-required UA
+        url = str(request.url.copy_with(query=None))
         if url in self.failing or url not in self.routes:
             return httpx.Response(500)
         return httpx.Response(200, json=self.routes[url])
@@ -179,3 +228,45 @@ async def test_null_temperature_falls_back_to_next_station():
     payload = await nws.service().get_current()
     assert payload["current"]["temperature_f"] == 89
     assert nws.calls.count(OBS_KCHA) == 1 and nws.calls.count(OBS_KDNT) == 1
+
+
+# --- AirNow AQI ---
+
+
+def _airnow_calls(nws: FakeNWS) -> list[str]:
+    return [call for call in nws.calls if call.startswith(AIRNOW_URL)]
+
+
+async def test_refresh_includes_aqi_when_configured(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _load_airnow("current")
+    payload = await nws.service().get_current()
+    assert payload["aqi"]["value"] == 62 and payload["aqi"]["category"] == 2
+    assert payload["current"]["temperature_f"] == 89  # NWS halves untouched
+    assert "API_KEY=test-key" in _airnow_calls(nws)[0]  # key travels as a param
+
+
+async def test_empty_key_makes_no_airnow_request():
+    nws = FakeNWS()
+    payload = await nws.service().get_current()
+    assert payload["aqi"] is None
+    assert _airnow_calls(nws) == []
+
+
+async def test_airnow_failure_leaves_weather_intact(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()  # no AirNow route -> 500, the error-status path
+    payload = await nws.service().get_current()
+    assert payload["aqi"] is None
+    assert payload["current"]["temperature_f"] == 89
+    assert [p["name"] for p in payload["periods"]] == ["Today", "Tonight"]
+
+
+async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _load_airnow("current")
+    nws.failing.update({FORECAST, OBS_KCHA})
+    with pytest.raises(RuntimeError):
+        await nws.service().get_current()
