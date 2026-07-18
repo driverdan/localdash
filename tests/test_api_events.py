@@ -19,11 +19,12 @@ CENTER = (35.0456, -85.3097)  # geocode target = the default origin -> 0 miles
 NASHVILLE = (36.1627, -86.7816)  # ~110 miles away
 
 
-def _raw(title, starts_in_days, address=None, image_url=None):
+def _raw(title, starts_in_days, address=None, image_url=None, ends_in_days=None):
     now = dt.datetime.now(UTC)
     return RawEvent(
         title=title,
         start_time=now + dt.timedelta(days=starts_in_days),
+        end_time=now + dt.timedelta(days=ends_in_days) if ends_in_days is not None else None,
         source_name="test-api",
         source_url="http://test-api/event",
         address=address,
@@ -65,6 +66,23 @@ async def test_default_listing_is_upcoming_in_start_order(events_db_session):
     assert by_title["test-Near Jazz Show"]["links"] == [
         {"source_name": "test-api", "source_url": "http://test-api/event"}
     ]
+
+
+async def test_default_listing_keeps_in_progress_events(events_db_session):
+    # upcoming means "not yet ended": an event that started but whose end time
+    # is still in the future stays listed; an ended event drops out; a started
+    # event without an end time drops out (no end time is invented).
+    await upsert_raw_events(
+        events_db_session,
+        [
+            _raw("test-In Progress Show", starts_in_days=-1, ends_in_days=1),
+            _raw("test-Ended Show", starts_in_days=-2, ends_in_days=-1),
+            _raw("test-Started No End Show", starts_in_days=-1),
+        ],
+        FakeGeocoder({}),
+    )
+    result = await items(search="test-", session=events_db_session)
+    assert {i["title"] for i in result["items"]} == {"test-In Progress Show"}
 
 
 async def test_listing_serializes_image_url(events_db_session):
