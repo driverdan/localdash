@@ -19,7 +19,7 @@
 
 - [x] 4.1 Validate the change: `openspec validate filter-ci-by-changed-paths`.
 - [x] 4.2 Confirm YAML parses (e.g. `actionlint` or a workflow lint) and the `if:` expressions are well-formed.
-- [ ] 4.3 Open a docs-only PR (`openspec/` or `*.md`) and confirm `pytest`, `frontend`, and `docker` all skip and report green under required checks.
-- [ ] 4.4 Open a `frontend/`-only PR and confirm `pytest` skips while `frontend` and `docker` run.
-- [ ] 4.5 Open an `app/`-only PR and confirm `frontend` skips while `pytest` and `docker` run.
-- [ ] 4.6 Confirm a PR editing `.github/workflows/tests.yml` runs all three jobs.
+- [x] 4.3 Open a docs-only PR (`openspec/` or `*.md`) and confirm `pytest`, `frontend`, and `docker` all skip and report green under required checks.
+- [x] 4.4 Open a `frontend/`-only PR and confirm `pytest` skips while `frontend` and `docker` run.
+- [x] 4.5 Open an `app/`-only PR and confirm `frontend` skips while `pytest` and `docker` run.
+- [x] 4.6 Confirm a PR editing `.github/workflows/tests.yml` runs all three jobs.
