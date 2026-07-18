@@ -15,6 +15,7 @@
     featureColor,
     iconFor,
     isClosed,
+    statusLabelForRaw,
   } from "../sources";
   import { iconSvg } from "../../../lib/icons";
   import { debug } from "../../../lib/debug.svelte";
@@ -178,7 +179,7 @@
     const p = f.properties;
     const cfg = cfgFor(p.source);
     return `<strong>${esc(cfg.title(p))}</strong><br>
-      <span class="popup-src">${esc(cfg.short)}</span> &middot; ${esc(p.status || "")} &middot; ${esc(cfg.jurisdiction(p))}<br>
+      <span class="popup-src">${esc(cfg.short)}</span> &middot; ${esc(statusLabelForRaw(p.status))} &middot; ${esc(cfg.jurisdiction(p))}<br>
       ${esc(cfg.location(p))}`;
   }
 
@@ -258,7 +259,7 @@
           fillColor: "#fff",
           fillOpacity: 1,
         })
-          .bindTooltip(`${t.status || ""} @ ${fmt(t.observed_at)}`)
+          .bindTooltip(`${statusLabelForRaw(t.status)} @ ${fmt(t.observed_at)}`)
           .addTo(trackLayer);
       }
     }

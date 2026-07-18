@@ -77,6 +77,8 @@ export interface SourceConfig {
   colors: Record<string, string>;
   /** Per-category marker glyph (Lucide icon name). */
   icons: Record<string, IconName>;
+  /** Raw status code -> human-readable label; codes absent here fall back to catLabel(). */
+  statusLabels?: Record<string, string>;
   /** Color by status/properties (e.g. EPB outage status) instead of category. */
   markerColor?: (p: TrackedProperties) => string;
   /** Scale the glyph per-feature (e.g. EPB by customers affected). */
