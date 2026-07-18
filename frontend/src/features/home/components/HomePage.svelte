@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { navigate } from "../../../lib/router.svelte";
+  import SiteFooter from "../../../lib/SiteFooter.svelte";
   import { StoryCard } from "../../news";
   import WeatherStrip from "./WeatherStrip.svelte";
   import OutageDigest from "./OutageDigest.svelte";
@@ -84,4 +85,6 @@
       </article>
     </div>
   </section>
+
+  <SiteFooter />
 </div>
