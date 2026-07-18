@@ -3,6 +3,7 @@
   import { loadItems, loadTags, refreshSources } from "../api";
   import { events } from "../state.svelte";
   import { debug } from "../../../lib/debug.svelte";
+  import SiteFooter from "../../../lib/SiteFooter.svelte";
   import EventCard from "./EventCard.svelte";
 
   let loaded = $state(false);
@@ -104,4 +105,6 @@
       {/each}
     {/if}
   </main>
+
+  <SiteFooter />
 </div>

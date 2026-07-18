@@ -3,6 +3,7 @@
   import { loadSources, loadStories, refreshFeeds } from "../api";
   import { news } from "../state.svelte";
   import { debug } from "../../../lib/debug.svelte";
+  import SiteFooter from "../../../lib/SiteFooter.svelte";
   import CategoryTabs from "./CategoryTabs.svelte";
   import SourcesFooter from "./SourcesFooter.svelte";
   import StoryCard from "./StoryCard.svelte";
@@ -71,4 +72,6 @@
   </main>
 
   <SourcesFooter />
+
+  <SiteFooter />
 </div>

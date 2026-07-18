@@ -177,6 +177,19 @@ header nav a.active {
   color: var(--color-err-on-primary);
 }
 
+/* Site footer (SiteFooter.svelte): flows as the last child of each content
+   route's scroll region — never fixed, never on the viewport-locked map.
+   Tokens only, so every theme inherits it. */
+.site-footer {
+  flex: none;
+  text-align: center;
+  padding: 20px 16px 12px;
+  font-size: 12px;
+}
+.site-footer a {
+  color: var(--color-text-muted);
+}
+
 /* Shared element defaults. */
 h2 {
   font-size: 13px;
