@@ -624,14 +624,24 @@ venue name, address, latitude/longitude (null when unlocated), sorted tag names,
 and `distance_miles` from the origin (null when unlocated). Filters SHALL be: repeatable `topic`
 (events carrying any requested tag), `max_miles` with optional `lat`/`lon` origin (defaulting to
 the configured center, `center_lat`/`center_lon`; when bounded, unlocated events are excluded),
-`upcoming` (default true —
-only events starting at or after now), case-insensitive `search` on the title, and a result
-`limit` (default 500). Distance filtering SHALL be computed in SQL against the PostGIS geometry.
+`upcoming` (default true — only events that have not ended: end time in the future, or, for
+events without an end time, start time at or after now), case-insensitive `search` on the title,
+and a result `limit` (default 500). Distance filtering SHALL be computed in SQL against the
+PostGIS geometry.
 
 #### Scenario: Default listing is upcoming events
 - **WHEN** a client requests `GET /api/v1/events/items` with no parameters
-- **THEN** only events starting at or after the current time are returned, ordered by start time,
-  with distances measured from the configured center
+- **THEN** only events that have not ended are returned — including events that started in the
+  past whose end time is still in the future — ordered by start time, with distances measured
+  from the configured center
+
+#### Scenario: In-progress event remains listed until it ends
+- **WHEN** an event started an hour ago and its end time is an hour from now
+- **THEN** the default listing includes it, and once its end time passes it is excluded
+
+#### Scenario: Started event without an end time is excluded
+- **WHEN** an event without an end time started in the past
+- **THEN** the default listing excludes it; no end time is assumed or invented
 
 #### Scenario: Distance filter excludes far and unlocated events
 - **WHEN** a client requests `?max_miles=15`
