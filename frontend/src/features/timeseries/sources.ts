@@ -121,6 +121,13 @@ export const SOURCES: Record<string, SourceConfig> = {
     categories: ["energy", "fiber"],
     colors: { energy: "#d97706", fiber: "#0891b2" },
     icons: { energy: "zap", fiber: "cable" },
+    statusLabels: {
+      OUTAGE_REPORTED: "Outage",
+      EN_ROUTE: "En Route",
+      REPAIR_IN_PROGRESS: "Repairing",
+      RESTORED: "Restored",
+      Closed: "Closed",
+    },
     // EPB's map colors a marker by outage status and sizes it by customers affected,
     // so its glyph is tinted by status (not category) and scaled by markerSize.
     markerColor: (p) => EPB_STATUS_COLORS[str(p.status)] || "#666666",
@@ -131,7 +138,7 @@ export const SOURCES: Record<string, SourceConfig> = {
     location: () => "",
     jurisdiction: (p) => cap(str(p.service)),
     detail: (p, d) => [
-      ["Status", catLabel(str(p.status))],
+      ["Status", statusLabel("epb", p.status)],
       ["Service", cap(str(p.service))],
       ["Customers affected", p.customer_quantity],
       ["Active", String(d.is_active)],
@@ -184,6 +191,24 @@ export const catKey = (source: string, cat: string): string =>
   `${source}:${cat}`;
 export const catLabel = (cat: string): string =>
   cap(String(cat || "").replace(/_/g, " "));
+// Humanize a feature's raw `status` for display. A source may map its status
+// codes via `statusLabels` (e.g. EPB's OUTAGE_REPORTED -> "Outage"); anything
+// unmapped falls back to the generic catLabel humanizer.
+export const statusLabel = (source: string, raw: unknown): string =>
+  cfgFor(source).statusLabels?.[str(raw)] ?? catLabel(str(raw));
+// Source-agnostic variant for surfaces that render a pooled/per-feature status
+// without a paired source (map popup, tooltip, table, detail history, filter
+// dropdown): resolve against any source's statusLabels, else catLabel. No two
+// sources define the same raw code today, so the scan is unambiguous.
+export const statusLabelForRaw = (raw: unknown): string => {
+  const code = str(raw);
+  if (!code) return "";
+  for (const cfg of Object.values(SOURCES)) {
+    const label = cfg.statusLabels?.[code];
+    if (label) return label;
+  }
+  return catLabel(code);
+};
 export const colorFor = (sourceKey: string, cat: string): string =>
   cfgFor(sourceKey).colors[cat] || "#6b7280";
 export const iconFor = (sourceKey: string, cat: string): IconName =>

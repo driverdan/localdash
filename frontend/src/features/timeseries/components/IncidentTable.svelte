@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { catLabel, cfgFor, featureColor, isClosed } from "../sources";
+  import {
+    catLabel,
+    cfgFor,
+    featureColor,
+    isClosed,
+    statusLabelForRaw,
+  } from "../sources";
   import { ts } from "../state.svelte";
   import type { TrackedFeature } from "../types";
 
@@ -37,7 +43,7 @@
           </td>
           <td
             >{#if closed}<span class="badge-closed">Closed</span
-              >{:else}{p.status || ""}{/if}</td
+              >{:else}{statusLabelForRaw(p.status)}{/if}</td
           >
           <td>{cfg.title(p)}</td>
           <td>{cfg.location(p)}</td>

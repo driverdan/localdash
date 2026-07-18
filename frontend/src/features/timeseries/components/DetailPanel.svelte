@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fmt } from "../../../lib/format";
   import { fetchEntity, fetchTrack } from "../api";
-  import { cfgFor } from "../sources";
+  import { cfgFor, statusLabelForRaw } from "../sources";
   import { ts } from "../state.svelte";
   import type { DetailRow, EntityDetail, TrackPoint } from "../types";
 
@@ -53,7 +53,9 @@
       <ul class="track">
         {#each [...track].reverse() as t, i (i)}
           <li>
-            <span class="t">{fmt(t.observed_at)}</span> — {t.status || ""}
+            <span class="t">{fmt(t.observed_at)}</span> — {statusLabelForRaw(
+              t.status,
+            )}
           </li>
         {/each}
       </ul>

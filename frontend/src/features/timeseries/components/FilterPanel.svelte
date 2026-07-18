@@ -1,6 +1,13 @@
 <script lang="ts">
   import { loadActive, toggleCategory, toggleSource } from "../api";
-  import { SOURCES, catKey, catLabel, colorFor, iconFor } from "../sources";
+  import {
+    SOURCES,
+    catKey,
+    catLabel,
+    colorFor,
+    iconFor,
+    statusLabelForRaw,
+  } from "../sources";
   import { ts } from "../state.svelte";
   import { Icon } from "../../../lib/icons";
 
@@ -73,7 +80,9 @@
     >Status
     <select bind:value={ts.status}>
       <option value="">All</option>
-      {#each ts.statusOptions as v (v)}<option value={v}>{v}</option>{/each}
+      {#each ts.statusOptions as v (v)}<option value={v}
+          >{statusLabelForRaw(v)}</option
+        >{/each}
     </select>
   </label>
   <label
