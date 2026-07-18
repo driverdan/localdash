@@ -131,11 +131,11 @@ export async function loadOutages(): Promise<void> {
   }
 }
 
-/** Load the upcoming-events digest: next 5 events with no filter params, so
+/** Load the current-events digest: next 10 events with no filter params, so
  *  saved topic/distance preferences from the events page are ignored. */
 export async function loadEvents(): Promise<void> {
   try {
-    const data = await getJSON<ItemsResponse>("/api/v1/events/items?limit=5");
+    const data = await getJSON<ItemsResponse>("/api/v1/events/items?limit=10");
     home.events = data.items;
     home.eventsError = false;
   } catch {
