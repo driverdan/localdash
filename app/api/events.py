@@ -55,7 +55,7 @@ async def items(
     ] = None,
     lat: Annotated[float | None, Query(description="Distance origin latitude")] = None,
     lon: Annotated[float | None, Query(description="Distance origin longitude")] = None,
-    upcoming: Annotated[bool, Query(description="Only events starting from now")] = True,
+    upcoming: Annotated[bool, Query(description="Only events that have not ended")] = True,
     search: Annotated[str | None, Query(description="Case-insensitive title search")] = None,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
     session: AsyncSession = Depends(get_session),
@@ -72,7 +72,9 @@ async def items(
         .limit(limit)
     )
     if upcoming:
-        stmt = stmt.where(Event.starts_at >= datetime.now(timezone.utc))
+        stmt = stmt.where(
+            func.coalesce(Event.ends_at, Event.starts_at) >= datetime.now(timezone.utc)
+        )
     if search:
         stmt = stmt.where(Event.title.ilike(f"%{search}%"))
     if topic:
