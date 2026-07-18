@@ -3,7 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LocalDash</title>
+    <title>__SITE_NAME_PLACEHOLDER__</title>
+    <script>
+      // Pre-paint site name: the backend substitutes __SITE_NAME_PLACEHOLDER__
+      // (here and in <title>) with the configured SITE_NAME when it serves this
+      // file, so the header reads it synchronously before the bundle loads — no
+      // flash, no fetch. See app/main.py (_index_html). Kept as a JSON-encoded
+      // string literal so escaping is handled server-side.
+      window.__SITE_NAME__ = "__SITE_NAME_PLACEHOLDER__";
+    </script>
     <script>
       // Pre-paint theme bootstrap: apply the saved theme to the document root
       // before the app bundle loads, so a reload never flashes the default theme.

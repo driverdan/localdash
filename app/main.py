@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import html
+import json
 import logging
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
+from starlette.responses import HTMLResponse, Response
 from starlette.types import Scope
 
 from app.api import events, news, root, timeseries, weather
@@ -20,6 +24,41 @@ from app.scheduler import build_scheduler
 logging.basicConfig(level=logging.INFO)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+# index.html carries this placeholder in two spots — the <title> text and the
+# window.__SITE_NAME__ string literal — which are substituted with the configured
+# site name at serve time (see _index_html). Distinct from the __SITE_NAME__
+# property name so a naive replace can't clobber the global's identifier.
+SITE_NAME_TOKEN = "__SITE_NAME_PLACEHOLDER__"
+
+
+def _js_string(value: str) -> str:
+    """A safe JS string literal for embedding in an inline <script>.
+
+    JSON-encoding handles quotes/backslashes but leaves `<` intact, so a value
+    containing `</script>` (or `<!--`) would terminate the script element in the
+    HTML parser. Escape the HTML-significant characters to `\\uXXXX` so the value
+    stays a valid JS string that can't break out of the tag.
+    """
+    encoded = json.dumps(value)
+    return encoded.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+@lru_cache(maxsize=1)
+def _index_html() -> str:
+    """The built index.html with the runtime site name substituted in.
+
+    The name is fixed for the process lifetime, so this is computed once. It is
+    escaped per context: HTML-escaped inside <title>, and embedded as a safe JS
+    string literal for the window.__SITE_NAME__ global, so a name with <, ", or
+    </script> can't break out of either.
+    """
+    raw = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    name = get_settings().site_name
+    # JS string-literal context first (matches the quoted placeholder incl. quotes).
+    raw = raw.replace(f'"{SITE_NAME_TOKEN}"', _js_string(name))
+    # Whatever token remains is the <title> text node.
+    return raw.replace(SITE_NAME_TOKEN, html.escape(name))
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -47,12 +86,19 @@ class NoCacheStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope: Scope):
         try:
-            response = await super().get_response(path, scope)
+            # The root request resolves to index.html via html=True; serve the
+            # site-name-injected copy instead of the raw file. Starlette normpaths
+            # the empty root path to ".", so match that too.
+            if path in ("", ".", "index.html"):
+                response: Response = HTMLResponse(_index_html())
+            else:
+                response = await super().get_response(path, scope)
         except HTTPException as exc:
             # StaticFiles raises (not returns) its 404s.
             if exc.status_code != 404 or path.startswith("api/") or "." in path.rsplit("/", 1)[-1]:
                 raise
-            response = await super().get_response("index.html", scope)
+            # SPA fallback for a client-side route — same injected index.html.
+            response = HTMLResponse(_index_html())
         response.headers["Cache-Control"] = "no-cache"
         return response
 
@@ -74,7 +120,7 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LocalDash", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=get_settings().site_name, version="0.1.0", lifespan=lifespan)
 # Each feature owns a namespace under /api/v1/<feature>/; app-shell routes
 # (feature-agnostic, e.g. /config) sit directly under /api/v1.
 app.include_router(timeseries.router, prefix="/api/v1/timeseries")
