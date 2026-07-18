@@ -14,6 +14,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # User-facing site name, the single source of truth shown in the header, the
+    # browser tab title, and the FastAPI docs title. Read at process start; change
+    # via the SITE_NAME env var and restart (no frontend rebuild needed).
+    site_name: str = "LocalDash"
+
     # Database — async URL used by the app; Alembic derives the sync form below.
     database_url: str = "postgresql+asyncpg://localdash:localdash@localhost:5432/localdash"
 

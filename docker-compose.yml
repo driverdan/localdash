@@ -26,6 +26,9 @@ services:
     environment:
       # Inside the compose network the database is reached at host "db".
       DATABASE_URL: postgresql+asyncpg://localdash:localdash@db:5432/localdash
+      # User-facing site name (header, browser tab, API docs). Change and restart
+      # — no rebuild needed; interpolated from .env like the keys below.
+      SITE_NAME: ${SITE_NAME:-LocalDash}
       # Interpolated from .env (compose reads it for ${...} substitution even
       # though the file itself is not mounted); empty disables the AQI fetch.
       AIRNOW_API_KEY: ${AIRNOW_API_KEY:-}

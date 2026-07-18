@@ -38,10 +38,14 @@
     event.preventDefault();
     navigate(to);
   }
+
+  // Configured site name, injected into index.html by the backend before the
+  // bundle loads (see app/main.py). Constant for the page's lifetime.
+  const siteName = window.__SITE_NAME__;
 </script>
 
 <header>
-  <h1>Chattanooga LocalDash (beta)</h1>
+  <h1>{siteName}</h1>
   <nav>
     <a href="/" class:active={onHome} onclick={(e) => go(e, "/")}>Home</a>
     <a href="/news" class:active={onNews} onclick={(e) => go(e, "/news")}
