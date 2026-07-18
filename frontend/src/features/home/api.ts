@@ -131,11 +131,14 @@ export async function loadOutages(): Promise<void> {
   }
 }
 
-/** Load the current-events digest: next 10 events with no filter params, so
- *  saved topic/distance preferences from the events page are ignored. */
+/** Load the current-events digest: next 10 events within a fixed 35-mile cap of
+ *  the configured center. Saved topic/search/distance preferences from the
+ *  events page are ignored; the distance cap is a fixed homepage value. */
 export async function loadEvents(): Promise<void> {
   try {
-    const data = await getJSON<ItemsResponse>("/api/v1/events/items?limit=10");
+    const data = await getJSON<ItemsResponse>(
+      "/api/v1/events/items?limit=10&max_miles=35",
+    );
     home.events = data.items;
     home.eventsError = false;
   } catch {
