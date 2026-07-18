@@ -10,9 +10,9 @@ that shows a status to the user: the map marker popup, the map timeline-point to
 table's status cell, the detail panel's observation history, the EPB detail row, and the status
 filter dropdown's option text.
 
-The `epb` source SHALL populate `statusLabels` with `OUTAGE_REPORTED`→"Outage Reported",
-`EN_ROUTE`→"Crew En Route", `REPAIR_IN_PROGRESS`→"Repair in Progress", and both `RESTORED` and
-`Closed`→"Service Restored". Sources without machine-code statuses (`hc911`, `tdot`, `tnaw`) SHALL
+The `epb` source SHALL populate `statusLabels` with `OUTAGE_REPORTED`→"Outage",
+`EN_ROUTE`→"En Route", `REPAIR_IN_PROGRESS`→"Repairing", `RESTORED`→"Restored", and
+`Closed`→"Closed". Sources without machine-code statuses (`hc911`, `tdot`, `tnaw`) SHALL
 declare no `statusLabels` and keep their `catLabel()`-humanized display unchanged.
 
 The humanized label is a display concern only: `properties.status` SHALL continue to carry the raw
@@ -23,11 +23,11 @@ humanized — so selecting a humanized label still filters on the underlying raw
 #### Scenario: EPB status is humanized wherever it is shown
 - **WHEN** an `epb` outage with status `REPAIR_IN_PROGRESS` appears in a popup, the incident table,
   the detail panel history, or the status filter dropdown
-- **THEN** each surface displays "Repair in Progress" rather than the raw `REPAIR_IN_PROGRESS`
+- **THEN** each surface displays "Repairing" rather than the raw `REPAIR_IN_PROGRESS`
 
-#### Scenario: Restored EPB outage collapses two codes to one label
-- **WHEN** an `epb` outage carries status `RESTORED` or the closure sentinel `Closed`
-- **THEN** it is displayed as "Service Restored"
+#### Scenario: Each EPB status code maps to its own label
+- **WHEN** an `epb` outage carries status `RESTORED`, and another carries the closure sentinel `Closed`
+- **THEN** the first is displayed as "Restored" and the second as "Closed"
 
 #### Scenario: Source without a status table falls back to catLabel
 - **WHEN** an `hc911` or `tdot` feature with a status is displayed and its source declares no
@@ -35,6 +35,6 @@ humanized — so selecting a humanized label still filters on the underlying raw
 - **THEN** its status is shown via the existing `catLabel()` humanizer, unchanged from before
 
 #### Scenario: Filtering still matches the raw code behind a humanized option
-- **WHEN** the user selects the "Repair in Progress" option in the status filter dropdown
+- **WHEN** the user selects the "Repairing" option in the status filter dropdown
 - **THEN** the stored filter value is the raw `REPAIR_IN_PROGRESS` and only features whose
   `properties.status` equals `REPAIR_IN_PROGRESS` remain visible

@@ -5,7 +5,7 @@ already (`hc911`, `tdot`, `tnaw`); only `epb` emits machine codes (`OUTAGE_REPOR
 `REPAIR_IN_PROGRESS`, plus `RESTORED`/`Closed`). Those codes are rendered raw in six display sites
 today, and the one site that tries to humanize them (`sources.ts:134`, EPB detail row) uses
 `catLabel()`, which only does `_`→space + capitalize-first — it yields "OUTAGE REPORTED" and cannot
-express "Crew En Route" or fold two codes into "Service Restored".
+express the short labels EPB's map uses (e.g. "En Route", "Repairing").
 
 `sources.ts` is already the designated home for all source-specific display knowledge (per the
 `frontend-timeseries` "Per-source display configuration" requirement), and `catLabel` already lives

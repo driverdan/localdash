@@ -3,9 +3,9 @@
 EPB outage statuses reach the UI as raw upstream codes (`OUTAGE_REPORTED`, `EN_ROUTE`,
 `REPAIR_IN_PROGRESS`) and are shown verbatim in the map popup, timeline tooltip, incident table,
 detail panel, and filter dropdown. Only the EPB detail row attempts to humanize them, via
-`catLabel()`, which mechanically produces "OUTAGE REPORTED" and can never yield the labels EPB's own
-map uses ("Crew En Route", "Service Restored"). The status label is the one piece of status metadata
-that isn't centralized.
+`catLabel()`, which mechanically produces "OUTAGE REPORTED" and can never yield the short labels we
+want ("En Route", "Repairing"). The status label is the one piece of status metadata that isn't
+centralized.
 
 ## What Changes
 
@@ -13,9 +13,9 @@ that isn't centralized.
   keyed by raw status code, falling back to the existing `catLabel()` humanizer when a code has no
   entry.
 - Populate the EPB table only (the sole source with machine-code statuses today):
-  `OUTAGE_REPORTED`→"Outage Reported", `EN_ROUTE`→"Crew En Route",
-  `REPAIR_IN_PROGRESS`→"Repair in Progress", `RESTORED`/`Closed`→"Service Restored". Other sources
-  (`hc911`, `tdot`, `tnaw`) have no entries and keep their `catLabel()`-humanized display, unchanged.
+  `OUTAGE_REPORTED`→"Outage", `EN_ROUTE`→"En Route", `REPAIR_IN_PROGRESS`→"Repairing",
+  `RESTORED`→"Restored", `Closed`→"Closed". Other sources (`hc911`, `tdot`, `tnaw`) have no entries
+  and keep their `catLabel()`-humanized display, unchanged.
 - Apply the lookup everywhere a feature's status is displayed to the user: the map popup, the map
   timeline-point tooltip, the incident-table status cell, the detail-panel observation history, the
   status filter dropdown's option **text**, and the EPB detail row.

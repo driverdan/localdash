@@ -1,7 +1,7 @@
 ## 1. Lookup layer in sources.ts
 
 - [ ] 1.1 Add optional `statusLabels?: Record<string, string>` to `SourceConfig` in `frontend/src/features/timeseries/types.ts`
-- [ ] 1.2 Populate `statusLabels` on the `epb` config in `sources.ts`: `OUTAGE_REPORTED`→"Outage Reported", `EN_ROUTE`→"Crew En Route", `REPAIR_IN_PROGRESS`→"Repair in Progress", `RESTORED`→"Service Restored", `Closed`→"Service Restored"
+- [ ] 1.2 Populate `statusLabels` on the `epb` config in `sources.ts`: `OUTAGE_REPORTED`→"Outage", `EN_ROUTE`→"En Route", `REPAIR_IN_PROGRESS`→"Repairing", `RESTORED`→"Restored", `Closed`→"Closed"
 - [ ] 1.3 Export `statusLabel(source, raw)` in `sources.ts`: return `cfgFor(source).statusLabels?.[raw] ?? catLabel(str(raw))`
 - [ ] 1.4 Export source-agnostic `statusLabelForRaw(raw)` in `sources.ts`: scan all configured `statusLabels` tables for the raw code, else `catLabel(str(raw))` — for the pooled/per-feature display sites that lack a paired source
 - [ ] 1.5 Switch the EPB detail row (`sources.ts:134`) from `catLabel(str(p.status))` to `statusLabel("epb", p.status)`
@@ -16,6 +16,6 @@
 
 ## 3. Verify
 
-- [ ] 3.1 Confirm the status filter still narrows correctly: selecting "Repair in Progress" filters to features whose raw `status` is `REPAIR_IN_PROGRESS`, and the stale-selection reset still works
+- [ ] 3.1 Confirm the status filter still narrows correctly: selecting "Repairing" filters to features whose raw `status` is `REPAIR_IN_PROGRESS`, and the stale-selection reset still works
 - [ ] 3.2 Confirm `hc911`/`tdot`/`tnaw` statuses render unchanged (via `catLabel` fallback)
 - [ ] 3.3 Run frontend checks (`svelte-check` / lint) and rebuild Docker per AGENTS.md, verify an EPB outage shows humanized status in popup, table, detail panel, and dropdown
