@@ -97,12 +97,26 @@
 }
 
 /* The incident table's rows are clickable; other tables (e.g. the news sources
-   footer) keep the neutral defaults from base.css. */
-#incident-table tbody tr {
+   footer) keep the neutral defaults from base.css. Each entity is its own
+   <tbody> (a header row plus an optional full-width location sub-line); hover and
+   the pointer target the whole tbody so the two lines behave as one unit. */
+#incident-table tbody {
   cursor: pointer;
 }
-#incident-table tbody tr:hover {
+#incident-table tbody:hover {
   background: var(--color-surface-subtle);
+}
+/* Drop the header row's cell borders when a location sub-line follows, so the
+   divider falls between entities (under the location row) rather than splitting
+   an entity's two lines. */
+#incident-table .row-head.has-loc td {
+  border-bottom: none;
+}
+/* Full-width location sub-line: sits tight under the header row as a muted
+   continuation, wrapping across the sidebar width. */
+#incident-table .row-loc td {
+  padding-top: 0;
+  color: var(--color-text-secondary);
 }
 
 .dot {
@@ -194,7 +208,8 @@
   border-color: var(--color-link);
 }
 
-tr.closed-row td {
+/* Closed entities mute across both inner rows (the tbody carries .closed-row). */
+.closed-row td {
   color: var(--color-text-faint);
   font-style: italic;
 }
