@@ -3,7 +3,7 @@
 ## Purpose
 
 The landing page served at `/`: a widget grid composing at-a-glance digest widgets — latest
-news beside a right column of weather above EPB outages above current events — all with
+news beside a right column of weather above EPB outages above today's events — all with
 independent, unfiltered data fetches, and "view all" links into the full feature pages. A
 feature namespace under `frontend/src/features/home/` that reuses the news card component
 through its public surface and renders its own compact weather, outage, and events digests,
@@ -23,7 +23,7 @@ news feature's shared card component and the events feature's types), never to t
 
 ### Requirement: Widget grid landing page
 The home page SHALL render a grid of widget cards: a "Latest news" widget in the left column and,
-in the right column, a weather widget above an "Outages" widget above a "Current events"
+in the right column, a weather widget above an "Outages" widget above a "Today's events"
 widget. The news and events widgets SHALL each have a heading and a "view all" link that
 navigates client-side (no full page load) to `/news` and `/events` respectively; the outages
 widget's "view all" link navigates to `/map` the same way. The grid SHALL use an auto-fitting
@@ -61,21 +61,25 @@ widget.
 - **WHEN** the stories request fails but the events request succeeds
 - **THEN** the news widget shows an error message and the events widget renders its events
 
-### Requirement: Current events digest widget
-The events widget SHALL be titled "Current events" and fetch `GET /api/v1/events/items?limit=10&max_miles=35`
+### Requirement: Today's events digest widget
+The events widget SHALL be titled "Today's events" and fetch `GET /api/v1/events/items?limit=10&max_miles=35`
 — always applying a fixed 35-mile distance cap from the configured center while ignoring any
-topic, search, or persisted distance preferences from the events feature — and render up to 10
-events, soonest first, as abbreviated digest rows owned by the home feature (not the events
-feature's `EventCard`). Each row SHALL show only: the event title linked to the event's primary
-source URL (opening in a new tab; plain text when the event has no links), and the full formatted
-date/time produced by the shared `fmtEventDate(starts_at, ends_at)` formatter, followed by the
-distance in miles when `distance_miles` is non-null. Rows SHALL NOT show tags, images,
-venue/address, descriptions, or a source-link list. A failed load SHALL show an error message
-inside the widget; an empty result SHALL show an empty-state message.
+topic, search, or persisted distance preferences from the events feature. From the fetched results
+(soonest first) the widget SHALL render only events that start on the viewer's current local
+calendar day — using the same local-day boundary the shared `fmtEventDate(starts_at, ends_at)`
+formatter uses to label a start as "Today" — dropping any event that starts on a later day; the
+`limit` of 10 therefore acts as a display cap on the same-day list. Each row SHALL be an
+abbreviated digest row owned by the home feature (not the events feature's `EventCard`) showing
+only: the event title linked to the event's primary source URL (opening in a new tab; plain text
+when the event has no links), and the full formatted date/time produced by `fmtEventDate`,
+followed by the distance in miles when `distance_miles` is non-null. Rows SHALL NOT show tags,
+images, venue/address, descriptions, or a source-link list. A failed load SHALL show an error
+message inside the widget; when no fetched event starts on the current local day the widget SHALL
+show an empty-state message.
 
-#### Scenario: Widget is titled "Current events"
+#### Scenario: Widget is titled "Today's events"
 - **WHEN** the home page renders the events digest widget
-- **THEN** the widget heading reads "Current events"
+- **THEN** the widget heading reads "Today's events"
 
 #### Scenario: Request is capped at 35 miles
 - **WHEN** the home page loads the events digest
@@ -85,14 +89,21 @@ inside the widget; an empty result SHALL show an empty-state message.
 #### Scenario: Saved event filters are ignored
 - **WHEN** the user has topic and distance filters saved from the events page and opens `/`
 - **THEN** the widget's request carries no topic or search parameters and a fixed `max_miles=35`
-  distance cap regardless of the saved distance preference, and shows the next 10 events within
-  that range
+  distance cap regardless of the saved distance preference
 
-#### Scenario: Next ten events render as abbreviated rows
-- **WHEN** the events endpoint returns events
-- **THEN** the widget shows at most 10 digest rows ordered by start time ascending, each showing
-  only a linked title and a formatted date/time with distance — no tags, image, venue,
-  description, or source-link list
+#### Scenario: Only events starting today render
+- **WHEN** the events endpoint returns events that start on several different days
+- **THEN** the widget shows at most 10 digest rows, ordered by start time ascending, and includes
+  only events whose start falls on the viewer's current local calendar day
+
+#### Scenario: Events starting on a later day are excluded
+- **WHEN** every event the endpoint returns starts on a later calendar day than today
+- **THEN** the widget shows the empty-state message rather than any of those later events
+
+#### Scenario: Row shape is abbreviated
+- **WHEN** a digest row renders for a same-day event
+- **THEN** it shows only a linked title and a formatted date/time with distance — no tags, image,
+  venue, description, or source-link list
 
 #### Scenario: Title links to the primary source
 - **WHEN** a digest row renders for an event whose first link has a source URL
@@ -102,8 +113,8 @@ inside the widget; an empty result SHALL show an empty-state message.
 - **WHEN** a digest row renders for an event whose `distance_miles` is null
 - **THEN** the row shows the formatted date/time with no distance fragment
 
-#### Scenario: No events
-- **WHEN** the events endpoint returns an empty list
+#### Scenario: No events today
+- **WHEN** no event returned by the endpoint starts on the current local day
 - **THEN** the widget shows an empty-state message instead of a blank card
 
 ### Requirement: Styles via the global styling contract
@@ -149,7 +160,7 @@ live refetch that fails leaves the previous widget content in place rather than 
 
 ### Requirement: Weather widget
 The home page SHALL render a weather widget at the top of the widget grid's right column, above
-the "Outages" and "Current events" widgets. The weather, outages, and events widgets SHALL be
+the "Outages" and "Today's events" widgets. The weather, outages, and events widgets SHALL be
 wrapped in a single column container that is one grid item, so the grid's auto-fit behavior is
 preserved (future top-level widgets remain pure additions). The weather widget SHALL use the shared widget visual language: a
 widget header reading "Weather" (with no view-all link, as there is no weather page), current
