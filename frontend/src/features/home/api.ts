@@ -1,4 +1,5 @@
 import { getJSON } from "../../lib/api";
+import { isLocalToday } from "../../lib/format";
 import type { FeatureCollection } from "../../lib/api";
 import { setCategoryLabels } from "../news";
 import type { Story } from "../news";
@@ -131,15 +132,18 @@ export async function loadOutages(): Promise<void> {
   }
 }
 
-/** Load the current-events digest: next 10 events within a fixed 35-mile cap of
- *  the configured center. Saved topic/search/distance preferences from the
- *  events page are ignored; the distance cap is a fixed homepage value. */
+/** Load the today's-events digest: of the upcoming events within a fixed 35-mile
+ *  cap of the configured center, keep only those starting on the viewer's current
+ *  local calendar day. The request is unchanged (up to 10, soonest first); since
+ *  the endpoint orders by start ascending, same-day events lead the list, so the
+ *  limit acts as a display cap on the today subset. Saved topic/search/distance
+ *  preferences from the events page are ignored. */
 export async function loadEvents(): Promise<void> {
   try {
     const data = await getJSON<ItemsResponse>(
       "/api/v1/events/items?limit=10&max_miles=35",
     );
-    home.events = data.items;
+    home.events = data.items.filter((item) => isLocalToday(item.starts_at));
     home.eventsError = false;
   } catch {
     home.eventsError = true;
