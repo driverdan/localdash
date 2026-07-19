@@ -61,7 +61,7 @@
 
       <article class="widget">
         <div class="widget-head">
-          <h2>Current events</h2>
+          <h2>Today's events</h2>
           <a class="view-all" href="/events" onclick={(e) => go(e, "/events")}
             >View all →</a
           >
@@ -75,7 +75,7 @@
           {:else if !home.eventsLoaded}
             <div class="notice">Loading…</div>
           {:else if home.events.length === 0}
-            <div class="notice">No current events.</div>
+            <div class="notice">No events today.</div>
           {:else}
             {#each home.events as item (item.id)}
               <EventDigest {item} />

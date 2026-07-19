@@ -19,6 +19,25 @@ export const fmt = (iso: string): string => {
   }
 };
 
+// Whole-day offset between an ISO timestamp and now, measured between local
+// midnights (so 0 = the viewer's current calendar day, 1 = tomorrow, -1 =
+// yesterday) rather than as a 24-hour window. Shared so the "Today" label and
+// the home digest's same-day filter can't drift apart.
+export const localDayDiff = (iso: string): number => {
+  const d = new Date(iso);
+  const now = new Date();
+  const dMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nowMidnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  return Math.round((dMidnight.getTime() - nowMidnight.getTime()) / 86400000);
+};
+
+// True when the timestamp falls on the viewer's current local calendar day.
+export const isLocalToday = (iso: string): boolean => localDayDiff(iso) === 0;
+
 // Full "when" line for an event card: a natural-language start date relative to
 // the viewer's local calendar day, then a seconds-free time (end time appended
 // when present). fmt() above is deliberately left alone — the timeseries feature
@@ -32,19 +51,7 @@ export const fmtEventDate = (
     const now = new Date();
     // Diff in whole days between local midnights, so "Today" tracks the calendar
     // day rather than a 24-hour window.
-    const startMidnight = new Date(
-      start.getFullYear(),
-      start.getMonth(),
-      start.getDate(),
-    );
-    const nowMidnight = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const days = Math.round(
-      (startMidnight.getTime() - nowMidnight.getTime()) / 86400000,
-    );
+    const days = localDayDiff(startsAt);
 
     let datePart: string;
     if (days === 0) {
