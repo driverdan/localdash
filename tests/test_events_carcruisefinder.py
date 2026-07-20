@@ -147,6 +147,7 @@ def test_build_sources_registers_carcruisefinder():
     sources = build_sources(Settings(_env_file=None))
     ccf = [s for s in sources if isinstance(s, CarCruiseFinderSource)]
     assert len(ccf) == 1
-    # Default settings also register the TN iCal feed, the library tribe
-    # calendar, and the CitySpark calendar; no Meetup without token.
-    assert len(sources) == 4
+    # Default settings also register the Chattanooga Zoo scraper, the TN iCal
+    # feed, the library tribe calendar, and the CitySpark calendar; no Meetup
+    # without token.
+    assert len(sources) == 5
