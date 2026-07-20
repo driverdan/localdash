@@ -194,7 +194,7 @@ jobs:
       # published build so a rollback can name an exact image.
       - name: Image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: driverdan/localdash
           tags: |
