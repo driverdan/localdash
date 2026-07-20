@@ -393,16 +393,18 @@ by `POST /api/v1/events/refresh`; both paths share an asyncio lock in `refresh.p
 traffic in a cycle uses one rate-limited geocoder. Events are merged cross-source records, not entity
 state over time, so they do **not** flow through collectors/ingest.
 
-- `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `CitySparkSource`
-  (The Pulse's calendar via CitySpark's JSON API, `events_cityspark_*` settings), `MeetupSource`,
-  `ICalSource` (one per configured calendar URL), and `TribeEventsSource` (The Events Calendar
-  REST API on WordPress sites, one per `events_tribe_calendars` `Name=BaseURL` entry — by default
-  the Chattanooga Public Library). Each yields normalized event records.
+- `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `ChattZooSource`
+  (the Chattanooga Zoo's events page, scraped — the site publishes no machine endpoint at all),
+  `CitySparkSource` (The Pulse's calendar via CitySpark's JSON API, `events_cityspark_*`
+  settings), `MeetupSource`, `ICalSource` (one per configured calendar URL), and
+  `TribeEventsSource` (The Events Calendar REST API on WordPress sites, one per
+  `events_tribe_calendars` `Name=BaseURL` entry — by default the Chattanooga Public Library).
+  Each yields normalized event records.
 - A source supplies what it knows and the pipeline derives the rest: `RawEvent` may carry
   `latitude`/`longitude` and `tags`; ingest geocodes only events without coordinates and
   keyword-tags only events without supplied tags (supplied tag names are lowercased so they merge
   with the keyword vocabulary). CitySpark supplies both, so the largest source adds ~zero Nominatim
-  traffic.
+  traffic; `ChattZooSource` hardcodes its one venue's coordinates for the same reason.
 - `ingest.py` — `run_sources()` fetches + upserts (dedup across sources), `tagging.py` assigns topic
   tags, and `geocoding.py` (`NominatimGeocoder`, rate-limited) resolves addresses to points;
   `retry_failed_geocodes()` reruns stale geocode misses under the same lock.
@@ -415,7 +417,16 @@ state over time, so they do **not** flow through collectors/ingest.
 venue-local times — only `StartUTC`/`EndUTC` are real UTC; using the former shifts events by the
 UTC offset and corrupts `canonical_key` dedup (events without `StartUTC` are skipped, never
 defaulted). The same class of bug is why `CarCruiseFinderSource` parses only the listing page —
-its detail pages carry wrong UTC offsets. CitySpark tag ids are rolled up to one level below their
+its detail pages carry wrong UTC offsets. `ChattZooSource` **must** fetch detail pages (the zoo's
+listing page has no dates on it at all); this does not contradict the CarCruiseFinder rule, because
+the zoo's detail pages carry no UTC offsets to be wrong. The zoo's dates are year-less free text
+(`March 22 | 9:00 AM - 5:00 PM`) on pages that retain stale past occurrences, so each is resolved to
+the nearest of the previous/current/next-year candidates and then dropped if already over — never
+rolled forward, which would turn a leftover March entry into a fictional next-year event
+(the rule is knowingly wrong past ~6 months out, and fails toward dropping, not inventing). One zoo
+page lists several dates, so it fans out into one event each and `source_event_id` must carry the
+occurrence date (`<slug>#<YYYY-MM-DD>`) or the occurrences collapse on the exact source-listing
+dedup tier. CitySpark tag ids are rolled up to one level below their
 root (`Performing Arts > Music > Live Music` → `music`) inside the source's pure parse function;
 ingest never sees the hierarchy. A source erroring must never abort the refresh cycle
 (per-source isolation in `run_sources()`).

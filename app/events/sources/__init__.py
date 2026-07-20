@@ -7,8 +7,9 @@ Production ingests only real, configured sources:
   * Meetup.com via ``events_meetup_token``
   * The Pulse's CitySpark calendar via ``events_cityspark_enabled`` (large
     enough that an operator may reasonably want it off)
-  * CarCruiseFinder's Chattanooga tag listing (always on, like any source whose
-    prerequisites are met — its only prerequisite is the events feature itself)
+  * CarCruiseFinder's Chattanooga tag listing and the Chattanooga Zoo's events
+    page (always on, like any source whose prerequisites are met — their only
+    prerequisite is the events feature itself)
 
 There is intentionally no sample/seed data here — fixtures live in the test
 suite only.
@@ -22,6 +23,7 @@ from app.config import Settings
 from app.events import MEETUP_RADIUS_MILES
 from app.events.sources.base import EventSource
 from app.events.sources.carcruisefinder import CarCruiseFinderSource
+from app.events.sources.chattzoo import ChattZooSource
 from app.events.sources.cityspark import CitySparkSource
 from app.events.sources.ical import ICalSource
 from app.events.sources.meetup import MeetupSource
@@ -32,7 +34,10 @@ log = logging.getLogger("localdash.events")
 
 def build_sources(settings: Settings) -> list[EventSource]:
     """Build the list of real sources to ingest on each run."""
-    sources: list[EventSource] = [CarCruiseFinderSource()]
+    sources: list[EventSource] = [
+        CarCruiseFinderSource(),
+        ChattZooSource(user_agent=settings.user_agent),
+    ]
 
     if settings.events_cityspark_enabled:
         sources.append(

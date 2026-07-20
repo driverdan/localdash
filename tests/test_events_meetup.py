@@ -121,14 +121,14 @@ def test_build_sources_creates_one_ical_source_per_url():
     assert [s.url for s in ical] == ["https://a.example/cal.ics", "https://b.example/cal.ics"]
 
 
-def test_build_sources_leaves_only_carcruisefinder_when_nothing_configured():
-    # The CarCruiseFinder scraper has no config gate; emptying the configurable
-    # sources (and disabling CitySpark) leaves exactly it.
+def test_build_sources_leaves_only_the_scrapers_when_nothing_configured():
+    # The CarCruiseFinder and Chattanooga Zoo scrapers have no config gate;
+    # emptying the configurable sources (and disabling CitySpark) leaves them.
     from app.events.sources.carcruisefinder import CarCruiseFinderSource
+    from app.events.sources.chattzoo import ChattZooSource
 
     sources = build_sources(_settings(events_cityspark_enabled=False))
-    assert len(sources) == 1
-    assert isinstance(sources[0], CarCruiseFinderSource)
+    assert [type(s) for s in sources] == [CarCruiseFinderSource, ChattZooSource]
 
 
 def test_build_sources_default_registers_tennessee_car_feed():
