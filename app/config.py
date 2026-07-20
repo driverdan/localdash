@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     # Topic tags that should never exist: comma-separated names, lowercased to
     # match the stored tag vocabulary. Blocked tags are purged from the tags
     # table at startup and stripped from events during ingest. Empty = no-op.
-    events_blocked_tags: str = ""
+    events_blocked_tags: str = "topics"
 
     # Weather feature (NWS proxy for the homepage strip; no DB, no scheduler —
     # fetch-on-demand at the shared center, cached in-process for the TTL below).
