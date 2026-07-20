@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     # Drop newly ingested events whose address geocodes farther than this many
     # miles from the Chattanooga center; non-positive disables the filter.
     events_ingest_max_miles: float = 100
+    # Topic tags that should never exist: comma-separated names, lowercased to
+    # match the stored tag vocabulary. Blocked tags are purged from the tags
+    # table at startup and stripped from events during ingest. Empty = no-op.
+    events_blocked_tags: str = ""
 
     # Weather feature (NWS proxy for the homepage strip; no DB, no scheduler —
     # fetch-on-demand at the shared center, cached in-process for the TTL below).
@@ -132,6 +136,13 @@ class Settings(BaseSettings):
     tile_attribution: str = "&copy; OpenStreetMap &copy; CARTO"
 
     retention_days: int = 0
+
+    @property
+    def blocked_tags(self) -> set[str]:
+        """Effective tag blocklist: normalized names from `events_blocked_tags`."""
+        return {
+            name.strip().lower() for name in self.events_blocked_tags.split(",") if name.strip()
+        }
 
     @property
     def center(self) -> tuple[float, float]:

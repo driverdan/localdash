@@ -385,6 +385,72 @@ async def test_supplied_tag_names_merge_with_the_keyword_vocabulary(events_db_se
     assert {tag.name for tag in tagged[0].tags} == {"music"}
 
 
+# --- tag blocklist ---
+
+
+def test_blocked_tags_normalizes_names(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "events_blocked_tags", " Politics , , MUSIC ")
+    assert settings.blocked_tags == {"politics", "music"}
+
+
+async def test_blocked_keyword_tag_is_stripped_at_ingest(events_db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "events_blocked_tags", "food")
+    # Title keyword-tags both music and food; food must not attach.
+    await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceA", title="Live music and food trucks", description="")],
+    )
+
+    (event,) = await _events(events_db_session)
+    names = {tag.name for tag in event.tags}
+    assert "music" in names
+    assert "food" not in names
+
+
+async def test_blocked_source_supplied_tag_is_stripped_at_ingest(events_db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "events_blocked_tags", "nightlife")
+    await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceA", title="Rooftop set", tags=["Nightlife", "Music"])],
+    )
+
+    (event,) = await _events(events_db_session)
+    assert {tag.name for tag in event.tags} == {"music"}
+
+
+async def test_purge_deletes_blocked_tags_and_associations(events_db_session, monkeypatch):
+    from app.events.ingest import purge_blocked_tags
+    from app.events.models import Tag
+
+    # A test-only tag name so the purge can never touch real topic rows.
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", tags=["test-blockme"])])
+    (event,) = await _events(events_db_session)
+    assert "test-blockme" in {tag.name for tag in event.tags}
+
+    monkeypatch.setattr(get_settings(), "events_blocked_tags", "test-blockme")
+    deleted = await purge_blocked_tags(events_db_session)
+
+    assert deleted == 1
+    assert await events_db_session.scalar(select(Tag).where(Tag.name == "test-blockme")) is None
+    await events_db_session.refresh(event, ["tags"])
+    assert "test-blockme" not in {tag.name for tag in event.tags}
+
+
+async def test_purge_is_a_noop_when_blocklist_empty(events_db_session, monkeypatch):
+    from app.events.ingest import purge_blocked_tags
+
+    monkeypatch.setattr(get_settings(), "events_blocked_tags", "")
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", tags=["test-keepme"])])
+    (event,) = await _events(events_db_session)
+
+    deleted = await purge_blocked_tags(events_db_session)
+
+    assert deleted == 0
+    await events_db_session.refresh(event, ["tags"])
+    assert "test-keepme" in {tag.name for tag in event.tags}
+
+
 # --- source-supplied images ---
 
 IMG_A = "http://img.test/a.jpg"

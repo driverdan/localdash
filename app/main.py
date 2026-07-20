@@ -18,6 +18,7 @@ from starlette.types import Scope
 from app.api import events, news, root, timeseries, weather
 from app.config import get_settings
 from app.db import SessionLocal
+from app.events.ingest import purge_blocked_tags
 from app.news.registry import sync_registry
 from app.scheduler import build_scheduler
 
@@ -110,6 +111,8 @@ async def lifespan(app: FastAPI):
     # (compose runs `alembic upgrade head` before serving; local dev does too).
     async with SessionLocal() as session:
         await sync_registry(session)
+        # Purge blocklisted event tags before the first refresh re-tags events.
+        await purge_blocked_tags(session)
     scheduler, collectors = build_scheduler()
     app.state.collectors = collectors
     app.state.scheduler = scheduler

@@ -14,7 +14,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -52,6 +52,17 @@ async def _get_or_create_tag(session: AsyncSession, name: str, cache: dict[str, 
         tag = await session.scalar(select(Tag).where(Tag.name == name))
     cache[name] = tag
     return tag
+
+
+async def purge_blocked_tags(session: AsyncSession) -> int:
+    """Delete every blocklisted tag; the event_tags cascade detaches them from
+    all events. No-op when the blocklist is empty. Returns the rows deleted."""
+    blocked = get_settings().blocked_tags
+    if not blocked:
+        return 0
+    result = await session.execute(delete(Tag).where(Tag.name.in_(blocked)))
+    await session.commit()
+    return result.rowcount or 0
 
 
 def _supplied_coords(raw: RawEvent) -> Coords | None:
@@ -166,6 +177,7 @@ async def upsert_raw_events(
     skipped_far = 0
     tag_cache: dict[str, Tag] = {}
     geo_cache: dict[str, Coords | None] = {}
+    blocked_tags = get_settings().blocked_tags
 
     for raw in raws:
         key = canonical_key(raw.title, raw.start_time)
@@ -222,6 +234,8 @@ async def upsert_raw_events(
                 names = set(name.lower() for name in raw.tags)
             else:
                 names = tag_event(raw.title, raw.description or "")
+            # Blocklisted topics are never created or attached (both paths).
+            names -= blocked_tags
             for name in sorted(names):
                 event.tags.append(await _get_or_create_tag(session, name, tag_cache))
         else:
