@@ -18,10 +18,10 @@
 
 - [x] 3.1 Run `npm run check` in `frontend/` and confirm svelte-check passes with no new errors
 - [x] 3.2 Run `npm run format` in `frontend/` so the edited files match Prettier output
-- [ ] 3.3 Rebuild and run the app (`docker compose up --build`), visit `/map`, scroll the sidebar
+- [x] 3.3 Rebuild and run the app (`docker compose up --build`), visit `/map`, scroll the sidebar
       to the bottom, and confirm the "100% Open Source" link appears after the incident table and
       opens the repo in a new tab
-- [ ] 3.4 With few active incidents (short sidebar), confirm the footer sits directly after the
+- [x] 3.4 With few active incidents (short sidebar), confirm the footer sits directly after the
       table with empty space below rather than pinned to the sidebar's bottom edge
 - [x] 3.5 Confirm the map pane, legend, and detail panel are visually unchanged, and that the
       home, news, and events footers still render as before
