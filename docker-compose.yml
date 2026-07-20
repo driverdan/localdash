@@ -32,6 +32,9 @@ services:
       # Interpolated from .env (compose reads it for ${...} substitution even
       # though the file itself is not mounted); empty disables the AQI fetch.
       AIRNOW_API_KEY: ${AIRNOW_API_KEY:-}
+      # Comma-separated event topic tags to block: purged from the DB at startup
+      # and stripped from events during ingest. Empty (default) is a no-op.
+      EVENTS_BLOCKED_TAGS: ${EVENTS_BLOCKED_TAGS:-}
     # Optionally override source tokens / tile layer here or via a .env file:
     # env_file: .env
     ports:
