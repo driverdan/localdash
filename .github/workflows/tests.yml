@@ -178,7 +178,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Conditioned on the event, not just present: PR runs build without
       # credentials, so fork PRs (which never see secrets) stay green, and a
