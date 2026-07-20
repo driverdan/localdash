@@ -5,6 +5,7 @@
   import { debug } from "../../../lib/debug.svelte";
   import SiteFooter from "../../../lib/SiteFooter.svelte";
   import EventCard from "./EventCard.svelte";
+  import TagCombobox from "./TagCombobox.svelte";
 
   let loaded = $state(false);
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -74,16 +75,12 @@
   </div>
 
   {#if events.tags.length > 0}
-    <div class="chips">
-      {#each events.tags as tag (tag)}
-        <button
-          class="chip"
-          class:active={events.topics.includes(tag)}
-          onclick={() => toggleTopic(tag)}
-        >
-          {tag}
-        </button>
-      {/each}
+    <div class="tags">
+      <TagCombobox
+        candidates={events.tags}
+        selected={events.topics}
+        onToggle={toggleTopic}
+      />
     </div>
   {/if}
 
