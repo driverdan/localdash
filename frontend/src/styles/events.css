@@ -40,32 +40,96 @@
   cursor: pointer;
 }
 
-/* Topic chips */
-#events .chips {
+/* Topic tag combobox */
+#events .tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   justify-content: center;
   padding: 0 16px 4px;
 }
-#events .chip {
-  font: inherit;
+#events .tag-filter {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
   font-size: 12px;
-  color: var(--color-text-secondary);
+}
+/* Pills + input share one bordered control that looks like the toolbar fields. */
+#events .tag-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
   background: var(--color-raised-bg);
   border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  padding: 3px 12px;
-  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 6px;
 }
-#events .chip:hover {
+#events .tag-control:focus-within {
   border-color: var(--color-link);
 }
-#events .chip.active {
+#events .tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: var(--color-primary);
-  border-color: var(--color-primary);
   color: var(--color-on-primary);
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
   font-weight: 600;
+}
+#events .tag-pill-remove {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+#events .tag-pill-remove:hover {
+  opacity: 1;
+}
+#events .tag-input {
+  flex: 1;
+  min-width: 90px;
+  font: inherit;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  padding: 3px 4px;
+  outline: none;
+}
+#events .tag-input::placeholder {
+  color: var(--color-text-muted);
+}
+/* Suggestion dropdown */
+#events .tag-suggestions {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+}
+#events .tag-suggestions li {
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+#events .tag-suggestions li.active {
+  background: var(--color-primary-subtle);
+  color: var(--color-text);
 }
 
 /* List */
