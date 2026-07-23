@@ -145,12 +145,43 @@ SOURCES = [
             {"category": "life", "url": "https://chattlibrary.org/category/news/feed/"},
         ],
     },
+    {
+        "slug": "chattgov",
+        "name": "City of Chattanooga",
+        "homepage": "https://chattanooga.gov",
+        # The city's official Latest News page has no usable RSS feed: the only
+        # site RSS (/rss.xml) is the Drupal frontpage feed (calendar events,
+        # zero news) and JSON:API is disabled. So this one feed is kind "html":
+        # a server-rendered Drupal View scraped from its listing markup rather
+        # than parsed by feedparser (see fetcher.parse_html_listing).
+        "enabled": True,
+        "feeds": [
+            {
+                "category": "news",
+                "kind": "html",
+                "url": "https://chattanooga.gov/stay-informed/latest-news",
+            },
+        ],
+    },
 ]
 
 
 def uses_feed_tags(slug: str) -> bool:
     """Whether a source's per-item feed tags may drive categorization."""
     return next((s.get("use_feed_tags", True) for s in SOURCES if s["slug"] == slug), True)
+
+
+def feed_kind(url: str) -> str:
+    """The registry 'kind' for a feed URL: 'html' (scraped) or 'rss' (default).
+
+    Read off SOURCES by URL at fetch time — the registry owns this, not the DB —
+    mirroring uses_feed_tags(). Any URL not registered as html falls back to rss.
+    """
+    for src in SOURCES:
+        for feed in src["feeds"]:
+            if feed["url"] == url:
+                return feed.get("kind", "rss")
+    return "rss"
 
 
 async def sync_registry(session: AsyncSession) -> None:
