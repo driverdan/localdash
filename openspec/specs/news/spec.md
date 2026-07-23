@@ -8,20 +8,22 @@ Postgres, cross-outlet story clustering, and the `/api/v1/news/` API (stories, s
 refresh) that the `frontend-news` feature consumes.
 ## Requirements
 ### Requirement: News source and feed registry
-The news feature SHALL define its outlets and their per-section RSS feeds as a code registry
-(sources with slug, name, homepage, enabled flag; feeds with URL and one normalized category each),
-covering seven Chattanooga outlets (Chattanoogan.com, Chattanooga Times Free Press, WDEF News 12,
-Local 3 News, Chattanooga News Chronicle, The Pulse, and the Chattanooga Public Library). A source
-MAY register a single primary site feed instead of per-section feeds, and MAY be registered with
-`use_feed_tags: False` (default `True`) to declare that its feed's per-item `<category>` tags
-carry no topical signal and must not drive categorization (see "Per-article content
-categorization"). The registry SHALL be the
-source of truth: at application startup it is upserted into the database, and feeds removed from
-the registry SHALL be deleted so they stop being fetched. A feed's registered category SHALL serve
-as the last-resort fallback category for its articles (see "Per-article content categorization"),
-not as the sole determinant. Within a source, specific section feeds SHALL be ordered before the
-general news feed so the feed-section fallback prefers the specific category when an article
-appears in both.
+The news feature SHALL define its outlets and their per-section feeds as a code registry
+(sources with slug, name, homepage, enabled flag; feeds with URL, one normalized category each,
+and a `kind` of `rss` or `html`), covering eight Chattanooga outlets (Chattanoogan.com,
+Chattanooga Times Free Press, WDEF News 12, Local 3 News, Chattanooga News Chronicle, The Pulse,
+the Chattanooga Public Library, and the City of Chattanooga). A feed's `kind` SHALL default to
+`rss`; a `kind: html` feed declares that its URL is a server-rendered listing page to be scraped
+rather than an RSS feed to be parsed (see "Scheduled feed fetching with per-feed error isolation").
+A source MAY register a single primary site feed instead of per-section feeds, and MAY be
+registered with `use_feed_tags: False` (default `True`) to declare that its feed's per-item
+`<category>` tags carry no topical signal and must not drive categorization (see "Per-article
+content categorization"). The registry SHALL be the source of truth: at application startup it is
+upserted into the database, and feeds removed from the registry SHALL be deleted so they stop
+being fetched. A feed's registered category SHALL serve as the last-resort fallback category for
+its articles (see "Per-article content categorization"), not as the sole determinant. Within a
+source, specific section feeds SHALL be ordered before the general news feed so the feed-section
+fallback prefers the specific category when an article appears in both.
 
 #### Scenario: Registry syncs to the database on startup
 - **WHEN** the application starts after a feed URL was removed from the registry
@@ -45,12 +47,28 @@ appears in both.
   `use_feed_tags: False` (its WordPress taxonomy tags every post `News`/`Featured`, which would
   otherwise misfile every announcement under `news`)
 
+#### Scenario: City of Chattanooga registers a single html-kind news feed
+- **WHEN** the application starts with the default registry
+- **THEN** the `chattgov` source ("City of Chattanooga") is present with exactly one feed,
+  `https://chattanooga.gov/stay-informed/latest-news`, registered with category `news` and
+  `kind: html` (the page is a Drupal View with no usable RSS feed)
+
+#### Scenario: A feed defaults to rss kind
+- **WHEN** a feed is registered without an explicit `kind`
+- **THEN** it is treated as `kind: rss` and fetched via the RSS/feedparser path, exactly as before
+
 ### Requirement: Scheduled feed fetching with per-feed error isolation
 The system SHALL fetch all enabled feeds on a configurable interval (default 15 minutes) as a
-scheduled background job, and immediately once at startup. A feed that errors SHALL NOT abort the
-cycle: the failure is caught per-feed and recorded on that feed's `last_status`, and every fetch
-updates the feed's `last_fetch`/`last_status` telemetry. Requests SHALL send a mainstream browser
-User-Agent string (TownNews-hosted feeds rate-limit unfamiliar UAs with HTTP 429). Scheduled and
+scheduled background job, and immediately once at startup. Fetching SHALL branch on each feed's
+`kind`: an `rss` feed is fetched and parsed with `feedparser` (unchanged); an `html` feed is
+fetched with `httpx` and its articles are parsed from the server-rendered listing HTML with
+BeautifulSoup — one listing row per article, extracting title, absolute article URL, published
+datetime (normalized to UTC), and summary. Only the listing page SHALL be fetched for an `html`
+feed; individual article pages SHALL NOT be fetched. Both paths SHALL apply the same per-feed error
+isolation: a feed that errors SHALL NOT abort the cycle — the failure is caught per-feed and
+recorded on that feed's `last_status`, and every fetch updates the feed's `last_fetch`/`last_status`
+telemetry. Requests on both paths SHALL send a mainstream browser User-Agent string (TownNews-hosted
+RSS feeds rate-limit unfamiliar UAs with HTTP 429; the scrape reuses the same UA). Scheduled and
 manual refreshes SHALL be serialized so two refresh cycles never run concurrently. Every completed
 fetch+recluster cycle SHALL broadcast a `news` update ping on the global live-update bus (see
 `live-updates`), from the code path shared by the scheduled job and the manual refresh so both
@@ -60,6 +78,17 @@ trigger it identically; a failed cycle broadcasts nothing.
 - **WHEN** one feed returns an error during a refresh cycle
 - **THEN** the remaining feeds are still fetched, and the failing feed's `last_status` records the
   error
+
+#### Scenario: An html feed is scraped rather than RSS-parsed
+- **WHEN** a `kind: html` feed is fetched during a refresh cycle
+- **THEN** its listing page is retrieved with `httpx` and parsed with BeautifulSoup into articles,
+  no individual article page is fetched, and `feedparser` is not invoked for that feed
+
+#### Scenario: A broken scrape isolates like any feed error
+- **WHEN** a `kind: html` feed's listing page returns a non-success status or its expected markup is
+  absent
+- **THEN** the error is caught for that feed alone, recorded on its `last_status`, and the remaining
+  feeds are still fetched
 
 #### Scenario: Concurrent refreshes are serialized
 - **WHEN** a manual refresh is requested while the scheduled refresh is running
@@ -71,14 +100,15 @@ trigger it identically; a failed cycle broadcasts nothing.
 
 ### Requirement: Article storage and deduplication
 Fetched articles SHALL be stored in Postgres with source, GUID, URL, title, HTML-stripped summary,
-category, published time, fetch time, and an optional feed-supplied `image_url`. The `image_url`
-SHALL be taken from the item's first image `enclosure`, falling back to the first `<img>` in the
-item's content/summary HTML, and SHALL be null when the feed item carries neither. No article page
-is fetched to discover images (feed-supplied images only). Articles SHALL be deduplicated per source
-by GUID: an upsert on `(source_id, guid)` inserts new articles and updates existing ones in place
-(never duplicating the row). The category SHALL be recomputed by content categorization on every
-fetch and written to the row, so a re-fetch reflects the current classification rather than a
-one-way `news`→specific upgrade.
+category, published time, fetch time, and an optional feed-supplied `image_url`. For an `rss` feed
+the `image_url` SHALL be taken from the item's first image `enclosure`, falling back to the first
+`<img>` in the item's content/summary HTML, and SHALL be null when the feed item carries neither.
+For an `html` (scraped) feed the `image_url` SHALL be null and the GUID SHALL be the article URL.
+No article page is fetched to discover images (feed-supplied or listing-supplied images only).
+Articles SHALL be deduplicated per source by GUID: an upsert on `(source_id, guid)` inserts new
+articles and updates existing ones in place (never duplicating the row). The category SHALL be
+recomputed by content categorization on every fetch and written to the row, so a re-fetch reflects
+the current classification rather than a one-way `news`→specific upgrade.
 
 #### Scenario: Same article in two feeds keeps its content category
 - **WHEN** the same GUID arrives from an outlet's general news feed and later its politics feed
@@ -100,6 +130,11 @@ one-way `news`→specific upgrade.
 #### Scenario: No image in the feed item
 - **WHEN** a feed item carries neither an image `enclosure` nor an inline `<img>`
 - **THEN** the stored article's `image_url` is null
+
+#### Scenario: Scraped article stores URL as GUID and null image
+- **WHEN** an article is scraped from a `kind: html` listing page
+- **THEN** its stored row has `guid` equal to the article URL and `image_url` null, and re-fetching
+  the same listing produces no duplicate row (upsert on `(source_id, guid)`)
 
 ### Requirement: Cross-outlet story clustering
 After every fetch cycle, the system SHALL recluster articles published within the story window
