@@ -57,6 +57,11 @@ rotted.
   their current routes; the geo-source requirement gains the rule that
   non-collector features are not listed as sources; and the `AGENTS.md`
   requirement is corrected from three features to four.
+- `code-quality-tooling`: the "Developer setup contract" requirement names
+  `README.md` as a place that must instruct contributors to run `pre-commit
+  install`. Since that material moves to `CONTRIBUTING.md`, the requirement is
+  retargeted to `AGENTS.md` and `CONTRIBUTING.md`, with the README obliged to
+  link there. *(Found during implementation, not in the original proposal.)*
 
 ## Impact
 
