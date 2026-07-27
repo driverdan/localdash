@@ -95,7 +95,7 @@ jobs:
       # Pinned to a full version, unlike the other actions here: setup-uv stopped
       # publishing a moving major tag after v7, so `@v8` does not resolve.
       # Dependabot's github-actions ecosystem bumps it.
-      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           # Matches the uv pinned in the Dockerfile's deps stage.
           version: "0.11.29"
