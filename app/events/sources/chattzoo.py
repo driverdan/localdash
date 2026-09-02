@@ -239,6 +239,11 @@ def parse_detail(
     return events
 
 
+def _now() -> dt.datetime:
+    """Wall clock, isolated so fetch tests can pin it the way parse tests do."""
+    return dt.datetime.now(dt.timezone.utc)
+
+
 class ChattZooSource(EventSource):
     name = SOURCE_NAME
 
@@ -254,7 +259,7 @@ class ChattZooSource(EventSource):
 
     async def fetch(self) -> list[RawEvent]:
         headers = {"User-Agent": self.user_agent}
-        now = dt.datetime.now(dt.timezone.utc)
+        now = _now()
         async with httpx.AsyncClient(
             timeout=self.timeout, follow_redirects=True, headers=headers
         ) as client:

@@ -255,6 +255,7 @@ async def test_fetch_walks_listing_then_detail_pages(monkeypatch):
 
     assert requested[0] == LISTING_URL
     assert len(requested) == 5  # listing + four detail pages
+    assert len(events) == 4  # one upcoming date per detail page
     assert all(e.source_name == SOURCE_NAME for e in events)
 
 
@@ -283,7 +284,13 @@ async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch):
 
 
 def _patch_client(monkeypatch, handler) -> None:
-    """Route the source's AsyncClient through a MockTransport."""
+    """Route the source's AsyncClient through a MockTransport and pin its clock.
+
+    ``fetch`` is the one code path that reads the wall clock, so it gets the same
+    fixed ``NOW`` the parse-level tests pass explicitly. Without this the fixture
+    dates age past ``now`` and every event is dropped as stale.
+    """
+    monkeypatch.setattr("app.events.sources.chattzoo._now", lambda: NOW)
     original = httpx.AsyncClient
 
     def factory(*args, **kwargs):
