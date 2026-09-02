@@ -15,12 +15,10 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  /* width + max-width + auto margins: fill the shell column, capped and
-     centered. width is needed because cross-axis auto margins suppress the
-     flex item's default stretch. */
+  /* Spans the full shell column — no page-width cap, so the widget grid
+     divides the whole viewport between its tracks. width is redundant now
+     that the flex item stretches on its own, kept to state the intent. */
   width: 100%;
-  max-width: 74rem;
-  margin: 0 auto;
   padding: 20px 16px 28px;
 }
 
