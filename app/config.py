@@ -128,12 +128,16 @@ class Settings(BaseSettings):
     # hourly, so the default tolerates a missed hour plus a top-of-hour gap.
     airnow_stale_minutes: int = 120
 
-    # Frontend map config (served to the browser via /api/config). EPB's outage map
-    # uses MapTiler's colorful "basic" style (green parks, blue water, cream roads),
-    # but their key is domain-locked. CARTO Voyager is the closest no-key match and
-    # keeps colored incident markers legible.
-    tile_url: str = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-    tile_attribution: str = "&copy; OpenStreetMap &copy; CARTO"
+    # Frontend map config (served to the browser via /api/config). Standard
+    # OpenStreetMap tiles need no API key (CARTO's now watermark keyless requests);
+    # the OSM tile usage policy requires this attribution and a browser Referer, so
+    # don't add a restrictive Referrer-Policy. The dark theme doesn't swap tiles —
+    # it inverts these with a CSS filter, so an already-dark TILE_URL would render
+    # light under it.
+    tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    tile_attribution: str = (
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    )
 
     retention_days: int = 0
 

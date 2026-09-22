@@ -56,6 +56,7 @@
   let polyLayer: L.LayerGroup | undefined;
   let trackLayer: L.LayerGroup | undefined;
   let tileLayer: L.TileLayer | undefined;
+  let tileUrl: string | undefined;
 
   onMount(() => {
     let disposed = false;
@@ -104,15 +105,18 @@
   }
 
   // Basemap follows the active theme: the theme's tile override when the registry
-  // declares one, else the server-configured tile_url (the default theme's
-  // basemap). Re-runs when the theme changes while the map is open, swapping the
-  // Leaflet tile layer in place with no reload.
+  // declares one, else the server-configured tile_url. Re-runs when the theme
+  // changes while the map is open, swapping the Leaflet tile layer in place with
+  // no reload — but only when the URL actually changes; a theme that just
+  // restyles the tiles in CSS (dark) keeps the loaded layer.
   $effect(() => {
     if (!ready || !map || !cfg) return;
     const theme = activeTheme();
     const url = theme.tileUrl ?? cfg.tile_url;
     const attribution = theme.tileAttribution ?? cfg.tile_attribution;
+    if (tileLayer && tileUrl === url) return;
     if (tileLayer) map.removeLayer(tileLayer);
+    tileUrl = url;
     tileLayer = L.tileLayer(url, { attribution, maxZoom: 18 }).addTo(map);
   });
 

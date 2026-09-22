@@ -10,6 +10,7 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
+from app.config import Settings
 from app.main import app
 
 
@@ -71,3 +72,11 @@ async def test_config_returns_tile_fields(client):
     assert r.status_code == 200
     body = r.json()
     assert "tile_url" in body and "tile_attribution" in body
+
+
+def test_default_tiles_are_keyless_osm():
+    # CARTO now watermarks keyless tiles; the default must stay on OSM.
+    s = Settings(_env_file=None)
+    assert s.tile_url.startswith("https://tile.openstreetmap.org/")
+    assert "cartocdn" not in s.tile_url
+    assert "OpenStreetMap" in s.tile_attribution

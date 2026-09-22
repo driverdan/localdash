@@ -11,6 +11,9 @@
  *   - typography: heavier, tighter-tracked headings (the deliberate type shift
  *     proving themes restyle more than color)
  *   - structure: a header border, dark Leaflet popup surfaces
+ *   - basemap: the configured (light) tiles inverted to dark by a filter on the
+ *     Leaflet tile pane only, so markers, polygons, popups and controls keep
+ *     their colors and a theme switch needs no tile swap
  */
 
 [data-theme="dark"] {
@@ -62,6 +65,14 @@
 [data-theme="dark"] .leaflet-popup-tip {
   background: var(--color-panel-bg);
   color: var(--color-text);
+}
+
+/* Darken the light basemap in place: invert flips the ground dark, the 180deg
+   hue rotation brings water/parks/roads back near their own hues, and the
+   brightness/contrast trim keeps it from glaring. Only the tile pane — overlays,
+   markers, popups and controls live in sibling panes and stay unfiltered. */
+[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
 
 /* ---- Typography shift ------------------------------------------------------- */
