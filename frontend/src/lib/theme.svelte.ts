@@ -12,9 +12,9 @@
 export interface Theme {
   id: string;
   label: string;
-  // Optional basemap override. A dark theme ships its own dark tile layer so the
-  // map doesn't stay bright under a dark shell. Absent → MapView uses the
-  // server-configured tile_url (the default theme's basemap).
+  // Optional basemap override, for a theme that needs a different tile provider.
+  // Absent → MapView uses the server-configured tile_url. The shipped dark theme
+  // doesn't override: it darkens the configured tiles with a CSS filter instead.
   tileUrl?: string;
   tileAttribution?: string;
 }
@@ -27,13 +27,7 @@ const STORAGE_KEY = "localdash.theme";
 // proof the contract supports layout/type changes, not only color.
 export const themes: Theme[] = [
   { id: "light", label: "Light" },
-  {
-    id: "dark",
-    label: "Dark",
-    tileUrl: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    tileAttribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  },
+  { id: "dark", label: "Dark" },
 ];
 
 const DEFAULT_ID = themes[0].id;

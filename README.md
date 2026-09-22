@@ -81,7 +81,9 @@ is the full list. The ones most worth knowing:
 - **`SITE_NAME`** — the name shown in the header.
 - **`CENTER_LAT` / `CENTER_LON`** — the map center, and the origin that event
   distances are measured from.
-- **`TILE_URL` / `TILE_ATTRIBUTION`** — the map tile layer.
+- **`TILE_URL` / `TILE_ATTRIBUTION`** — the map tile layer (OpenStreetMap by
+  default, no API key). The dark theme inverts these tiles in CSS, so pick a
+  light tile set.
 - **Per-source toggles and poll intervals** — for example `HC911_ENABLED` and
   `HC911_POLL_INTERVAL`. Please don't poll a source faster than it actually
   updates; the defaults are chosen to be a good neighbor, and LocalDash
