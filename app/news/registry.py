@@ -31,8 +31,8 @@ CATEGORIES = {
 # Local Chattanooga, TN news sources. Feeds verified 2026-07. Categorization is
 # content-derived per article (see classify.py): a mapped feed <category> tag
 # (only the WordPress outlets — WDEF, the News Chronicle, and the library —
-# emit per-item tags), else a keyword match, else a feed's registered category
-# below as the fallback. List specific sections before the general news feed so
+# and Sinclair's WTVC emit per-item tags), else a keyword match, else a feed's
+# registered category below as the fallback. List specific sections before the general news feed so
 # that fallback prefers the specific category when an article appears in both.
 # A source whose tags are boilerplate rather than per-article signal opts out
 # of the tag tier with "use_feed_tags": False (default True).
@@ -161,6 +161,26 @@ SOURCES = [
                 "kind": "html",
                 "url": "https://chattanooga.gov/stay-informed/latest-news",
             },
+        ],
+    },
+    {
+        "slug": "wtvc",
+        "name": "NewsChannel 9 (WTVC)",
+        "homepage": "https://newschannel9.com",
+        # Sinclair site: section feeds follow /<section-path>.rss but are not
+        # advertised in the HTML. /sports.rss mixes in offbeat items that would
+        # fall back to "sports", and /news.rss is a stale grab bag of videos and
+        # camera pages, so only the local feed is used; keyword classification
+        # pulls the high school sports out of it. Every item is tagged
+        # "article" (a content type, not a topic), hence use_feed_tags: False.
+        # foxchattanooga.com is the same WTVC newsroom (~90% identical items) —
+        # do NOT add it as a second outlet or every story double-counts.
+        # "Local" also carries Sinclair sister-station and wire stories — known
+        # caveat, not a bug.
+        "enabled": True,
+        "use_feed_tags": False,
+        "feeds": [
+            {"category": "news", "url": "https://newschannel9.com/news/local.rss"},
         ],
     },
 ]

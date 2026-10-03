@@ -43,8 +43,19 @@ def test_tag_exempt_source_flag_is_read_from_the_registry():
     # The library's News/Featured tags are boilerplate on every post; sources
     # without the key (and unknown slugs) keep the default tag behavior.
     assert uses_feed_tags("chattlibrary") is False
+    assert uses_feed_tags("wtvc") is False
     assert uses_feed_tags("wdef") is True
     assert uses_feed_tags("no-such-source") is True
+
+
+def test_wtvc_registers_a_single_local_rss_feed():
+    from app.news.registry import SOURCES, feed_kind
+
+    # Sinclair tags every item "article", so WTVC is tag-exempt and its one
+    # local feed falls back to "news" after keyword classification.
+    wtvc = next(s for s in SOURCES if s["slug"] == "wtvc")
+    assert wtvc["feeds"] == [{"category": "news", "url": "https://newschannel9.com/news/local.rss"}]
+    assert feed_kind("https://newschannel9.com/news/local.rss") == "rss"
 
 
 def test_suppressed_tags_let_the_feed_registration_categorize():
