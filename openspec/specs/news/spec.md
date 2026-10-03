@@ -10,20 +10,21 @@ refresh) that the `frontend-news` feature consumes.
 ### Requirement: News source and feed registry
 The news feature SHALL define its outlets and their per-section feeds as a code registry
 (sources with slug, name, homepage, enabled flag; feeds with URL, one normalized category each,
-and a `kind` of `rss` or `html`), covering eight Chattanooga outlets (Chattanoogan.com,
+and a `kind` of `rss` or `html`), covering nine Chattanooga outlets (Chattanoogan.com,
 Chattanooga Times Free Press, WDEF News 12, Local 3 News, Chattanooga News Chronicle, The Pulse,
-the Chattanooga Public Library, and the City of Chattanooga). A feed's `kind` SHALL default to
-`rss`; a `kind: html` feed declares that its URL is a server-rendered listing page to be scraped
-rather than an RSS feed to be parsed (see "Scheduled feed fetching with per-feed error isolation").
-A source MAY register a single primary site feed instead of per-section feeds, and MAY be
-registered with `use_feed_tags: False` (default `True`) to declare that its feed's per-item
-`<category>` tags carry no topical signal and must not drive categorization (see "Per-article
-content categorization"). The registry SHALL be the source of truth: at application startup it is
-upserted into the database, and feeds removed from the registry SHALL be deleted so they stop
-being fetched. A feed's registered category SHALL serve as the last-resort fallback category for
-its articles (see "Per-article content categorization"), not as the sole determinant. Within a
-source, specific section feeds SHALL be ordered before the general news feed so the feed-section
-fallback prefers the specific category when an article appears in both.
+the Chattanooga Public Library, the City of Chattanooga, and WTVC NewsChannel 9). A feed's `kind`
+SHALL default to `rss`; a `kind: html` feed declares that its URL is a server-rendered listing
+page to be scraped rather than an RSS feed to be parsed (see "Scheduled feed fetching with
+per-feed error isolation"). A source MAY register a single primary site feed instead of
+per-section feeds, and MAY be registered with `use_feed_tags: False` (default `True`) to declare
+that its feed's per-item `<category>` tags carry no topical signal and must not drive
+categorization (see "Per-article content categorization"). The registry SHALL be the source of
+truth: at application startup it is upserted into the database, and feeds removed from the
+registry SHALL be deleted so they stop being fetched. A feed's registered category SHALL serve as
+the last-resort fallback category for its articles (see "Per-article content categorization"),
+not as the sole determinant. Within a source, specific section feeds SHALL be ordered before the
+general news feed so the feed-section fallback prefers the specific category when an article
+appears in both.
 
 #### Scenario: Registry syncs to the database on startup
 - **WHEN** the application starts after a feed URL was removed from the registry
@@ -52,6 +53,14 @@ fallback prefers the specific category when an article appears in both.
 - **THEN** the `chattgov` source ("City of Chattanooga") is present with exactly one feed,
   `https://chattanooga.gov/stay-informed/latest-news`, registered with category `news` and
   `kind: html` (the page is a Drupal View with no usable RSS feed)
+
+#### Scenario: WTVC NewsChannel 9 registers a single tag-exempt local news feed
+- **WHEN** the application starts with the default registry
+- **THEN** the `wtvc` source ("NewsChannel 9 (WTVC)", homepage `https://newschannel9.com`) is
+  present with exactly one feed, `https://newschannel9.com/news/local.rss`, registered with
+  category `news`, the default `kind: rss`, and `use_feed_tags: False` (Sinclair tags every item
+  `<category>article</category>`, a content type rather than a topic), and its articles are
+  categorized by keyword with `news` as the fallback
 
 #### Scenario: A feed defaults to rss kind
 - **WHEN** a feed is registered without an explicit `kind`
