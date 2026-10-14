@@ -18,6 +18,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -48,6 +49,11 @@ class Tag(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        # GIST spatial index named as migration 0003 created it; location sets
+        # spatial_index=False so GeoAlchemy2 doesn't expect idx_events_location.
+        Index("ix_events_location", "location", postgresql_using="gist"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     # Stable hash that collapses the same event reported by multiple sources.
@@ -59,7 +65,7 @@ class Event(Base):
     venue_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    location = mapped_column(Geometry("POINT", srid=4326, spatial_index=True), nullable=True)
+    location = mapped_column(Geometry("POINT", srid=4326, spatial_index=False), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
