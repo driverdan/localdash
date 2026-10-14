@@ -8,6 +8,7 @@ api.weather.gov.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import httpx
 import pytest
 
 from app.config import get_settings
+from app.redaction import install as install_log_redaction
 from app.weather.airnow import parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 from app.weather.service import AIRNOW_URL, STATION_LIMIT, WeatherService
@@ -272,6 +274,36 @@ async def test_airnow_failure_leaves_weather_intact(monkeypatch):
     assert payload["aqi"] is None
     assert payload["current"]["temperature_f"] == 89
     assert [p["name"] for p in payload["periods"]] == ["Today", "Tonight"]
+
+
+@pytest.mark.parametrize("status", [410, 500])
+async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status):
+    """The failing AirNow URL carries API_KEY; neither httpx's request log nor
+    the logged HTTPStatusError traceback may contain it (410 = the retired
+    endpoint's real answer)."""
+    install_log_redaction()
+    key = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789"
+    _set_airnow_key(monkeypatch, key)
+    nws = FakeNWS()
+    svc = nws.service()
+    handle = nws.handle
+
+    def gone(request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith(AIRNOW_URL):
+            nws.calls.append(str(request.url))
+            return httpx.Response(status)
+        return handle(request)
+
+    svc._transport = httpx.MockTransport(gone)
+    caplog.set_level(logging.INFO)
+    payload = await svc.get_current()
+
+    assert payload["aqi"] is None  # degraded gracefully
+    assert f"API_KEY={key}" in _airnow_calls(nws)[0]  # the key really was in the URL
+    assert "AirNow AQI fetch failed" in caplog.text
+    assert "HTTPStatusError" in caplog.text  # traceback still logged...
+    assert key not in caplog.text  # ...but without the key
+    assert "API_KEY=[REDACTED]" in caplog.text
 
 
 async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch):

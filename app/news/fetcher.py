@@ -32,6 +32,7 @@ from app.news.classify import classify
 from app.news.models import NewsArticle, NewsFeed, NewsSource
 from app.news.registry import USER_AGENT, feed_kind, uses_feed_tags
 from app.news.textutil import strip_html, truncate_sentences
+from app.redaction import redact
 
 log = logging.getLogger("localdash.news.fetcher")
 
@@ -270,7 +271,7 @@ async def fetch_all(session: AsyncSession) -> dict:
         try:
             _, status = await fetch_feed(session, feed, source_slug)
         except Exception as exc:  # a broken feed must not kill the cycle
-            status = f"error ({exc})"
+            status = f"error ({redact(str(exc))})"  # persisted + served: mask credentials
             log.warning("fetch failed for %s: %s", label, exc)
         await session.execute(
             update(NewsFeed)

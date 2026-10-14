@@ -20,6 +20,7 @@ from app.events.refresh import refresh as events_refresh
 from app.ingest import ingest
 from app.models import Source
 from app.news.refresh import refresh as news_refresh
+from app.redaction import redact
 from app.weather.service import service as weather_service
 from app.ws import manager
 
@@ -73,7 +74,8 @@ async def run_collector(collector: BaseCollector) -> dict:
         if not diff.is_empty:
             await manager.broadcast(diff.to_message())
     except Exception as exc:  # noqa: BLE001
-        status, error = "error", str(exc)
+        # Persisted to sources.last_error and served by /sources: mask credentials.
+        status, error = "error", redact(str(exc))
         log.exception("collector %s failed", collector.source_key)
 
     await _record_run(collector, status, error, count)
