@@ -20,9 +20,13 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.events.ingest import purge_blocked_tags
 from app.news.registry import sync_registry
+from app.redaction import install as install_log_redaction
 from app.scheduler import build_scheduler
 
 logging.basicConfig(level=logging.INFO)
+# Mask credentials (e.g. AirNow's API_KEY query param, which httpx echoes in its
+# request log and HTTPStatusError messages) in every log record from here on.
+install_log_redaction()
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 

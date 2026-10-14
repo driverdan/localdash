@@ -452,6 +452,15 @@ reading; the leading forecast period is **renamed through the day** ("Today" →
 "Tonight"), so period names are passed through verbatim and never hardcoded; station observations
 can lag 20–60 min, so the response carries `observed_at` and the UI shows an "as of" time.
 
+**Secrets in logs (don't regress):** AirNow only accepts its key as the `API_KEY` query
+parameter (header auth is rejected), so the key is part of the request URL — which httpx echoes
+in its INFO request log and in every `HTTPStatusError` message/traceback. `app/redaction.py`
+handles this globally: `install()` (called in `main.py`) wraps the LogRecord factory so every
+record's message, args, and traceback are scrubbed of secret-looking query params and the
+literal values of the credential settings (`SECRET_SETTINGS`) before any handler sees them; use
+`redact()` on exception text that is persisted or returned (`sources.last_error`,
+`news_feeds.last_status`). Add new credential settings to `SECRET_SETTINGS`.
+
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
   `/api/v1/<feature>/` (`timeseries`, `news`, `events`), and feature-agnostic app-shell endpoints
