@@ -121,6 +121,13 @@ jobs:
       - name: Migrate
         run: uv run alembic upgrade head
 
+      # Migrations are hand-written SQL, so nothing else keeps them and the ORM
+      # models in step: fails if the freshly migrated schema and the models'
+      # metadata disagree (missing/extra tables, columns, indexes, types).
+      # Extension-owned objects are filtered out in alembic/env.py.
+      - name: Check models match migrations
+        run: uv run alembic check
+
       - name: Test
         run: uv run pytest -rs
 

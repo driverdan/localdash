@@ -55,7 +55,12 @@ class Entity(Base):
     __tablename__ = "entities"
     __table_args__ = (
         UniqueConstraint("source_key", "external_id", name="uq_entity_source_external"),
+        # The only is_active index (migration 0001); there is no standalone one.
         Index("ix_entity_active", "source_key", "is_active"),
+        # Named explicitly (GIST) to match migrations 0001/0006; the column sets
+        # spatial_index=False so GeoAlchemy2 doesn't also expect its own
+        # auto-named idx_entities_last_geom.
+        Index("ix_entities_last_geom", "last_geom", postgresql_using="gist"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -70,11 +75,11 @@ class Entity(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Generic geometry (Point for point sources, Polygon/MultiPolygon for area
     # sources like water advisories) — the geo stack is source-agnostic.
-    last_geom = mapped_column(Geometry("GEOMETRY", srid=4326, spatial_index=True), nullable=True)
+    last_geom = mapped_column(Geometry("GEOMETRY", srid=4326, spatial_index=False), nullable=True)
     # Fingerprint of last_geom used by ingest change-detection without ST_X/ST_Y
     # (which are point-only). Point form preserves the prior ~0.1 m threshold.
     geom_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -86,8 +91,12 @@ class Entity(Base):
 class Observation(Base):
     __tablename__ = "observations"
     __table_args__ = (
-        # Timescale requires the partitioning column in the primary key.
-        Index("ix_obs_source_time", "source_key", "observed_at"),
+        # ix_obs_source_time (source_key, observed_at DESC) is declared after the
+        # class: the DESC needs the mapped column. Timescale's own
+        # observations_observed_at_idx is created by create_hypertable() and is
+        # excluded from autogenerate in alembic/env.py.
+        # GIST spatial index, named explicitly; geom sets spatial_index=False so
+        # GeoAlchemy2 doesn't expect a second, auto-named idx_observations_geom.
         Index("ix_obs_geom", "geom", postgresql_using="gist"),
     )
 
@@ -98,7 +107,13 @@ class Observation(Base):
     source_key: Mapped[str] = mapped_column(String(64))
     category: Mapped[str] = mapped_column(String(64), default="default")
     status: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    geom = mapped_column(Geometry("GEOMETRY", srid=4326), nullable=True)
+    geom = mapped_column(Geometry("GEOMETRY", srid=4326, spatial_index=False), nullable=True)
     properties: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     entity: Mapped["Entity"] = relationship(back_populates="observations")
+
+
+# Timescale requires the partitioning column in the primary key, so per-source
+# time-range scans (newest first, as /observations orders them) get their own
+# index. Matches migration 0001 exactly, including the DESC.
+Index("ix_obs_source_time", Observation.source_key, Observation.observed_at.desc())

@@ -279,7 +279,8 @@ checks are required by the default-branch ruleset — a failure blocks the merge
 - **`pytest`** — the full suite. CI stands up the same `timescale/timescaledb-ha:pg16` image as a
   service container and runs `alembic upgrade head` first, so the DB-backed tests actually execute
   rather than auto-skipping. That migrate step doubles as the guard: if the DB were unreachable it
-  fails loudly instead of letting the suite skip its way to green. The job also `mkdir -p static`
+  fails loudly instead of letting the suite skip its way to green. It then runs `alembic check`, which
+  fails if the migrated schema and the ORM models disagree (see **Migrations** below). The job also `mkdir -p static`
   first — `static/` is a gitignored build artifact and `main.py` mounts it at import time, so a fresh
   checkout can't even import the app without it. Installs are `uv sync --locked`, which makes the
   job double as the lockfile gate: a `pyproject.toml` dependency edit without a matching `uv lock`
@@ -311,7 +312,14 @@ rather than an enforcement boundary — CI covers `pytest` only. A `pre-commit r
 
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
-`alembic/versions/0001_initial.py`).
+`alembic/versions/0001_initial.py`). Autogenerate is never used to write them, but the models must
+still describe the migrated schema exactly: `alembic check` (run in CI after `upgrade head`) compares
+them. When a migration adds a table, column, or index, mirror it in the model, and vice versa. For
+GeoAlchemy2 columns, set `spatial_index=False` and declare the GIST index explicitly with the name
+the migration uses (`Index("ix_…", "col", postgresql_using="gist")`), otherwise GeoAlchemy2 expects
+its own auto-named `idx_<table>_<col>`. Objects the extensions own (PostGIS `spatial_ref_sys`,
+Timescale's `<hypertable>_<time>_idx`) are excluded in `alembic/env.py`'s `include_object`. A new
+hypertable needs its default index added there.
 
 ## Architecture — the big picture
 
