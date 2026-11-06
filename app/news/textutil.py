@@ -38,8 +38,13 @@ def strip_html(text: str) -> str:
 
 
 def title_tokens(title: str) -> frozenset:
+    """Clustering tokens: lowercase words over 2 chars minus stopwords, plus numbers.
+
+    Numbers of any length are kept ("27", "41", "23"): a highway number, a score
+    or a district number is often the most event-specific part of a headline.
+    """
     words = _WORD_RE.findall(title.lower())
-    return frozenset(w for w in words if len(w) > 2 and w not in STOPWORDS)
+    return frozenset(w for w in words if (w.isdigit() or len(w) > 2) and w not in STOPWORDS)
 
 
 def truncate_sentences(text: str, max_chars: int = 400) -> str:
