@@ -52,7 +52,7 @@ Relevant facts:
   the problem being fixed.
 - Fetching article pages to get text for outlets without summaries (Chattanoogan).
 - Using summaries as positive evidence (a "boost"). Summaries are a veto only in this change. A
-  boost can follow if fixture recall shows the need.
+  boost was measured during implementation and did not raise recall (see D6).
 - Keeping story ids stable across reclusters.
 - The `db` restart policy (separate fix).
 
@@ -188,8 +188,26 @@ the gold labels:
 - predicted-same pairs that are gold-same, over predicted-same
 - gold-same pairs that are predicted-same, over gold-same
 
-It asserts both against targets. Initial targets: **precision ≥ 0.95, recall ≥ 0.80**. The
-current algorithm's scores on the same fixture are recorded in the PR for comparison. Focused
+It asserts both against targets: **precision ≥ 0.85, recall ≥ 0.45**. These are regression gates
+set a little below what the tuned thresholds reach, not aspirations. The current algorithm's scores
+on the same fixture are recorded in the PR for comparison.
+
+The targets were first set at precision ≥ 0.95 and recall ≥ 0.80. Implementation showed both can't
+be met with title evidence plus a summary veto:
+
+| Variant (fixture: 1,155 articles, 330 gold pairs) | Precision | Recall |
+| --- | --- | --- |
+| Current algorithm | 0.142 | 0.852 |
+| New algorithm, prototype thresholds | 0.842 | 0.515 |
+| New algorithm, tuned (floor 0.30, summary veto 0.12) | 0.897 | 0.476 |
+| Best recall at precision ≥ 0.85 (480-point threshold grid) | 0.860 | 0.576 |
+| Best recall anywhere on the grid | 0.740 | 0.682 |
+
+Token normalization (stemming, abbreviations) and a summary boost did not move the frontier.
+The cause is structural: 177 of the 330 gold pairs involve a Chattanoogan article, which has no
+summary, so those pairs are judged on headline overlap alone. The user's complaint is wrong
+merges, so tuning favors precision. The cost is that some same-event articles show as separate
+stories. Focused
 unit tests cover each spec scenario (number veto, summary veto, recurring column, window anchor,
 majority match, determinism).
 
@@ -197,8 +215,9 @@ majority match, determinism).
 
 - **[Title-only pairs have a hard ceiling]** Chattanoogan has no summaries, and on short headlines
   true and false pairs overlap at weighted Jaccard of about 0.28–0.32.
-  → Accept some loss of recall. The fixture's recall target makes the cost visible. A later change
-  could add a summary boost or fetch article text.
+  → Accept the loss of recall: about half of gold same-event pairs stay separate. The fixture's
+  recall gate makes the cost visible. Fetching lead-paragraph text for summary-less outlets is the
+  most promising follow-up; a summary boost was measured and did not help.
 - **[Overfitting to one fortnight]** Thresholds tuned on one window may not generalize; a sports
   season or an election week shifts vocabulary.
   → The fixture spans a full contiguous window with mixed categories, including an election week.
@@ -226,6 +245,5 @@ old grouping.
 
 ## Open Questions
 
-- Final threshold values are settled during implementation against the fixture. If precision ≥
-  0.95 and recall ≥ 0.80 can't both be reached, pause implementation and revisit the design
-  (summary boost, or different targets) rather than lowering targets silently.
+- Resolved: the original targets (precision ≥ 0.95, recall ≥ 0.80) were unreachable. The targets
+  were lowered to precision ≥ 0.85, recall ≥ 0.45 with the user's approval; see D6.
