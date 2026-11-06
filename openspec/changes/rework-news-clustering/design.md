@@ -112,7 +112,9 @@ Articles *a* and *b* **match** when all of the following hold:
    worded summaries scored as low as 0.11 (Red Bank park) and 0.13 (airport), so the veto
    threshold sits deliberately low.
 4. **Recurring-column exception.** Same outlet + identical normalized title + published more than
-   12h apart means no match.
+   12h apart means no match. Normalization ignores case, punctuation and a trailing plural "s":
+   the live feed titled one day's post "Latest Hamilton County Arrest Reports", which an exact
+   comparison missed.
 
 The `SequenceMatcher` fallback is dropped: identical or near-identical titles already score high
 weighted Jaccard. The cross-outlet-only rule and the same-outlet guard are dropped too, because

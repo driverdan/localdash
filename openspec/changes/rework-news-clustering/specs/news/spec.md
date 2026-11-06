@@ -28,7 +28,8 @@ The system SHALL apply these rules:
 - **Same-outlet merging.** Articles from the same outlet SHALL be eligible to merge under the same
   rules as articles from different outlets.
 - **Recurring-column exception.** Two articles from the same outlet with identical titles
-  (case- and whitespace-insensitive) published more than 12 hours apart SHALL NOT match.
+  (ignoring case, punctuation, whitespace and a trailing plural "s") published more than 12
+  hours apart SHALL NOT match.
 
 Clustering SHALL be deterministic: the same set of articles SHALL always produce the same
 clusters.
@@ -63,7 +64,7 @@ clusters.
 
 #### Scenario: Recurring same-title column stays separate
 - **WHEN** one outlet publishes "Latest Hamilton County Arrest Report" on consecutive days, more
-  than 12 hours apart
+  than 12 hours apart, including a day titled "Latest Hamilton County Arrest Reports"
 - **THEN** each post is in its own cluster
 
 #### Scenario: Same-outlet duplicate merges

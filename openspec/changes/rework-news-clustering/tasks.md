@@ -36,7 +36,8 @@
 - [ ] 3.3 Implement the summary veto: both summaries are at least 40 chars, and the title+summary
   weighted Jaccard is below `SUMMARY_VETO`.
 - [ ] 3.4 Implement the recurring-column exception: same `source_id`, identical title after
-  lowercasing and whitespace collapse, published more than 12h apart.
+  ignoring case, punctuation, whitespace and a trailing plural "s", published more than 12h
+  apart.
 - [ ] 3.5 Remove the `SequenceMatcher` fallback, the cross-outlet distinctive-token rule, the
   same-outlet guard, and their constants.
 
