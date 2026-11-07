@@ -1,8 +1,8 @@
 """DB-backed tests for the /api/v1/events handlers.
 
-Handlers are called directly with a real session (same auto-skip pattern as
-the other DB suites). Seeded titles/addresses/sources are 'test-' prefixed so
-the fixture cleans them and assertions can scope to them via search.
+Handlers are called directly with a session on the suite's temporary
+database, emptied before each test (see conftest.py), so listings contain only
+what each test seeds.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ async def _seed(session):
 
 async def test_default_listing_is_upcoming_in_start_order(events_db_session):
     await _seed(events_db_session)
-    result = await items(search="test-", session=events_db_session)
+    result = await items(session=events_db_session)
 
     assert [i["title"] for i in result["items"]] == [
         "test-Near Jazz Show",
@@ -81,7 +81,7 @@ async def test_default_listing_keeps_in_progress_events(events_db_session):
         ],
         FakeGeocoder({}),
     )
-    result = await items(search="test-", session=events_db_session)
+    result = await items(session=events_db_session)
     assert {i["title"] for i in result["items"]} == {"test-In Progress Show"}
 
 
@@ -95,7 +95,7 @@ async def test_listing_serializes_image_url(events_db_session):
         ],
         geo,
     )
-    result = await items(search="test-", session=events_db_session)
+    result = await items(session=events_db_session)
     by_title = {i["title"]: i for i in result["items"]}
     assert by_title["test-Imaged Show"]["image_url"] == "http://img.test/show.jpg"
     assert by_title["test-Imageless Show"]["image_url"] is None
@@ -103,45 +103,69 @@ async def test_listing_serializes_image_url(events_db_session):
 
 async def test_upcoming_false_includes_past_events(events_db_session):
     await _seed(events_db_session)
-    result = await items(search="test-", upcoming=False, session=events_db_session)
+    result = await items(upcoming=False, session=events_db_session)
     assert result["count"] == 4
     assert result["items"][0]["title"] == "test-Past Gala Dinner"
 
 
 async def test_distance_filter_excludes_far_and_unlocated(events_db_session):
     await _seed(events_db_session)
-    result = await items(search="test-", max_miles=15, session=events_db_session)
+    result = await items(max_miles=15, session=events_db_session)
     assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
 
 
 async def test_topic_filter_matches_any_requested_tag(events_db_session):
     await _seed(events_db_session)
-    result = await items(search="test-", topic=["music"], session=events_db_session)
+    result = await items(topic=["music"], session=events_db_session)
     assert {i["title"] for i in result["items"]} == {
         "test-Near Jazz Show",  # "jazz" -> music
         "test-Far Rock Concert",  # "concert" -> music
     }
 
-    result = await items(search="test-", topic=["food"], upcoming=False, session=events_db_session)
+    result = await items(topic=["food"], upcoming=False, session=events_db_session)
     assert {i["title"] for i in result["items"]} == {"test-Past Gala Dinner"}  # "dinner" -> food
 
 
 async def test_title_search(events_db_session):
     await _seed(events_db_session)
     result = await items(search="jazz", session=events_db_session)
-    assert "test-Near Jazz Show" in {i["title"] for i in result["items"]}
-    assert "test-Far Rock Concert" not in {i["title"] for i in result["items"]}
+    assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
 
 
 async def test_tags_endpoint_lists_known_tags_sorted(events_db_session):
     await _seed(events_db_session)
     result = await tags(session=events_db_session)
-    assert {"food", "music"} <= set(result["tags"])
-    assert result["tags"] == sorted(result["tags"])
+    assert result["tags"] == ["food", "music"]  # jazz/concert -> music, dinner -> food; sorted
+
+
+async def _seed_duplicate_pair(session):
+    """Two stored upcoming rows the reconciliation pass merges into one."""
+    from app.events.dedup import canonical_key
+    from app.events.models import Event, EventLink
+
+    start = (dt.datetime.now(UTC) + dt.timedelta(days=7)).replace(
+        hour=22, minute=0, second=0, microsecond=0
+    )
+    for i, title in enumerate(
+        ("test-Sonic Machines Cruise In", "test-Sonic Machines Sonic Night Cruise In")
+    ):
+        session.add(
+            Event(
+                canonical_key=canonical_key(title, start),
+                title=title,
+                description="",
+                starts_at=start,
+                venue_name="Sonic",
+                tags=[],
+                links=[EventLink(source_name="test-seed", source_url=f"http://test-seed/{i}")],
+            )
+        )
+    await session.commit()
 
 
 async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
-    # Endpoint contract only: an empty registry refresh reports zero counts.
+    # Endpoint contract: an empty registry refresh fetches nothing, and the
+    # reconciliation pass reports the one seeded upcoming duplicate pair.
     # The registry is pinned empty because the always-on CarCruiseFinder
     # scraper would otherwise hit the live site here (registry behavior is
     # covered in test_events_meetup / test_events_carcruisefinder), and the
@@ -154,10 +178,9 @@ async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
         lambda: Settings(_env_file=None, events_ical_feeds="", events_geocode_retry_hours=0),
     )
     monkeypatch.setattr("app.events.refresh.build_sources", lambda settings: [])
+    await _seed_duplicate_pair(events_db_session)
     result = await refresh()
-    # The reconciliation pass runs against whatever upcoming events the shared
-    # DB holds, so its count is asserted for presence rather than a value.
-    assert result["reconciled"] >= 0
+    assert result["reconciled"] == 1
     assert {k: result[k] for k in ("created", "merged", "skipped_far", "retried", "resolved")} == {
         "created": 0,
         "merged": 0,

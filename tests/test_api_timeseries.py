@@ -1,7 +1,7 @@
 """DB-backed tests for the /api/v1/timeseries handlers.
 
-Handlers are called directly with a real session (same auto-skip pattern as
-test_ingest — the db_session fixture skips if Postgres is unreachable).
+Handlers are called directly with a session on the suite's temporary database,
+emptied before each test (see conftest.py).
 Route shapes and validation are covered offline in test_api_routes.py.
 """
 

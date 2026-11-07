@@ -1,8 +1,8 @@
 """DB-backed tests for the events ingest pipeline (ported from the PoC).
 
-Uses the events_db_session fixture (auto-skips without a reachable Postgres).
-Source names and addresses are 'test-' prefixed so the fixture can clean up
-without touching real rows.
+Uses the events_db_session fixture: the suite's temporary database, emptied
+before each test (see conftest.py), so every event and cache row seen here was
+seeded by the test itself.
 """
 
 import datetime as dt
@@ -45,13 +45,11 @@ def make_raw(source, title="Jazz Night", **overrides):
 
 
 async def _events(session) -> list[Event]:
-    """Only events created by this test module (a real DB may hold others)."""
+    """Every event in the (per-test, otherwise empty) database."""
     return list(
         (
             await session.scalars(
-                select(Event)
-                .where(Event.links.any(EventLink.source_name.like("test-%")))
-                .options(selectinload(Event.links), selectinload(Event.tags))
+                select(Event).options(selectinload(Event.links), selectinload(Event.tags))
             )
         ).all()
     )
@@ -423,7 +421,6 @@ async def test_purge_deletes_blocked_tags_and_associations(events_db_session, mo
     from app.events.ingest import purge_blocked_tags
     from app.events.models import Tag
 
-    # A test-only tag name so the purge can never touch real topic rows.
     await upsert_raw_events(events_db_session, [make_raw("test-SourceA", tags=["test-blockme"])])
     (event,) = await _events(events_db_session)
     assert "test-blockme" in {tag.name for tag in event.tags}
@@ -762,7 +759,7 @@ async def test_reconcile_merges_preexisting_duplicates(events_db_session):
 
     merged = await reconcile_events(events_db_session)
 
-    assert merged >= 1  # shared DB may hold other genuine duplicates
+    assert merged == 1
     (event,) = await _events(events_db_session)
     assert event.title == "test-Sonic Machines Sonic Night Cruise In"  # longer title wins
     assert len(event.links) == 2
