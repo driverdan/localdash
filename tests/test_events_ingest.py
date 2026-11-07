@@ -30,6 +30,12 @@ MEMPHIS = (35.1495, -90.0490)
 DOWNTOWN_CHATTANOOGA = (35.0456, -85.3097)
 
 
+def upcoming(days: int, hour: int) -> dt.datetime:
+    """An hour-aligned UTC start ``days`` from today, always in the future."""
+    day = dt.datetime.now(UTC) + dt.timedelta(days=days)
+    return day.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+
 def make_raw(source, title="Jazz Night", **overrides):
     # URL is per-listing (title-derived slug): each distinct upstream listing
     # has its own page, and the source-listing identity tier relies on that.
@@ -723,6 +729,9 @@ async def test_source_listing_match_survives_retitle(events_db_session):
 
 
 # --- reconciliation pass ---
+# reconcile_events() only loads upcoming events, so these tests seed start
+# times relative to now via upcoming(). The de-duplication tests above keep
+# fixed dates: upsert_raw_events() never compares against the clock.
 
 
 def seed_event(title, start, venue=None, address=None, location=None, url_slug=None):
@@ -751,7 +760,7 @@ def seed_event(title, start, venue=None, address=None, location=None, url_slug=N
 async def test_reconcile_merges_preexisting_duplicates(events_db_session):
     from app.events.ingest import reconcile_events
 
-    start = dt.datetime(2026, 12, 8, 22, 0, tzinfo=UTC)
+    start = upcoming(30, 22)
     keeper = seed_event("test-Sonic Machines Cruise In", start, venue="Sonic")
     dupe = seed_event("test-Sonic Machines Sonic Night Cruise In", start, venue="Sonic")
     events_db_session.add_all([keeper, dupe])
@@ -774,7 +783,7 @@ async def test_reconcile_merges_preexisting_duplicates(events_db_session):
 async def test_reconcile_merges_after_coordinates_appear(events_db_session):
     from app.events.ingest import _point, reconcile_events
 
-    start = dt.datetime(2026, 12, 9, 22, 0, tzinfo=UTC)
+    start = upcoming(30, 22)
     a = seed_event("test-Riverfront Cruise In", start)
     b = seed_event("test-Riverfront Sonic Cruise In", start)
     events_db_session.add_all([a, b])
@@ -800,7 +809,7 @@ async def test_reconcile_merges_stale_key_exact_duplicates(events_db_session):
     # past the fuzzy tier's distance gate. Key equality must merge them.
     from app.events.ingest import _point, reconcile_events
 
-    start = dt.datetime(2026, 12, 10, 13, 0, tzinfo=UTC)
+    start = upcoming(30, 13)
     a = seed_event("test-Karts & Koffee Franklin", start, location=_point((35.9513, -86.8840)))
     b = seed_event("test-Karts and Koffee Franklin", start, location=_point((35.9412, -86.8770)))
     # Simulate the stale stored keys: distinct, as written before the change.
