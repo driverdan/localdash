@@ -2,7 +2,8 @@
  * LocalDash styling contract
  * ==========================
  * All visual styling lives in these global stylesheets — a base layer (this file)
- * plus one sheet per feature (timeseries.css, news.css, events.css) — imported once
+ * plus one sheet per feature (timeseries.css, news.css, events.css, home.css) and
+ * the dark theme's overrides (theme-dark.css) — imported once
  * at the app root (main.ts). This is the site's single source of visual truth.
  *
  * Rules every feature follows (the timeseries/map feature is the reference impl —

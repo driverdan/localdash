@@ -1,0 +1,7 @@
+# Read by prettier from frontend/, its working directory in both the pre-commit
+# hook and `npm run format`. Paths are relative to frontend/. The build output
+# (../static/) is outside this tree, so it is never reached.
+
+# Dependencies and npm-managed files.
+node_modules/
+package-lock.json

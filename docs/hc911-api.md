@@ -165,4 +165,4 @@ disappears from the feed. Empirically, incidents accumulate multiple observation
 across their lifetime (status `Queued → Enroute → On Scene → …`), confirming
 `master_incident_id` is stable across polls. See
 [`app/ingest.py`](../app/ingest.py) and the architecture notes in
-[`CLAUDE.md`](../CLAUDE.md).
+[`AGENTS.md`](../AGENTS.md).

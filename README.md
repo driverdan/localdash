@@ -15,9 +15,9 @@ tile layer are all configurable — and support for other cities is planned.
 | Feature | Route | What it does |
 | --- | --- | --- |
 | **Home** | `/` | At-a-glance digest — latest news, weather, current outages, today's events |
-| **News** | `/news` | Local headlines from eight outlets, clustered so one story shows once with a link per outlet |
+| **News** | `/news` | Local headlines from nine outlets, clustered so one story shows once with a link per outlet |
 | **Map** | `/map` | Live and historical map of 911 calls, road incidents, outages, and water advisories |
-| **Events** | `/events` | Area events from several calendars, de-duplicated, tagged, and sorted by distance |
+| **Events** | `/events` | Area events from several calendars, de-duplicated, tagged, sorted by start time, and filterable by distance |
 
 **Weather** is the fifth feature and has no page of its own: current conditions,
 today's forecast, and air quality appear in the strip on the home page, proxied
@@ -32,8 +32,8 @@ Most of the upstream feeds only publish a **snapshot** of what's active right
 now — the 911 feed tells you which calls are open, not which calls happened
 yesterday. LocalDash polls each source on a schedule, tracks every incident by a
 stable id, and records a new observation whenever its status or position changes.
-That's what turns a live-only feed into history you can scrub back through on the
-map.
+That's what turns a live-only feed into history: click anything on the map to see its
+full status timeline (and, for moving incidents, its track).
 
 News, Events, and Weather are separate pipelines and don't work this way — they
 aggregate and de-duplicate records rather than tracking things over time.

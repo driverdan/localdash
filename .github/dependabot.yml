@@ -25,8 +25,8 @@ updates:
       prefix-development: "chore(dev-deps)"
 
   # Python deps declared in pyproject.toml, pinned transitively by uv.lock.
-  # Both halves matter: the `~=` ranges mean a new minor no longer satisfies the
-  # spec (a `>=` floor always did, which is why this ecosystem used to produce
+  # Both halves matter: the bounded ranges (`~=` or `>=,<`) mean a version past
+  # the bound no longer satisfies the spec (a bare `>=` floor always did, which is why this ecosystem used to produce
   # nothing but security PRs), and the lockfile lets Dependabot resolve exact
   # versions — it updates pyproject.toml and uv.lock in the same PR, so the two
   # never drift. Requires the "uv" ecosystem; the "pip" one cannot read uv.lock.

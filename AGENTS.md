@@ -15,14 +15,15 @@ at `/` by the frontend's `home` feature):
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
   source — it is a sibling feature beside the timeseries pipeline, not a collector.
 - **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (The
-  Pulse's CitySpark calendar, car cruises, Meetup groups, configurable iCal calendars, The Events
-  Calendar (tribe) WordPress calendars — by default the Chattanooga Public Library's; ported from
-  the `chattevents` PoC). Also a
+  Pulse's CitySpark calendar, car cruises, the Chattanooga Zoo, Meetup groups, configurable iCal
+  calendars, The Events Calendar (tribe) WordPress calendars — by default the Chattanooga Public
+  Library's; ported from the `chattevents` PoC). Also a
   sibling feature — events are merged cross-source records, not entity-state-over-time, so they do
   not flow through collectors/ingest.
 - **Weather** (the homepage strip): current conditions + today's forecast proxied from the
-  National Weather Service API. The smallest feature by design — no DB tables, no scheduler job,
-  just an in-process TTL cache; also a sibling feature, not a collector (weather-on-the-map as a
+  National Weather Service API, plus air quality from AirNow when an API key is set. The smallest
+  feature by design — no DB tables, just an in-process TTL cache kept current by one scheduled
+  refresh job; also a sibling feature, not a collector (weather-on-the-map as a
   geo feed remains a separate future idea).
 
 ## Tech stack & why
@@ -30,10 +31,12 @@ at `/` by the frontend's `home` feature):
 **Data store — Postgres + PostGIS + TimescaleDB** (one image: `timescale/timescaledb-ha:pg16`).
 - *PostgreSQL*: relational base with strong JSONB support, which the schema leans on for
   source-specific fields (no per-source migrations).
-- *PostGIS*: real geospatial types + indexes; the API does bbox / `ST_Intersects` / `ST_X` queries
-  rather than filtering points in Python.
+- *PostGIS*: real geospatial types + indexes; geometry is stored as arbitrary
+  `geometry(Geometry,4326)` (points and polygons), and the API does bbox / `ST_Intersects` queries
+  rather than filtering in Python.
 - *TimescaleDB*: turns `observations` into a hypertable partitioned on `observed_at`, giving the
-  time-series side scalable inserts/scans and easy retention policies as history grows. The HA image
+  time-series side scalable inserts/scans (and room for retention policies — none is configured
+  yet; history is kept forever). The HA image
   bundles PostGIS + TimescaleDB so a single container covers both.
 
 **Web layer — FastAPI + Uvicorn.** Chosen because the app is fundamentally async (concurrent source
@@ -51,14 +54,16 @@ DB sessions), Pydantic integration, and first-class WebSocket support fit that m
 `create_hypertable()` call, and GIST indexes don't round-trip through autogenerate.
 
 **Scheduling — APScheduler (AsyncIOScheduler).** An in-process async scheduler runs the poll loop inside
-the FastAPI event loop — one job per geo collector plus one news-refresh job. Deliberately avoids a
+the FastAPI event loop — one job per geo collector plus one job each for news, events, and weather
+refresh. Deliberately avoids a
 separate worker + broker (Celery/Redis): at this scale a background task is simpler and has no extra
 moving parts.
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
 same library FastAPI's TestClient builds on).
 
-**RSS parsing — feedparser.** Synchronous, so the news fetcher runs it in `asyncio.to_thread`;
+**RSS parsing — feedparser** (plus **BeautifulSoup** for the one `kind: html` news feed and the
+events scrapers). feedparser is synchronous, so the news fetcher runs it in `asyncio.to_thread`;
 kept over an httpx rewrite because its redirect/encoding/entity handling is what the ported
 ChattNews behavior was tuned against.
 
@@ -89,15 +94,18 @@ no image assets to manage. Node is needed only to build the frontend, never at r
 Dockerfile).
 
 The frontend mirrors the API's feature-namespace convention: each feature owns
-`frontend/src/features/<feature>/` (`news` on `/`, `timeseries` on `/map` — the latter owns the
-Leaflet map), composed per-route by `App.svelte`; feature-agnostic shell code lives in
-`frontend/src/lib/`. Routing is a **tiny hand-rolled path router** (`lib/router.svelte.ts`: reactive
-path + `pushState` + `popstate` — two routes don't justify a dependency), backed by an SPA fallback
-in `main.py`'s static mount (extension-less non-`/api` 404s serve `index.html` so `/map` deep-links).
-**Import rules:** features import from `lib/` and themselves, never from another feature; the shell
+`frontend/src/features/<feature>/` (`home` on `/`, `news` on `/news`, `timeseries` on `/map` — it
+owns the Leaflet map — and `events` on `/events`), composed per-route by `App.svelte`;
+feature-agnostic shell code lives in `frontend/src/lib/`. Routing is a **tiny hand-rolled path
+router** (`lib/router.svelte.ts`: reactive path + `pushState` + `popstate` — four routes don't
+justify a dependency), backed by an SPA fallback in `main.py`'s static mount (extension-less
+non-`/api` 404s serve `index.html` so `/map` deep-links).
+**Import rules:** features import from `lib/`, themselves, and other features' `index.ts` public
+surfaces only (e.g. `home` reuses the news card) — never another feature's internals; the shell
 imports only each feature's `index.ts`; `lib/` imports from no feature. Adding a frontend feature =
-new folder + one route entry in `App.svelte` — the counterpart of "new router + one `include_router`
-line".
+new folder + shell-level wiring: import its `index.ts` and add a route entry and nav link in
+`App.svelte`, import its stylesheet in `main.ts`, and (if it listens to the live bus) call its
+`register*Live()` in `App.svelte` — the counterpart of "new router + one `include_router` line".
 
 **Packaging / runtime — Docker Compose.** One command brings up DB + app; the app container waits on the
 DB healthcheck, runs migrations, then serves. Keeps "works on my machine" out of the loop.
@@ -218,8 +226,10 @@ move the change directory into the archive.
 ```bash
 docker compose up --build        # app waits for DB health, runs migrations, then serves :8000
 ```
-News feed at http://localhost:8000/, map dashboard at http://localhost:8000/map, events at
-http://localhost:8000/events.
+Home digest at http://localhost:8000/, news at http://localhost:8000/news, map dashboard at
+http://localhost:8000/map, events at http://localhost:8000/events. The app container loads an
+optional `.env` (`env_file`), so `.env` settings apply under Docker too; `DATABASE_URL` is pinned
+to the in-network `db` host.
 
 **Local dev (Dockerized DB, app from venv with --reload):**
 ```bash
@@ -236,13 +246,14 @@ and Docker never test. Prefer `uv sync`.
 
 **Dependencies (`pyproject.toml` + `uv.lock`, both committed):**
 ```bash
-uv lock --upgrade-package fastapi  # bump one dep to the newest its ~= range allows
+uv lock --upgrade-package fastapi  # bump one dep to the newest its declared range allows
 uv lock --upgrade                  # re-resolve everything within the declared ranges
 uv lock                            # after hand-editing pyproject.toml — never leave the lock stale
 ```
-Direct deps are pinned with **tilde ranges** (`~=X.Y.Z` = that patch series only), so minors and
-majors are opted into by editing `pyproject.toml`, never picked up by an install. Widening a range
-is the deliberate act; `uv lock` then records the exact transitive set. **Any change to
+Direct deps are pinned with **bounded ranges** — `~=X.Y.Z` (that patch series only) or
+`>=A,<B` (an explicit upper bound, often spanning a few minors) — so anything past the bound is
+opted into by editing `pyproject.toml`, never picked up by an install. Widening a range is the
+deliberate act; `uv lock` then records the exact transitive set. **Any change to
 `pyproject.toml` dependencies must be followed by `uv lock`** — CI and the Docker build install
 with `uv sync --locked`, which errors on a lock that disagrees with pyproject, so a skipped re-lock
 blocks the merge rather than drifting. Check it yourself with `uv lock --check`.
@@ -268,13 +279,18 @@ The Docker image builds the frontend itself (multi-stage); local `uvicorn` serve
 pytest                                            # full suite
 pytest tests/test_ingest.py::test_state_changed_status_transition   # single test
 ```
-Most tests are pure/offline. The DB-backed tests (`tests/test_ingest.py::test_ingest_full_lifecycle`,
-`tests/test_api_timeseries.py`, and `tests/test_news_db.py`, via the `db_session` / `news_db_session`
-fixtures in `conftest.py`) **auto-skip** unless `DATABASE_URL` points at a reachable Postgres —
-bring up `docker compose up -d db` (and `alembic upgrade head` for the news tables) to make them run.
+Most tests are pure/offline. The DB-backed tests (the DB cases in `tests/test_ingest.py`,
+`tests/test_api_timeseries.py`, `tests/test_news_db.py`, and the events DB tests in
+`tests/test_events_ingest.py`, `tests/test_api_events.py`, and `tests/test_events_cityspark.py`, via
+the `db_session` / `news_db_session` / events fixtures in `conftest.py`) **auto-skip** unless
+`DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db` (and
+`alembic upgrade head`) to make them run. They commit to that database (cleaning up only their own
+`test-*` rows), so locally they share data with your running app.
 
-**CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`, in two jobs whose
-checks are required by the default-branch ruleset — a failure blocks the merge button.
+**CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
+path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
+a job skipped via its `if:` still reports success, so required checks never deadlock on a
+docs-only PR. The jobs:
 
 - **`pytest`** — the full suite. CI stands up the same `timescale/timescaledb-ha:pg16` image as a
   service container and runs `alembic upgrade head` first, so the DB-backed tests actually execute
@@ -287,6 +303,10 @@ checks are required by the default-branch ruleset — a failure blocks the merge
 - **`frontend`** — `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
   `*.test.ts`), so these stand in as the frontend gate; they're what catches a bad npm bump, which
   `pytest` never sees. If a JS test runner is ever added, wire `npm test` into this job.
+- **`docker`** — builds the production image whenever Python, frontend, or image files changed, so
+  a broken Dockerfile can't merge. It runs after the test jobs and never when one failed. On pushes
+  to `main` it also pushes `driverdan/localdash:latest` plus a `sha-<commit>` tag to Docker Hub; PR
+  runs build without credentials or pushing.
 
 **Linting & formatting (pre-commit):** a git pre-commit hook auto-fixes and lints **staged**
 code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
@@ -306,8 +326,10 @@ frontend directly with `npm run format`.
 `svelte-check` is deliberately **not** in the hook (it's a whole-project type checker, not a
 per-file linter) — keep running it as `npm run check`. **Known gap:** the hook is bypassable with
 `git commit --no-verify` and lint/format still has no CI backstop, so it remains a convenience
-rather than an enforcement boundary — CI covers `pytest` only. A `pre-commit run --all-files` job
-(and `npm run check`) alongside it is deferred to a later change.
+rather than an enforcement boundary. A CI `pre-commit run --all-files` job is deferred to a later
+change. Keep the hook's ruff `rev` in step with the ruff version in `uv.lock` so the hook and a
+manual `uv run ruff format` agree; `openspec/` is excluded from ruff because ruff ≥ 0.17 also
+formats Python code blocks in Markdown and would rewrite archived artifacts.
 
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see
@@ -326,10 +348,13 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 3. **`ingest.py`** reconciles each batch against stored state:
    - upsert the `entity` (keyed by `source_key` + `external_id`; for 911, `external_id` =
      `master_incident_id`),
-   - **append an `observation` only when state changed** (status moved or position moved > epsilon) —
-     this is what avoids one duplicate row per poll, and is the core of the time-series,
+   - **append an `observation` only when state changed** (status moved, or the geometry
+     fingerprint changed — coordinates rounded to ~0.1 m, so point jitter is ignored) — this is
+     what avoids one duplicate row per poll, and is the core of the time-series,
    - **closure sweep**: entities that were active but are absent from this payload are flipped
-     `is_active=false` with a final `Closed` observation.
+     `is_active=false` (with `last_seen_at` set to the close time) and get a final `Closed`
+     observation. A successful fetch that normalizes to nothing therefore closes every active
+     entity of that source — only a raised fetch error leaves them alone.
    - returns a `Diff` (`new`/`updated`/`closed`).
 4. The scheduler broadcasts that `Diff` over the **global `/api/v1/ws` WebSocket bus** (`ws.py`,
    endpoint in `app/api/root.py`) as a `{topic: "timeseries", type: "diff"}` message; the frontend
@@ -350,8 +375,9 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 ### Source-agnostic data model (`models.py`)
 - `sources` — one row per registered source + last-run telemetry (written by `scheduler._record_run`).
 - `entities` — one tracked thing per source; latest snapshot, `is_active`, `last_geom`,
-  `latest_properties`. Unique on `(source_key, external_id)`.
-- `observations` — the hypertable; PostGIS `geom` point + JSONB `properties`. Source-specific fields
+  `geom_fingerprint` (change detection), `latest_properties`. Unique on `(source_key, external_id)`.
+- `observations` — the hypertable; PostGIS `geom` (any geometry — points for 911/TDOT/EPB, polygons
+  for `tnaw` advisories; migration `0006`) + JSONB `properties`. Source-specific fields
   live in JSONB so new sources need no migration.
 
 ### Adding a data source
@@ -364,20 +390,30 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
 (default 15) and by `POST /api/v1/news/refresh`; the two paths are serialized by an asyncio lock in
 `refresh.py`. Articles do **not** flow through collectors/ingest.
 
-- `registry.py` — outlets + per-section feeds as **code-as-config**: synced into the DB at startup
-  (upsert; feeds removed from the registry are deleted). The sites' feeds carry no `<category>`
-  tags, so *which section feed* an article appeared in supplies its category; specific sections are
-  listed before the general news feed so overlapping articles keep the specific category.
-- `fetcher.py` — feedparser per feed (in a thread). Dedup is `UNIQUE(source_id, guid)` with an
-  upsert that only upgrades category `'news'` → specific, never the reverse.
-- `clustering.py` — after every fetch, articles in the story window (7 days) are pairwise-compared
-  by title (token Jaccard/containment + SequenceMatcher + a distinctive-shared-tokens rule that
-  applies **only across outlets** — within one outlet it falsely merges formulaic series headlines)
-  and merged with union-find; `cluster_id` = smallest member article id. `assign_clusters()` is
-  pure; tests cover it offline.
-- `stories.py` — read model: one story per cluster (headline from earliest, wordiest summary,
-  majority-vote category with specific-beats-news ties, one link per outlet).
-- Tables: `news_sources` → `news_feeds` → `news_articles` (plain relational, migration `0002`).
+- `registry.py` — nine outlets + their feeds as **code-as-config**: synced into the DB at startup
+  (upsert; feeds *and whole outlets* removed from the registry are deleted, articles cascading).
+  Each feed has a section category and a `kind` (`rss` by default; `html` = a server-rendered
+  listing page to scrape, used by the City of Chattanooga). A source registered with
+  `use_feed_tags: False` declares its `<category>` tags meaningless. Specific sections are listed
+  before the general news feed so the section fallback prefers the specific category.
+- `classify.py` — **per-article content categorization**, first match wins: a mapped feed
+  `<category>` tag → a keyword match on title + summary → the feed's section as last resort.
+- `fetcher.py` — feedparser per `rss` feed (in a thread), BeautifulSoup for `html` feeds. Dedup is
+  `UNIQUE(source_id, guid)`; the upsert recomputes and overwrites `category` on every fetch (other
+  fields keep their first-seen values).
+- `clustering.py` — after every fetch, articles in the story window (`news_story_window_days`,
+  default 7) are re-clustered so articles about the **same event** share a `cluster_id` (= smallest
+  member id). Titles are compared by IDF-weighted Jaccard/containment; vetoes block matches on
+  disjoint numbers, unrelated summaries, and same-outlet recurring columns posted > 12 h apart.
+  Articles are assigned in publish order to the best-matching story whose first article is ≤ 36 h
+  older **and** that they match at least half of — a majority rule, not union-find, so one weak
+  link can't chain stories. `assign_clusters()` is pure; `tests/test_news_clustering.py` gates
+  precision/recall against a hand-labeled fixture. See the module docstring for details.
+- `stories.py` — read model: one story per cluster with in-window members (headline from earliest,
+  wordiest summary, majority-vote category with specific-beats-news ties, earliest image, one link
+  per outlet).
+- Tables: `news_sources` → `news_feeds` → `news_articles` (plain relational, migration `0002`;
+  `image_url` added in `0007`).
 
 **Feed gotchas (hard-won in ChattNews, don't regress):** requests must send the browser
 `USER_AGENT` in `registry.py` (TownNews/Local 3 429s unfamiliar UAs); Local 3 feeds are TownNews
@@ -388,10 +424,11 @@ erroring must never abort the cycle — per-feed status lands in `news_feeds.las
 in the UI footer.
 
 ### The events feature (`app/events/`, ported from chattevents)
-Pipeline: **fetch sources → ingest (dedup + tag + geocode) → serve**, run as one APScheduler job and
-by `POST /api/v1/events/refresh`; both paths share an asyncio lock in `refresh.py` so all Nominatim
-traffic in a cycle uses one rate-limited geocoder. Events are merged cross-source records, not entity
-state over time, so they do **not** flow through collectors/ingest.
+Pipeline: **fetch sources → ingest (dedup + tag + geocode) → serve**, run as one APScheduler job
+every `events_refresh_minutes` (default 60) and by `POST /api/v1/events/refresh`; both paths share
+an asyncio lock in `refresh.py` so all Nominatim traffic in a cycle uses one rate-limited geocoder.
+Events are merged cross-source records, not entity state over time, so they do **not** flow through
+collectors/ingest.
 
 - `sources/` — config-driven `EventSource` subclasses: `CarCruiseFinderSource`, `ChattZooSource`
   (the Chattanooga Zoo's events page, scraped — the site publishes no machine endpoint at all),
@@ -411,7 +448,9 @@ state over time, so they do **not** flow through collectors/ingest.
 - Distance is done in PostGIS: the API casts `Event.location` to `geography` and filters/measures in
   meters from the shared center origin (`center_lat`/`center_lon` in `config.py`, Chattanooga by
   default — also used by the CitySpark/Meetup source defaults and the weather feature).
-- Tables: `events` → `event_tags` / `event_links` (`app/events/models.py`).
+- Tables: `events` → `event_tags` / `event_links`, plus the `tags` vocabulary and the permanent
+  `geocode_cache` (`app/events/models.py`). Startup purges any tag in `events_blocked_tags`
+  (default `topics`, CitySpark's root tag).
 
 **Events source gotchas (don't regress):** CitySpark's `DateStart`/`DateEnd` carry a `Z` suffix on
 venue-local times — only `StartUTC`/`EndUTC` are real UTC; using the former shifts events by the
@@ -432,18 +471,24 @@ ingest never sees the hierarchy. A source erroring must never abort the refresh 
 (per-source isolation in `run_sources()`).
 
 ### The weather feature (`app/weather/`)
-Pipeline: **discover → fetch → cache → serve**, entirely on demand — no DB tables, no migration,
-no scheduler job. `app/weather/nws.py` holds pure payload-shaping functions (offline-testable
-against `tests/fixtures/nws/`); `app/weather/service.py` fetches and caches; `app/api/weather.py`
+Pipeline: **discover → fetch → cache → serve** — no DB tables, no migration. A `weather_refresh`
+scheduler job runs every `weather_cache_minutes` and calls `get_current(force=True)` (bypassing the
+TTL check) so the cache stays current without page loads, pinging `weather` on the live bus when
+the payload changes; requests otherwise refresh lazily once the TTL expires.
+`app/weather/nws.py` and `app/weather/airnow.py` hold pure payload-shaping functions
+(offline-testable against `tests/fixtures/nws/` and `tests/fixtures/airnow/`);
+`app/weather/service.py` fetches and caches; `app/api/weather.py`
 serves `GET /api/v1/weather/current` (registration gated by `weather_enabled`). The location is
 the shared `center_lat`/`center_lon` from `config.py`.
 
 NWS is two-hop: `GET /points/{lat},{lon}` yields the gridpoint forecast URL + station list, which
 are static for a fixed coordinate and resolved once per process (failed discovery is retried, not
-cached). Steady state per cache expiry (`weather_cache_minutes`, default 10) is two calls:
-forecast periods + latest station observation. Concurrent requests coalesce behind an asyncio
-lock; a failed refresh serves the previous payload, a cold failure 502s (the home strip degrades
-to a one-line notice without touching the other widgets).
+cached). Steady state per cache expiry (`weather_cache_minutes`, default 10) is two calls —
+forecast periods + latest station observation — plus a third, AirNow's current observation, when
+`airnow_api_key` is set. AirNow fails independently (`aqi` null) and a last-good AQI is carried
+forward for up to `airnow_stale_minutes` (default 120) past its observation time. Concurrent
+requests coalesce behind an asyncio lock; a failed refresh serves the previous payload, a cold
+failure 502s (the home strip degrades to a one-line notice without touching the other widgets).
 
 **NWS gotchas (don't regress):** requests must send an identifying `User-Agent` (the global
 `user_agent` setting); observations are °C / km/h and are converted to °F / mph; stations
@@ -463,28 +508,32 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
-  `/api/v1/<feature>/` (`timeseries`, `news`, `events`), and feature-agnostic app-shell endpoints
-  (`/api/v1/config`) sit directly under `/api/v1`. Each feature is one `APIRouter` module in
-  `app/api/` (`timeseries.py`, `news.py`, `events.py`, `root.py` for app-shell), composed in
-  `main.py` — adding a feature is a new router module + one `include_router` line. `main.py` mounts
-  `static/` at `/` last so `/api` always wins (with an SPA fallback: extension-less non-`/api` misses
-  serve `index.html`).
+  `/api/v1/<feature>/` (`timeseries`, `news`, `events`, `weather`), and feature-agnostic app-shell
+  endpoints (`/api/v1/config` and the `/api/v1/ws` live-update WebSocket) sit directly under
+  `/api/v1`. Each feature is one `APIRouter` module in `app/api/` (`timeseries.py`, `news.py`,
+  `events.py`, `weather.py`, `root.py` for app-shell), composed in
+  `main.py` — adding a feature is a new router module + one `include_router` line (the news router
+  is always mounted, `news_enabled` only gates its scheduler job; the weather router is mounted only
+  when `weather_enabled`). `main.py` mounts `static/` at `/` last so `/api` always wins (with an SPA
+  fallback: extension-less non-`/api` misses serve `index.html`).
 - All geographic responses are **GeoJSON FeatureCollections** (`geojson.py`). `bbox` params are
   `minLon,minLat,maxLon,maxLat`.
 - Timeseries routes are resource-shaped: `GET /api/v1/timeseries/entities` (filters: `active`
   [default true], `source`, `category`, `bbox`, `closed_within` minutes), `/entities/{id}` (snapshot
-  only), `/entities/{id}/track` (history), `/observations`, `/sources`, `POST /sources/{key}/refresh`,
-  and the `/ws` WebSocket.
-- News routes: `GET /api/v1/news/stories?hours=N` (returns the category slug→label map + one story
-  per cluster), `GET /api/v1/news/sources` (per-feed health for the footer), `POST
-  /api/v1/news/refresh`.
+  only), `/entities/{id}/track` (history), `/observations` (`limit` 1–50000, default 5000),
+  `/sources`, and `POST /sources/{key}/refresh` (serialized with the scheduled tick by a per-source
+  lock). Live diffs arrive on the global `/api/v1/ws` bus, not a timeseries route.
+- News routes: `GET /api/v1/news/stories?hours=N&limit=M` (returns the category slug→label map +
+  one story per cluster; `limit` optional, newest first), `GET /api/v1/news/sources` (per-feed
+  health for the footer), `POST /api/v1/news/refresh`.
 - Events routes (JSON, not GeoJSON): `GET /api/v1/events/items` (filters: `topic`, `max_miles` +
   `lat`/`lon` origin, `upcoming` [default true], `search`, `limit`; each item carries
   `distance_miles`), `GET /api/v1/events/tags`, `POST /api/v1/events/refresh`.
-- Weather route: `GET /api/v1/weather/current` (current station observation + the leading NWS
-  forecast periods; served from the in-process cache, 502 only when NWS is unreachable with a
-  cold cache).
+- Weather route: `GET /api/v1/weather/current` (current station observation, the leading NWS
+  forecast periods, and `aqi` — null without an AirNow key; served from the in-process cache, 502
+  only when NWS is unreachable with a cold cache).
 - The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
+  `src/features/home/` is the `/` widget digest (news, weather, outages, today's events);
   `src/features/timeseries/` loads `/api/v1/timeseries/entities` and applies bus diffs into a runes
   store; `src/features/news/` and `src/features/events/` load into their own runes stores and
   refetch when their bus ping arrives (no polling timers); `src/lib/` holds the feature-agnostic
@@ -495,8 +544,11 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911
 token/origin, tile layer, poll intervals, the news knobs (`news_enabled`,
 `news_refresh_minutes`, `news_story_window_days`; the outlet/feed list itself is code in
-`app/news/registry.py`), the weather knobs (`weather_enabled`, `weather_cache_minutes`), and the
-shared center coordinate (`center_lat`/`center_lon`, exposed as the `settings.center` tuple) used
+`app/news/registry.py`), the events knobs (`events_*`: refresh interval, iCal feeds, tribe
+calendars, CitySpark, Meetup token, geocoder throttle and retry, ingest radius, tag blocklist), the
+weather knobs (`weather_enabled`, `weather_cache_minutes`, `airnow_api_key`,
+`airnow_stale_minutes`), and the shared center coordinate (`center_lat`/`center_lon`, exposed as
+the `settings.center` tuple) used
 by the events distance origin, the CitySpark/Meetup source defaults, and the weather location.
 There is no `.env` by default; the code runs on the defaults in
 `config.py`. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.

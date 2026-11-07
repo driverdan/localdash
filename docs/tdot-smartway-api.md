@@ -2,7 +2,8 @@
 
 Reverse-engineered reference for the Tennessee DOT **SmartWay** traffic map
 (<https://smartway.tn.gov/traffic>). Captured 2026-06-13. This is the public-facing
-data that backs the Leaflet map; documented here as a candidate second LocalDash source.
+data that backs the Leaflet map. LocalDash ingests the event endpoints as its `tdot` source
+(`app/collectors/tdot.py`); see [How LocalDash uses it](#how-localdash-uses-it-collectorstdotpy).
 
 ## How the map gets its data
 
@@ -190,21 +191,30 @@ Point layer `Waze Smartway`. Fields: `UUID`, `PUBLISH_DATETIME` (date), `TYPE`, 
 `REPORT_DESC`, `STREET`, `CITY`, `COUNTRY`, `MAGVAR`, `REPORT_RATING`, `RELIABILITY`,
 `ROAD_TYPE`, `OBJECTID`. Request `f=geojson` to get GeoJSON directly.
 
-## Mapping to LocalDash (`collectors/`)
+## How LocalDash uses it (`collectors/tdot.py`)
 
-A `BaseCollector` subclass fits cleanly — these are snapshots, exactly like hc911:
+One collector, `source_key = "tdot"` ("TDOT SmartWay"), polled every `tdot_poll_interval`
+seconds (default 120). These endpoints are snapshots, exactly like hc911, so the ingest service
+builds the time-series (status changes, closure sweep).
 
-- **`source_key`** per layer (e.g. `tdot_incidents`, `tdot_cameras`, …) or one collector
-  emitting multiple sources.
-- **`external_id`** = `id` for each item (stable per event/camera/sign).
-- **`geom`** = `locations[0].midPoint` (or `lat`/`lng` for cameras/signs/rest areas), remembering
-  to flip to GeoJSON `[lng, lat]`. Stash `routeLine` in `properties` for line rendering.
-- **`source_time`** = `revisedDate` (events) / `PUBLISH_DATETIME` (waze). As with hc911, keep
-  `observed_at` = poll time; events carry real timestamps (no 1900 sentinel seen).
-- **state-change detection** already handles status moves (`Unresolved`→`Confirmed`→absent)
-  and the closure sweep (item drops out of the snapshot → mark inactive).
-- Put everything source-specific (`eventSubTypeDescription`, `impactDescription`, stream URLs,
-  `message`, etc.) in `properties` JSONB — no schema change needed.
+- **Endpoints**: the four event-style endpoints from `tdot_endpoints` —
+  `RoadwayIncidents`, `RoadwayOperations`, `RoadwaySpecialEvents`, `RoadwaySevereImpact` —
+  fetched with the app key in `X-API-Key`. They share one schema and one id space, so their items
+  are merged into the single `tdot` source. A `204 No Content` (an active but empty endpoint) is
+  skipped; any other error fails the run.
+- **Dedup**: items are keyed by `id` (→ `external_id`). An event in more than one endpoint is kept
+  once, and the severe copy wins.
+- **Category**: `isSevere` → `severe`; otherwise by `eventTypeName`: `Incident` → `incident`,
+  `Operations` → `construction`, `SpecialEvent` → `special_event`, anything else → `other`.
+- **Label**: `eventSubTypeDescription`, falling back to `eventTypeName`. **Status**: `status`.
+- **Point**: `locations[0].midPoint` (falling back to the location's first coordinate),
+  flipped to GeoJSON `[lng, lat]`.
+- **`source_time`**: `revisedDate`, falling back to `beginningDate`. As with hc911,
+  `observed_at` is the poll time.
+- **Properties**: the whole raw item goes into `properties` JSONB (route lines, descriptions,
+  etc.), so no schema change is needed.
+- **Not ingested**: cameras, message signs, rest areas (mostly static infrastructure) and the
+  Waze layer. They are documented above for reference only.
 
 ### Quick probe commands
 
