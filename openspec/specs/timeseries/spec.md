@@ -3,9 +3,7 @@
 ## Purpose
 
 Time-series geolocation data over collected sources: the entities collection (current state), per-entity observation tracks, windowed observation queries, the source registry/telemetry, and manual refresh. All routes live under the feature's namespace `/api/v1/timeseries/` (see the `app-shell` spec for the namespace convention). Live diffs are delivered as `topic: "timeseries"` messages on the global bus (see the `live-updates` spec), not a feature-scoped WebSocket.
-
 ## Requirements
-
 ### Requirement: Entities collection
 The system SHALL serve tracked entities at `GET /api/v1/timeseries/entities` as a GeoJSON FeatureCollection. The collection SHALL support the filters `active` (bool, default `true`), `source` (source key), `category`, `bbox` (`minLon,minLat,maxLon,maxLat`), and `closed_within` (minutes, 0–10080). Each feature's `geometry` SHALL be the entity's stored geometry serialized as-is — a GeoJSON `Point` for point sources or a `Polygon`/`MultiPolygon` for area sources — with no assumption that it is a point. Each feature's properties SHALL merge the entity's latest source properties with the authoritative keys `id`, `source`, `external_id`, `category`, `label`, `last_seen_at`, `active`, and `status` (reported as `Closed` for inactive entities).
 
@@ -56,7 +54,7 @@ The system SHALL serve an entity's full observation history at `GET /api/v1/time
 - **THEN** the API responds `404`
 
 ### Requirement: Observations window query
-The system SHALL serve historical observations at `GET /api/v1/timeseries/observations` as a GeoJSON FeatureCollection, filterable by `source`, `category`, `bbox`, `start`, and `end`, ordered newest-first, with a `limit` defaulting to 5000 and capped at 50000. Each feature's `geometry` SHALL be the observation's stored geometry serialized as-is (point or polygon), and `bbox` SHALL be evaluated as a PostGIS intersection against that geometry.
+The system SHALL serve historical observations at `GET /api/v1/timeseries/observations` as a GeoJSON FeatureCollection, filterable by `source`, `category`, `bbox`, `start`, and `end`, ordered newest-first, with a `limit` defaulting to 5000, at least 1, and capped at 50000. Each feature's `geometry` SHALL be the observation's stored geometry serialized as-is (point or polygon), and `bbox` SHALL be evaluated as a PostGIS intersection against that geometry.
 
 #### Scenario: Time-window query
 - **WHEN** a client requests observations with `start` and `end` timestamps
@@ -70,6 +68,10 @@ The system SHALL serve historical observations at `GET /api/v1/timeseries/observ
 - **WHEN** a client requests a `limit` greater than 50000
 - **THEN** the API rejects the request with a validation error
 
+#### Scenario: Non-positive limit is rejected
+- **WHEN** a client requests a `limit` of 0 or a negative number
+- **THEN** the API rejects the request with a `422` validation error rather than a server error
+
 ### Requirement: Source registry
 The system SHALL list registered sources at `GET /api/v1/timeseries/sources`, including each source's `key`, `name`, `enabled`, `poll_interval_seconds`, and last-run telemetry (`last_run_at`, `last_status`, `last_error`, `last_count`).
 
@@ -78,7 +80,7 @@ The system SHALL list registered sources at `GET /api/v1/timeseries/sources`, in
 - **THEN** every registered source is returned with its configuration and last-run telemetry
 
 ### Requirement: Manual source refresh
-The system SHALL trigger one collection cycle for a source via `POST /api/v1/timeseries/sources/{key}/refresh` and return the resulting diff summary.
+The system SHALL trigger one collection cycle for a source via `POST /api/v1/timeseries/sources/{key}/refresh` and return the run result `{source, status, error, count}`. Manual and scheduled collection cycles for the same source SHALL be serialized: a cycle that starts while another cycle for that source is running SHALL wait for it to finish rather than ingest concurrently. Cycles for different sources SHALL NOT block each other.
 
 #### Scenario: Refreshing a known source
 - **WHEN** a client posts to `/api/v1/timeseries/sources/{key}/refresh` for a registered collector
@@ -87,6 +89,11 @@ The system SHALL trigger one collection cycle for a source via `POST /api/v1/tim
 #### Scenario: Refreshing an unknown source
 - **WHEN** a client posts a refresh for a key with no registered collector
 - **THEN** the API responds `404`
+
+#### Scenario: Manual refresh during a scheduled tick is serialized
+- **WHEN** a manual refresh for a source is posted while that source's scheduled cycle is running
+- **THEN** the manual cycle begins only after the scheduled cycle completes, so the two never
+  ingest the same source concurrently
 
 ### Requirement: Arbitrary entity and observation geometry
 The system SHALL store and track each entity's and observation's geometry as an arbitrary PostGIS geometry (`geometry(Geometry,4326)`), supporting at least `Point`, `Polygon`, and `MultiPolygon`, so that area-based sources are first-class. The normalized-observation contract SHALL accept either a point (via `lat`/`lon`) or an explicit GeoJSON `geometry`; when both are absent the entity SHALL have `null` geometry. Change detection SHALL record a new observation when an entity's `status` changes OR its geometry changes, where geometry change is determined by a geometry fingerprint whose point form preserves the prior ~0.1 m movement threshold. Existing point sources SHALL record the same observations they did before this change.
@@ -109,3 +116,4 @@ The legacy flat routes (`/api/active`, `/api/entities/{id}`, `/api/observations`
 #### Scenario: Old route returns 404
 - **WHEN** a client requests `GET /api/active`
 - **THEN** the API responds `404`
+
