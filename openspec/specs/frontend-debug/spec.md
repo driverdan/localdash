@@ -8,20 +8,18 @@ A shell-owned debug overlay for investigating issues and inspecting live UI stat
 lets features publish runtime state to a shared store without cross-feature imports. Ships with the
 map section (live zoom + center); structured so new sections can be added without touching existing
 ones.
-
 ## Requirements
-
 ### Requirement: Debug overlay toggle button
 The shell SHALL render a persistent debug toggle button on every route, drawn as the **π** glyph in a
 small styled button. The button SHALL be feature-agnostic shell code (`frontend/src/lib/` +
 `App.svelte`), consistent with the shell's ownership of the nav, status bar, and theme switcher, and
 SHALL NOT depend on any feature. Its styling SHALL be theme-aware (a visible variant in both the
 default and dark themes). On desktop-width viewports the button SHALL float fixed in the bottom-right
-corner of the screen; on mobile-width viewports (a defined breakpoint) it SHALL instead sit at the
-bottom of the page. Clicking the button SHALL toggle the debug modal open and closed.
+corner of the screen; on mobile-width viewports (a defined breakpoint) it SHALL instead stay fixed but
+centered at the bottom of the screen. Clicking the button SHALL toggle the debug modal open and closed.
 
 #### Scenario: Button present on every route
-- **WHEN** the user is on any route (`/`, `/map`, or `/events`)
+- **WHEN** the user is on any route (`/`, `/news`, `/map`, or `/events`)
 - **THEN** the π debug toggle button is visible
 
 #### Scenario: Desktop position
@@ -30,7 +28,7 @@ bottom of the page. Clicking the button SHALL toggle the debug modal open and cl
 
 #### Scenario: Mobile position
 - **WHEN** the viewport is below the mobile breakpoint
-- **THEN** the π button is positioned at the bottom of the page rather than floating bottom-right
+- **THEN** the π button is fixed at the bottom-center of the screen rather than bottom-right
 
 #### Scenario: Toggle opens and closes the modal
 - **WHEN** the user clicks the π button while the debug modal is closed
@@ -65,7 +63,7 @@ scope to the route-specific content rather than to the modal as a whole.
 - **THEN** it renders the map debug section
 
 #### Scenario: Route with a registered action shows it instead of the placeholder
-- **WHEN** the debug modal is open on a route whose mounted feature has registered a debug action (e.g. `/` or `/events`)
+- **WHEN** the debug modal is open on a route whose mounted feature has registered a debug action (e.g. `/news` or `/events`)
 - **THEN** it renders that action rather than the "no debug data for this view" placeholder
 
 #### Scenario: Route with no section or action shows a placeholder beside the always-present sections

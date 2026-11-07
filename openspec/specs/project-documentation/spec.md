@@ -14,9 +14,7 @@ The README is scoped to orientation. Contributor mechanics live in
 and workflow live in `AGENTS.md`, and the API reference is the interactive
 documentation the app itself serves — each with exactly one home, so no copy can
 go stale.
-
 ## Requirements
-
 ### Requirement: README reflects current features and routes
 
 The `README.md` SHALL describe LocalDash as a multi-feature local-data dashboard,
@@ -167,11 +165,12 @@ collectors so agents onboarding from it receive accurate context.
 - **THEN** it describes the four features (Timeseries, News, Events, Weather),
   including an Events architecture note covering `app/events/`, its sources, and
   the `/api/v1/events` namespace
-- **AND** it describes the Weather feature as having no DB tables and no
-  scheduler job
+- **AND** it describes the Weather feature as having no DB tables, with a scheduled
+  refresh job that keeps its in-process cache current and pings live clients
 
 #### Scenario: All collectors are listed
 
 - **WHEN** an agent reads the geo-source description in `AGENTS.md`
 - **THEN** the `tnaw` (TN American Water Advisories) collector is included alongside
   `hc911`, `tdot`, and `epb`
+

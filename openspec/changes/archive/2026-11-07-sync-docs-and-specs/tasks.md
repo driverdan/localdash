@@ -38,4 +38,4 @@
 
 ## 7. Archive phase (hand edits, archive PR only)
 
-- [ ] 7.1 After `openspec archive`, hand-edit the `weather` Purpose (drop "no scheduler job") and the `events` Purpose (add the Chattanooga Zoo)
+- [x] 7.1 After `openspec archive`, hand-edit the `weather` Purpose (drop "no scheduler job") and the `events` Purpose (add the Chattanooga Zoo)

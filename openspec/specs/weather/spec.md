@@ -4,9 +4,10 @@
 
 The backend weather feature: current conditions + today's forecast proxied from the National
 Weather Service API (`api.weather.gov`) at the shared app-level center coordinate, served at
-`/api/v1/weather/current` for the home page's weather strip. Deliberately stateless — no DB
-tables, no scheduler job — an in-process TTL cache shields the browser from NWS's two-hop
-discovery, User-Agent requirement, and slowness. Not a geo/timeseries source: weather does not
+`/api/v1/weather/current` for the home page's weather strip, with AirNow air quality folded in
+when an API key is configured. Deliberately stateless — no DB tables — an in-process TTL cache,
+kept current by one scheduled refresh job, shields the browser from NWS's two-hop discovery,
+User-Agent requirement, and slowness. Not a geo/timeseries source: weather does not
 flow through collectors/ingest (weather-on-the-map remains a separate future idea).
 ## Requirements
 ### Requirement: Weather API namespace and current-conditions endpoint

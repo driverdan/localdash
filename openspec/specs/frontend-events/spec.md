@@ -5,9 +5,7 @@
 The `/events` page: an event list UI with topic/distance/search filtering and per-source
 origin links, following the feature-namespace and runes-store conventions beside `frontend-news`
 and `frontend-timeseries`.
-
 ## Requirements
-
 ### Requirement: Events page feature module
 The events UI SHALL live in `frontend/src/features/events/` following the feature-namespace
 conventions: a Svelte 5 runes store holding items, tags, active filters, and load status; an API
@@ -158,8 +156,8 @@ The events page SHALL NOT render a "Refresh sources" button or refresh status te
 Manual source refresh is provided as a debug-panel action (see `frontend-debug`): while the `/events`
 route is mounted, the feature registers a refresh action that POSTs `/api/v1/events/refresh`, reloads
 items and tags on completion, exposes progress/completion status text, and reports a disabled state
-while a refresh is in flight; it unregisters the action on teardown. This is separate from and does
-not replace the feature's automatic 5-minute reload.
+while a refresh is in flight; it unregisters the action on teardown. This is separate from the feature's
+automatic reload on live-update pings.
 
 #### Scenario: No refresh button in the toolbar
 - **WHEN** the events toolbar is inspected
@@ -173,3 +171,4 @@ not replace the feature's automatic 5-minute reload.
 #### Scenario: Action is scoped to the route
 - **WHEN** the user navigates away from `/events`
 - **THEN** the events refresh action is unregistered and no longer appears in the debug panel
+
