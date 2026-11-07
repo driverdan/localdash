@@ -88,8 +88,8 @@ is the full list. The ones most worth knowing:
   `HC911_POLL_INTERVAL`. Please don't poll a source faster than it actually
   updates; the defaults are chosen to be a good neighbor, and LocalDash
   identifies itself with a descriptive `USER_AGENT`.
-- **`RETENTION_DAYS`** — how long to keep observation history. The default keeps
-  everything forever.
+
+Observation history is kept forever; there is no retention setting yet.
 
 Once the app is running, the full API is documented and browsable at
 <http://localhost:8000/docs>.

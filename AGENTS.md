@@ -493,7 +493,7 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 
 ## Config
 All settings come from env / `.env` via `config.py` (pydantic-settings) — DB URL, the hc911
-token/origin, tile layer, poll intervals, retention, the news knobs (`news_enabled`,
+token/origin, tile layer, poll intervals, the news knobs (`news_enabled`,
 `news_refresh_minutes`, `news_story_window_days`; the outlet/feed list itself is code in
 `app/news/registry.py`), the weather knobs (`weather_enabled`, `weather_cache_minutes`), and the
 shared center coordinate (`center_lat`/`center_lon`, exposed as the `settings.center` tuple) used

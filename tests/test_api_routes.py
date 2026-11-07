@@ -46,6 +46,25 @@ async def test_observations_limit_capped(client):
     assert r.status_code == 422
 
 
+async def test_observations_limit_must_be_positive(client):
+    for limit in (0, -1):
+        r = await client.get("/api/v1/timeseries/observations", params={"limit": limit})
+        assert r.status_code == 422, limit
+
+
+@pytest.mark.parametrize("path", ["api", "api/", "api/nope"])
+async def test_api_paths_never_fall_back_to_spa(tmp_path, path):
+    from starlette.exceptions import HTTPException
+
+    from app.main import NoCacheStaticFiles
+
+    static = NoCacheStaticFiles(directory=tmp_path, html=True)
+    scope = {"type": "http", "method": "GET", "headers": []}
+    with pytest.raises(HTTPException) as exc:
+        await static.get_response(path, scope)
+    assert exc.value.status_code == 404
+
+
 async def test_refresh_unknown_source_404(client):
     r = await client.post("/api/v1/timeseries/sources/nope/refresh")
     assert r.status_code == 404

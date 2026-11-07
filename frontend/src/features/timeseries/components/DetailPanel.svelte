@@ -7,20 +7,27 @@
 
   let detail = $state<EntityDetail | null>(null);
   let track = $state<TrackPoint[] | null>(null);
+  let failed = $state(false);
 
   $effect(() => {
     const id = ts.detailId;
     detail = null;
     track = null;
+    failed = false;
     ts.detailTrack = null;
     if (id == null) return;
     // Snapshot and history are separate resources; fetch them concurrently.
-    Promise.all([fetchEntity(id), fetchTrack(id)]).then(([d, t]) => {
-      if (ts.detailId !== id) return; // a different entity was opened meanwhile
-      detail = d;
-      track = t;
-      ts.detailTrack = t;
-    });
+    Promise.all([fetchEntity(id), fetchTrack(id)])
+      .then(([d, t]) => {
+        if (ts.detailId !== id) return; // a different entity was opened meanwhile
+        detail = d;
+        track = t;
+        ts.detailTrack = t;
+      })
+      .catch(() => {
+        if (ts.detailId !== id) return; // stale failure for an entity no longer open
+        failed = true;
+      });
   });
 
   const rows = $derived.by((): DetailRow[] => {
@@ -42,7 +49,9 @@
 {#if ts.detailId != null}
   <div class="detail">
     <button class="close" onclick={() => (ts.detailId = null)}>&times;</button>
-    {#if !detail || !track}
+    {#if failed}
+      <div class="error">Could not load details.</div>
+    {:else if !detail || !track}
       <div>Loading…</div>
     {:else}
       <h3>{title}</h3>

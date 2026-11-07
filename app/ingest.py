@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import func, or_, select
 
 from app.collectors.base import NormalizedObservation
-from app.geojson import feature, feature_geom
+from app.geojson import entity_properties, feature, feature_geom
 from app.models import Entity, Observation
 from app.schemas import Diff
 
@@ -92,15 +92,18 @@ def _geom_value(obs: NormalizedObservation):
 
 
 def _entity_feature(entity: Entity, obs: NormalizedObservation) -> dict:
-    props = {
-        "id": entity.id,
-        "source": entity.source_key,
-        "external_id": entity.external_id,
-        "category": entity.category,
-        "label": entity.label,
-        "status": obs.status,
-        **obs.properties,
-    }
+    # Same property contract as GET /entities, so live diffs and REST agree.
+    props = entity_properties(
+        obs.properties,
+        id=entity.id,
+        source=entity.source_key,
+        external_id=entity.external_id,
+        category=entity.category,
+        label=entity.label,
+        last_seen_at=entity.last_seen_at,
+        active=True,
+        status=obs.status,
+    )
     if obs.geometry is not None:
         return feature_geom(obs.geometry, props, fid=entity.id)
     return feature(obs.lon, obs.lat, props, fid=entity.id)

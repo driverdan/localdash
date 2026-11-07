@@ -23,20 +23,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Every setting in an optional .env (see .env.example) reaches the app, so
+    # README's configuration advice works under Docker too. Unset settings keep
+    # the app's own defaults (app/config.py). Change .env, then
+    # `docker compose up -d` to recreate the container — no rebuild needed.
+    env_file:
+      - path: .env
+        required: false
     environment:
-      # Inside the compose network the database is reached at host "db".
+      # Inside the compose network the database is reached at host "db". This
+      # overrides any DATABASE_URL in .env (which points at localhost for local dev).
       DATABASE_URL: postgresql+asyncpg://localdash:localdash@db:5432/localdash
-      # User-facing site name (header, browser tab, API docs). Change and restart
-      # — no rebuild needed; interpolated from .env like the keys below.
-      SITE_NAME: ${SITE_NAME:-LocalDash}
-      # Interpolated from .env (compose reads it for ${...} substitution even
-      # though the file itself is not mounted); empty disables the AQI fetch.
-      AIRNOW_API_KEY: ${AIRNOW_API_KEY:-}
-      # Comma-separated event topic tags to block: purged from the DB at startup
-      # and stripped from events during ingest. Empty (default) is a no-op.
-      EVENTS_BLOCKED_TAGS: ${EVENTS_BLOCKED_TAGS:-}
-    # Optionally override source tokens / tile layer here or via a .env file:
-    # env_file: .env
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -52,7 +49,10 @@ services:
     profiles: ["tunnel"]
     command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+      # Not `:?`-required: compose interpolates every service even when its profile
+      # is off, so a hard requirement would break plain `docker compose up`.
+      # Without a token, cloudflared itself fails at start with a clear error.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
       - app
     restart: unless-stopped

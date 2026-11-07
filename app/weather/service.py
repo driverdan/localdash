@@ -49,12 +49,19 @@ class WeatherService:
         self._forecast_url: str | None = None
         self._station_urls: list[str] = []
 
-    async def get_current(self) -> dict:
-        """The shaped weather payload — cached, refreshed at most once per TTL."""
+    async def get_current(self, *, force: bool = False) -> dict:
+        """The shaped weather payload — cached, refreshed at most once per TTL.
+
+        `force` skips only the TTL check (the scheduled job uses it: its ticks land
+        one interval after the previous fetch *finished*, so the cache always looks
+        marginally fresh and every other tick would otherwise be a cache hit).
+        Locking, stale-on-failure, and AQI carry-forward still apply.
+        """
         settings = get_settings()
         ttl = settings.weather_cache_minutes * 60
         async with self._lock:
-            if self._payload is not None and time.monotonic() - self._fetched_at < ttl:
+            fresh = time.monotonic() - self._fetched_at < ttl
+            if self._payload is not None and fresh and not force:
                 return self._payload
             try:
                 payload = await self._refresh(settings)

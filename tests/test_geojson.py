@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from app.geojson import feature, feature_collection, feature_geom
+from datetime import datetime, timezone
+
+from app.geojson import entity_properties, feature, feature_collection, feature_geom
 
 
 def test_feature_with_point_geometry():
@@ -45,3 +47,40 @@ def test_feature_geom_wraps_polygon():
 
 def test_feature_geom_allows_null_geometry():
     assert feature_geom(None, {})["geometry"] is None
+
+
+def test_entity_properties_authoritative_keys_override_raw():
+    seen = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
+    props = entity_properties(
+        {"id": "upstream-99", "source": "raw", "extra": 1, "status": "raw"},
+        id=7,
+        source="hc911",
+        external_id="abc",
+        category="police",
+        label="Test",
+        last_seen_at=seen,
+        active=True,
+        status="Enroute",
+    )
+    assert props["id"] == 7
+    assert props["source"] == "hc911"
+    assert props["status"] == "Enroute"
+    assert props["extra"] == 1  # raw fields pass through
+    assert props["last_seen_at"] == seen.isoformat()
+    assert props["active"] is True
+
+
+def test_entity_properties_tolerates_missing_raw_and_timestamp():
+    props = entity_properties(
+        None,
+        id=1,
+        source="s",
+        external_id="e",
+        category=None,
+        label=None,
+        last_seen_at=None,
+        active=False,
+        status="Closed",
+    )
+    assert props["last_seen_at"] is None
+    assert props["active"] is False

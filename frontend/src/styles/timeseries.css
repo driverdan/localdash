@@ -247,6 +247,9 @@
   padding: 16px;
   z-index: 1000;
 }
+.detail .error {
+  color: var(--color-err);
+}
 .detail .close {
   position: absolute;
   top: 8px;

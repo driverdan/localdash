@@ -182,6 +182,18 @@ async def test_second_request_within_ttl_hits_cache():
     assert len(nws.calls) == calls_after_first  # no upstream traffic
 
 
+async def test_forced_refresh_within_ttl_hits_upstream():
+    nws = FakeNWS()
+    svc = nws.service()
+    await svc.get_current()
+    calls_after_first = len(nws.calls)
+    await svc.get_current(force=True)
+    calls_after_forced = len(nws.calls)
+    assert calls_after_forced > calls_after_first  # the scheduled job's path refetches
+    await svc.get_current()
+    assert len(nws.calls) == calls_after_forced  # request path still honors the TTL
+
+
 async def test_discovery_happens_once_per_process():
     nws = FakeNWS()
     svc = nws.service()
