@@ -22,7 +22,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.geojson import feature_collection, feature_geom
+from app.geojson import entity_properties, feature_collection, feature_geom
 from app.models import Entity, Observation, Source
 
 router = APIRouter()
@@ -102,18 +102,17 @@ async def entities(
         feats.append(
             feature_geom(
                 _parse_geom(geom_json),
-                {
-                    # raw source fields first, then our authoritative keys override them.
-                    **(props or {}),
-                    "id": eid,
-                    "source": skey,
-                    "external_id": ext,
-                    "category": cat,
-                    "label": label,
-                    "last_seen_at": last_seen.isoformat() if last_seen else None,
-                    "active": is_active,
-                    "status": "Closed" if not is_active else (props or {}).get("status"),
-                },
+                entity_properties(
+                    props,
+                    id=eid,
+                    source=skey,
+                    external_id=ext,
+                    category=cat,
+                    label=label,
+                    last_seen_at=last_seen,
+                    active=is_active,
+                    status="Closed" if not is_active else (props or {}).get("status"),
+                ),
                 fid=eid,
             )
         )
@@ -189,7 +188,7 @@ async def observations(
     bbox: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
-    limit: Annotated[int, Query(le=50000)] = 5000,
+    limit: Annotated[int, Query(ge=1, le=50000)] = 5000,
     session: AsyncSession = Depends(get_session),
 ):
     """Historical observations in a time window as a GeoJSON FeatureCollection."""

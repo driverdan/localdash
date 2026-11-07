@@ -83,6 +83,24 @@ async def test_ingest_full_lifecycle(db_session):
     assert ent2.is_active is True
 
 
+async def test_diff_features_share_rest_property_contract(db_session):
+    # A raw upstream `id` must not clobber the entity id, and diff features carry
+    # last_seen_at/active like GET /entities does.
+    diff = await ingest(db_session, "test", [_obs("1", "Queued", id="upstream-99")])
+    props = diff.new[0]["properties"]
+    ent = await _entity(db_session, "1")
+    assert props["id"] == ent.id == diff.new[0]["id"]
+    assert props["active"] is True
+    assert props["last_seen_at"] == ent.last_seen_at.isoformat()
+
+    diff = await ingest(db_session, "test", [_obs("1", "Enroute", id="upstream-99")])
+    props = diff.updated[0]["properties"]
+    assert props["id"] == ent.id
+    assert props["status"] == "Enroute"
+    assert props["active"] is True
+    assert props["last_seen_at"] is not None
+
+
 _RING = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-84.9, 35.0], [-85.0, 35.0]]
 
 

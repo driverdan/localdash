@@ -69,10 +69,10 @@ def _index_html() -> str:
 class NoCacheStaticFiles(StaticFiles):
     """Serve static assets with `Cache-Control: no-cache`, plus an SPA fallback.
 
-    The dashboard has no build step / content hashing, so a stale cached app.js
-    after a redeploy silently runs old code. `no-cache` forces the browser to
-    revalidate via ETag every load — unchanged files still return a cheap 304,
-    but new code is always picked up.
+    `index.html` is not content-hashed, so a cached copy after a redeploy would
+    keep loading the old bundle. `no-cache` forces the browser to revalidate via
+    ETag every load — unchanged files still return a cheap 304, but new code is
+    always picked up.
 
     The SPA has client-side routes (e.g. /map), so an extension-less path that
     matches no file serves index.html and lets the router take over. Asset
@@ -100,7 +100,9 @@ class NoCacheStaticFiles(StaticFiles):
                 response = await super().get_response(path, scope)
         except HTTPException as exc:
             # StaticFiles raises (not returns) its 404s.
-            if exc.status_code != 404 or path.startswith("api/") or "." in path.rsplit("/", 1)[-1]:
+            # Starlette normalizes bare /api and /api/ to "api", so match it too.
+            is_api = path == "api" or path.startswith("api/")
+            if exc.status_code != 404 or is_api or "." in path.rsplit("/", 1)[-1]:
                 raise
             # SPA fallback for a client-side route — same injected index.html.
             response = HTMLResponse(_index_html())

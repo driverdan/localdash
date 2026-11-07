@@ -8,11 +8,14 @@ the shaped payload changed.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 import app.events.refresh as events_refresh_mod
 import app.news.refresh as news_refresh_mod
 import app.scheduler as scheduler_mod
+from app.schemas import Diff
 
 
 class FakeManager:
@@ -117,8 +120,10 @@ async def test_events_refresh_unchanged_cycle_is_silent(monkeypatch, fake_manage
 class FakeWeatherService:
     def __init__(self, payloads):
         self._payloads = list(payloads)
+        self.forced: list[bool] = []
 
-    async def get_current(self):
+    async def get_current(self, *, force: bool = False):
+        self.forced.append(force)
         result = self._payloads.pop(0)
         if isinstance(result, Exception):
             raise result
@@ -142,6 +147,7 @@ async def test_weather_job_pings_only_on_payload_change(monkeypatch, fake_manage
     await scheduler_mod.run_weather_refresh()
 
     assert fake_manager.pings == ["weather", "weather"]
+    assert svc.forced == [True, True, True]  # every tick bypasses the TTL
 
 
 async def test_weather_job_failure_is_silent(monkeypatch, fake_manager):
@@ -153,6 +159,66 @@ async def test_weather_job_failure_is_silent(monkeypatch, fake_manager):
     await scheduler_mod.run_weather_refresh()
 
     assert fake_manager.pings == []
+
+
+class _Recorder:
+    """Records collector-cycle enter/exit events to detect overlap."""
+
+    def __init__(self):
+        self.events: list[str] = []
+
+
+class FakeCollector:
+    def __init__(self, source_key: str, rec: _Recorder):
+        self.source_key = source_key
+        self.name = source_key
+        self.poll_interval = 60
+        self._rec = rec
+
+    async def collect(self):
+        self._rec.events.append(f"start:{self.source_key}")
+        await asyncio.sleep(0.01)
+        self._rec.events.append(f"end:{self.source_key}")
+        return []
+
+
+def _patch_collector_cycle(monkeypatch, fake_manager):
+    async def fake_ingest(session, source_key, observations):
+        return Diff(source_key=source_key)
+
+    async def fake_record(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(scheduler_mod, "SessionLocal", FakeSessionLocal)
+    monkeypatch.setattr(scheduler_mod, "ingest", fake_ingest)
+    monkeypatch.setattr(scheduler_mod, "_record_run", fake_record)
+    monkeypatch.setattr(scheduler_mod, "manager", fake_manager)
+    monkeypatch.setattr(scheduler_mod, "_source_locks", {})
+
+
+async def test_same_source_collector_runs_are_serialized(monkeypatch, fake_manager):
+    _patch_collector_cycle(monkeypatch, fake_manager)
+    rec = _Recorder()
+    scheduled, manual = FakeCollector("hc911", rec), FakeCollector("hc911", rec)
+
+    results = await asyncio.gather(
+        scheduler_mod.run_collector(scheduled), scheduler_mod.run_collector(manual)
+    )
+
+    assert [r["status"] for r in results] == ["ok", "ok"]
+    assert rec.events == ["start:hc911", "end:hc911", "start:hc911", "end:hc911"]
+
+
+async def test_different_sources_run_concurrently(monkeypatch, fake_manager):
+    _patch_collector_cycle(monkeypatch, fake_manager)
+    rec = _Recorder()
+
+    await asyncio.gather(
+        scheduler_mod.run_collector(FakeCollector("hc911", rec)),
+        scheduler_mod.run_collector(FakeCollector("epb", rec)),
+    )
+
+    assert rec.events[:2] == ["start:hc911", "start:epb"]
 
 
 if __name__ == "__main__":  # pragma: no cover

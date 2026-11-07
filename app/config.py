@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     # Topic tags that should never exist: comma-separated names, lowercased to
     # match the stored tag vocabulary. Blocked tags are purged from the tags
     # table at startup and stripped from events during ingest. Empty = no-op.
+    # Default drops CitySpark's root "Topics" tag, which would otherwise attach
+    # a junk `topics` tag to every CitySpark event.
     events_blocked_tags: str = "topics"
 
     # Weather feature (NWS proxy for the homepage strip; no DB, no scheduler —
@@ -138,8 +140,6 @@ class Settings(BaseSettings):
     tile_attribution: str = (
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     )
-
-    retention_days: int = 0
 
     @property
     def blocked_tags(self) -> set[str]:

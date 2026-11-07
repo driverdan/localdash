@@ -205,7 +205,7 @@ def feed_kind(url: str) -> str:
 
 
 async def sync_registry(session: AsyncSession) -> None:
-    """Upsert SOURCES into the DB; delete feeds removed from the registry."""
+    """Upsert SOURCES into the DB; delete sources and feeds removed from the registry."""
     for src in SOURCES:
         stmt = pg_insert(NewsSource).values(
             slug=src["slug"],
@@ -248,4 +248,9 @@ async def sync_registry(session: AsyncSession) -> None:
         await session.execute(
             delete(NewsFeed).where(NewsFeed.source_id == source_id, NewsFeed.url.notin_(urls))
         )
+
+    # Drop whole outlets removed from the registry; their feeds and articles go
+    # with them via ON DELETE CASCADE, so they stop being fetched and listed.
+    slugs = [src["slug"] for src in SOURCES]
+    await session.execute(delete(NewsSource).where(NewsSource.slug.notin_(slugs)))
     await session.commit()

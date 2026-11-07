@@ -44,6 +44,16 @@ TEST_SOURCES_V2 = [
 ]
 
 
+# Sync now deletes any stored source missing from SOURCES, and these tests run
+# against the shared dev DB: always keep the real registry in the patched list
+# so a test sync never removes real outlets (or their articles).
+_REAL_SOURCES = list(registry.SOURCES)
+
+
+def _use_sources(monkeypatch, test_sources):
+    monkeypatch.setattr(registry, "SOURCES", _REAL_SOURCES + test_sources)
+
+
 async def _feeds(session, slug):
     return (
         (
@@ -60,14 +70,14 @@ async def _feeds(session, slug):
 
 
 async def test_registry_sync_upserts_and_deletes(news_db_session, monkeypatch):
-    monkeypatch.setattr(registry, "SOURCES", TEST_SOURCES_V1)
+    _use_sources(monkeypatch, TEST_SOURCES_V1)
     await registry.sync_registry(news_db_session)
 
     feeds = await _feeds(news_db_session, "test-outlet")
     assert [(f.category, f.position) for f in feeds] == [("sports", 0), ("news", 1)]
 
     # Re-sync with the sports feed removed and the source renamed.
-    monkeypatch.setattr(registry, "SOURCES", TEST_SOURCES_V2)
+    _use_sources(monkeypatch, TEST_SOURCES_V2)
     await registry.sync_registry(news_db_session)
 
     feeds = await _feeds(news_db_session, "test-outlet")
@@ -78,6 +88,45 @@ async def test_registry_sync_upserts_and_deletes(news_db_session, monkeypatch):
         )
     ).scalar_one()
     assert name == "Test Outlet Renamed"
+
+
+TEST_SOURCE_GONE = {
+    "slug": "test-gone",
+    "name": "Test Gone",
+    "homepage": "https://gone.example.com",
+    "enabled": True,
+    "feeds": [{"category": "news", "url": "https://gone.example.com/feed"}],
+}
+
+
+async def _slugs(session):
+    return set((await session.execute(select(NewsSource.slug))).scalars().all())
+
+
+async def test_registry_sync_deletes_sources_removed_from_registry(news_db_session, monkeypatch):
+    _use_sources(monkeypatch, TEST_SOURCES_V1 + [TEST_SOURCE_GONE])
+    await registry.sync_registry(news_db_session)
+    gone_id = (
+        await news_db_session.execute(select(NewsSource.id).where(NewsSource.slug == "test-gone"))
+    ).scalar_one()
+    await upsert_articles(news_db_session, [_article(gone_id, "gone-1", "news")])
+    await news_db_session.commit()
+
+    # Re-sync with test-gone dropped entirely from the registry.
+    _use_sources(monkeypatch, TEST_SOURCES_V1)
+    await registry.sync_registry(news_db_session)
+
+    slugs = await _slugs(news_db_session)
+    assert "test-gone" not in slugs
+    assert "test-outlet" in slugs
+    assert {src["slug"] for src in _REAL_SOURCES} <= slugs  # real outlets untouched
+    assert await _feeds(news_db_session, "test-gone") == []
+    orphans = (
+        await news_db_session.execute(
+            select(NewsArticle.id).where(NewsArticle.source_id == gone_id)
+        )
+    ).all()
+    assert orphans == []  # articles cascaded
 
 
 def _article(source_id, guid, category, title="Some headline"):
@@ -95,7 +144,7 @@ def _article(source_id, guid, category, title="Some headline"):
 
 
 async def _seed_source(session, monkeypatch) -> int:
-    monkeypatch.setattr(registry, "SOURCES", TEST_SOURCES_V1)
+    _use_sources(monkeypatch, TEST_SOURCES_V1)
     await registry.sync_registry(session)
     return (
         await session.execute(select(NewsSource.id).where(NewsSource.slug == "test-outlet"))

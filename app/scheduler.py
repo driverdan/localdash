@@ -6,6 +6,7 @@ telemetry on the source row. Also used by the manual /refresh endpoint.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -25,6 +26,9 @@ from app.weather.service import service as weather_service
 from app.ws import manager
 
 log = logging.getLogger("localdash.scheduler")
+
+# Per-source collection locks, created lazily (see run_collector).
+_source_locks: dict[str, asyncio.Lock] = {}
 
 # Last payload the weather job saw; pings fire only when it changes.
 _last_weather_payload: dict | None = None
@@ -54,7 +58,7 @@ async def run_weather_refresh() -> None:
     """
     global _last_weather_payload
     try:
-        payload = await weather_service.get_current()
+        payload = await weather_service.get_current(force=True)
     except Exception:  # noqa: BLE001
         log.exception("weather refresh failed")
         return
@@ -63,22 +67,36 @@ async def run_weather_refresh() -> None:
         await manager.ping("weather")
 
 
-async def run_collector(collector: BaseCollector) -> dict:
-    """Run one collection cycle; persist telemetry; broadcast diff."""
-    status, error, count = "ok", None, 0
-    try:
-        observations = await collector.collect()
-        count = len(observations)
-        async with SessionLocal() as session:
-            diff = await ingest(session, collector.source_key, observations)
-        if not diff.is_empty:
-            await manager.broadcast(diff.to_message())
-    except Exception as exc:  # noqa: BLE001
-        # Persisted to sources.last_error and served by /sources: mask credentials.
-        status, error = "error", redact(str(exc))
-        log.exception("collector %s failed", collector.source_key)
+def _source_lock(source_key: str) -> asyncio.Lock:
+    """Per-source lock serializing scheduled and manual cycles of one collector."""
+    lock = _source_locks.get(source_key)
+    if lock is None:
+        lock = _source_locks[source_key] = asyncio.Lock()
+    return lock
 
-    await _record_run(collector, status, error, count)
+
+async def run_collector(collector: BaseCollector) -> dict:
+    """Run one collection cycle; persist telemetry; broadcast diff.
+
+    Cycles for the same source are serialized: APScheduler's max_instances only
+    covers scheduled ticks, so a manual /refresh during a tick would otherwise
+    run a second concurrent ingest() over the same entities.
+    """
+    async with _source_lock(collector.source_key):
+        status, error, count = "ok", None, 0
+        try:
+            observations = await collector.collect()
+            count = len(observations)
+            async with SessionLocal() as session:
+                diff = await ingest(session, collector.source_key, observations)
+            if not diff.is_empty:
+                await manager.broadcast(diff.to_message())
+        except Exception as exc:  # noqa: BLE001
+            # Persisted to sources.last_error and served by /sources: mask credentials.
+            status, error = "error", redact(str(exc))
+            log.exception("collector %s failed", collector.source_key)
+
+        await _record_run(collector, status, error, count)
     return {"source": collector.source_key, "status": status, "error": error, "count": count}
 
 
