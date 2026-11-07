@@ -3,8 +3,8 @@
 ## Purpose
 
 Backend event aggregation, ported from the chattevents PoC: a pluggable, config-driven
-source registry (CarCruiseFinder, CitySpark, Meetup, iCal feeds, The Events Calendar (tribe)
-REST calendars), ingest that de-duplicates the same real-world event across
+source registry (CarCruiseFinder, the Chattanooga Zoo, CitySpark, Meetup, iCal feeds, The
+Events Calendar (tribe) REST calendars), ingest that de-duplicates the same real-world event across
 sources, keyword topic tagging, Nominatim geocoding with a permanent cache, PostGIS-backed storage,
 a scheduled refresh job, and the `/api/v1/events/` API that the `frontend-events` feature consumes.
 ## Requirements
@@ -17,21 +17,28 @@ already knows and SHALL omit those it does not; the ingest pipeline SHALL derive
 omits — geocoding an address only when coordinates are absent, and keyword tagging only when tags
 are absent. The coordinate and tag fields SHALL be optional, so a source that supplies neither
 behaves exactly as before. Sources SHALL be registered in a single build function:
-configuration-gated sources (iCal feeds via `events_ical_feeds`, Meetup via its token, CitySpark via
-its enable setting) remain overridable or removable through configuration alone, and the
-CarCruiseFinder scraper is registered unconditionally (no per-source flag; removable only by code
-change — its fragility is contained by per-source failure isolation rather than a switch). The
-shipped configuration defaults therefore register exactly three sources: the Tennessee car-events
-iCal feed, the CarCruiseFinder scraper, and the CitySpark calendar. No sample/fixture source SHALL
+configuration-gated sources (iCal feeds via `events_ical_feeds`, The Events Calendar (tribe)
+calendars via `events_tribe_calendars`, Meetup via its token, CitySpark via its enable setting)
+remain overridable or removable through configuration alone, and the CarCruiseFinder and
+Chattanooga Zoo scrapers are registered unconditionally (no per-source flag; removable only by code
+change — their fragility is contained by per-source failure isolation rather than a switch). The
+shipped configuration defaults therefore register exactly five sources: the CarCruiseFinder
+scraper, the Chattanooga Zoo scraper, the CitySpark calendar, the Tennessee car-events iCal feed,
+and the Chattanooga Public Library tribe calendar. No sample/fixture source SHALL
 be importable by the application (fixtures live in the test suite only). Adding a source MUST
 require only a new source class plus its registration — no changes to ingest, storage, API, or
 frontend.
 
-#### Scenario: Explicitly emptied configuration leaves only the always-on scraper
-- **WHEN** a refresh cycle runs with `events_ical_feeds` set to an empty string, CitySpark disabled,
-  and no tokens configured
-- **THEN** the registry contains only the CarCruiseFinder source and the cycle completes
-  successfully
+#### Scenario: Shipped defaults register five sources
+- **WHEN** sources are built from the default configuration
+- **THEN** the registry contains exactly the CarCruiseFinder, Chattanooga Zoo, CitySpark, Tennessee
+  car-events iCal, and Chattanooga Public Library tribe sources
+
+#### Scenario: Explicitly emptied configuration leaves only the always-on scrapers
+- **WHEN** a refresh cycle runs with `events_ical_feeds` and `events_tribe_calendars` set to empty
+  strings, CitySpark disabled, and no tokens configured
+- **THEN** the registry contains only the CarCruiseFinder and Chattanooga Zoo sources and the cycle
+  completes successfully
 
 #### Scenario: Sources supply what they know, and the pipeline derives the rest
 - **WHEN** a source reports an event carrying coordinates and tags
@@ -157,10 +164,13 @@ and a failure of the whole scrape SHALL NOT affect ingestion from other sources.
 - **THEN** ingest stores one canonical event carrying each source's link
 
 ### Requirement: CitySpark events source
-The system SHALL ingest The Pulse's CitySpark events calendar via its JSON API,
+The system SHALL ingest The Pulse's CitySpark events calendar via its JSON API. Each run SHALL
+first request the portal's widget bootstrap, `GET https://portal.cityspark.com/PortalScripts/<slug>`,
+and read the tag vocabulary (`AllTags`) from it, then page through
 `POST https://portal.cityspark.com/api/events/GetEvents/<slug>`, sending a JSON body carrying the
 portal id, an ISO start and end, a radius in miles with an origin latitude/longitude, and a `skip`
-offset. The source SHALL be gated by an enable setting and SHALL expose its portal id/slug, radius,
+offset. Paging SHALL use pages of 100 events, stop at the first short page, and stop after at most
+20 pages so a misbehaving API cannot page forever. The source SHALL be gated by an enable setting and SHALL expose its portal id/slug, radius,
 and lookahead window as configuration, defaulting to the portal's own 25-mile radius around the
 configured center (`center_lat`/`center_lon`) and a 14-day lookahead. Requests SHALL NOT require or send authentication,
 referer, or a spoofed browser User-Agent. Parsing SHALL be a pure function of the API payload so it
@@ -174,7 +184,7 @@ rather than falling back to `DateStart`.
 
 The source SHALL supply each event's `latitude`/`longitude` and its resolved tag names on the
 `RawEvent`, so that ingest neither geocodes nor keyword-tags these events. Tag names SHALL be
-resolved against the payload's tag hierarchy (`AllTags`, entries of `{id, name, parent}`, where a
+resolved against the bootstrap's tag hierarchy (`AllTags`, entries of `{id, name, parent}`, where a
 root has a null parent) by walking each of the event's tag ids to its root and taking the name of
 the node **one level below that root**; a tag id that is itself a root SHALL resolve to its own
 name. Several distinct tag ids on one event MAY resolve to the same name, in which case the event
@@ -387,12 +397,13 @@ hotlinked source URLs; the system SHALL NOT download or store image content.
 - **THEN** the item's `image_url` is null and the response is otherwise unchanged
 
 ### Requirement: Configurable ingest radius filter
-Ingest SHALL drop a new event — storing no event row, tags, or link — when its address geocodes
-to coordinates farther than a configurable radius (`events_ingest_max_miles`, default 100, miles
+Ingest SHALL drop a new event — storing no event row, tags, or link — when its coordinates,
+whether supplied by the source or geocoded from its address, lie farther than a configurable radius (`events_ingest_max_miles`, default 100, miles
 from the configured center `center_lat`/`center_lon`, default 35.0456, -85.3097) using a
-haversine distance computed at ingest time. A non-positive setting value SHALL disable the filter entirely. Events with no address,
-whose geocoding fails, or whose failure is already cached SHALL be kept and stored with a null
-location — only a successful geocode beyond the radius causes a drop. The filter SHALL apply
+haversine distance computed at ingest time. A non-positive setting value SHALL disable the filter entirely. Events with no
+source-supplied coordinates and no address, whose geocoding fails, or whose failure is already
+cached SHALL be kept and stored with a null location — only known coordinates beyond the radius
+cause a drop. The filter SHALL apply
 only when an event is first created: existing events are merged normally regardless of
 location, and a stored event is never retroactively removed by the filter. Each ingest batch
 SHALL report the number of dropped events as a `skipped_far` count alongside `created` and
@@ -407,6 +418,11 @@ SHALL report the number of dropped events as a `skipped_far` count alongside `cr
 - **WHEN** the filter is set to 100 miles and a source reports a new event whose address
   geocodes to downtown Chattanooga
 - **THEN** the event is created with its location, exactly as without the filter
+
+#### Scenario: Far source-supplied coordinates are dropped
+- **WHEN** the filter is set to 100 miles and a source reports a new event carrying its own
+  coordinates roughly 300 miles from the center
+- **THEN** the event is dropped and counted in `skipped_far`, without any geocoding lookup
 
 #### Scenario: Unlocated events are kept
 - **WHEN** the filter is enabled and a source reports a new event with no address or with an
@@ -805,8 +821,9 @@ per run and then one detail page per listed event; unlike the CarCruiseFinder so
 detail pages is required here because the listing page carries no dates at all, and it is safe
 here because the zoo's detail pages carry no UTC offsets to be wrong.
 
-Extraction SHALL take the title, image, and detail URL from each listing card, and the
-occurrence date/time strings and description from the linked detail page. Each raw event
+Extraction SHALL take the image and detail URL from each listing card, and the occurrence
+date/time strings and description from the linked detail page. The title SHALL be the detail
+page's heading, falling back to the listing card's title when the detail page has none. Each raw event
 SHALL carry the zoo's venue name, its full postal address, and its fixed coordinates supplied
 directly by the source (so the source adds no geocoder load), the detail page URL as its
 source link, and no tags (ingest's keyword tagger derives them).
@@ -818,8 +835,13 @@ source link, and no tags (ingest's keyword tagger derives them).
 
 #### Scenario: Listing cards are resolved to detail pages
 - **WHEN** the listing page is fetched and contains event cards
-- **THEN** the title, image URL, and detail URL are taken from each card, and one request is
-  made per distinct detail URL
+- **THEN** the image URL and detail URL are taken from each card, and one request is made per
+  distinct detail URL
+
+#### Scenario: Detail page heading supplies the title
+- **WHEN** a detail page has a heading and its listing card shows a different, shorter title
+- **THEN** the raw event's title is the detail page's heading; a detail page without a heading
+  falls back to the card's title
 
 #### Scenario: Coordinates are supplied, not geocoded
 - **WHEN** the source produces a raw event

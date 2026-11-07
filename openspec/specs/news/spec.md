@@ -162,8 +162,9 @@ The system SHALL apply these rules:
   than 36 hours after that story's earliest article. Later reports, including follow-ups, SHALL
   start a new story.
 - **Majority match.** An article SHALL join an existing story only if it matches at least half of
-  that story's current members. One matching member is not enough, so a single weak pairwise
-  match cannot chain separate stories together.
+  that story's current members. For a story of three or more members one matching member is not
+  enough, so a single weak pairwise match cannot chain separate stories together; a one- or
+  two-member story is joined by a single match.
 - **Number veto.** Two articles SHALL NOT match when both titles contain numbers (excluding
   four-digit years) and they share none.
 - **Summary veto.** When both articles have a non-trivial summary, two articles SHALL NOT match if
@@ -223,8 +224,9 @@ clusters.
 
 ### Requirement: Stories API
 The system SHALL serve `GET /api/v1/news/stories?hours=N` (default 72, bounded by the story
-window) returning the category slug→label map and one story object per cluster: headline from the
-earliest article, summary from the wordiest member (sentence-truncated), category by majority vote
+window) returning the category slug→label map and one story object per cluster with at least one article
+published inside the window. Story aggregates SHALL be computed over the cluster's members published
+inside the window only: headline from the earliest such article, summary from the wordiest member (sentence-truncated), category by majority vote
 of members (a specific section beats generic `news` on ties), an `image_url` taken from the earliest
 member that has one (null when no member has an image), first/latest published timestamps, source
 and article counts, and one link per outlet (the outlet's own headline, URL, and published time),
@@ -240,6 +242,12 @@ the sorted list; when absent, all stories in the window are returned as before.
 #### Scenario: Hours filter bounds the feed
 - **WHEN** a client requests `stories?hours=24`
 - **THEN** only clusters with articles published in the last 24 hours are returned
+
+#### Scenario: Aggregates cover only in-window members
+- **WHEN** a cluster has one article published 30 hours ago and two published in the last 24 hours,
+  and a client requests `stories?hours=24`
+- **THEN** that story's headline, first-published time, counts, and links come only from the two
+  in-window articles
 
 #### Scenario: Limit bounds the story count
 - **WHEN** the window contains eight stories and a client requests `stories?limit=5`

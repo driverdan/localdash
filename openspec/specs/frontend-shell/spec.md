@@ -12,19 +12,23 @@ new, unrelated frontend features be added beside `timeseries` without touching i
 The frontend SHALL be a Svelte 5 + TypeScript application under `frontend/`, organized in feature
 namespaces mirroring the API: each feature owns `frontend/src/features/<feature>/` (matching its API
 namespace `/api/v1/<feature>/`), and feature-agnostic shell code lives in `frontend/src/lib/`.
-Feature code SHALL NOT import from another feature; the app shell (`App.svelte`) SHALL compose
-features only through each feature's `index.ts` public surface; `lib/` SHALL NOT import from any
-feature. Adding a frontend feature MUST NOT require modifying another feature's code.
+Feature code SHALL NOT import another feature's internals: a cross-feature import, like the app
+shell's (`App.svelte`) composition of features, SHALL resolve only to that feature's `index.ts`
+public surface (e.g. the home feature reusing the news card component). `lib/` SHALL NOT import
+from any feature. Adding a frontend feature MUST NOT require modifying another feature's code.
 
 #### Scenario: Features are isolated namespaces
 - **WHEN** the source under `frontend/src/features/<feature>/` is inspected
-- **THEN** its imports resolve only to that feature's own files, `frontend/src/lib/`, or third-party
-  packages — never to another feature's namespace
+- **THEN** its imports resolve only to that feature's own files, another feature's `index.ts`
+  public surface, `frontend/src/lib/`, or third-party packages — never to files inside another
+  feature's namespace
 
 #### Scenario: Shell composes features per route
 - **WHEN** a new feature folder is added under `frontend/src/features/`
-- **THEN** wiring it into the UI requires only importing its `index.ts` surface in `App.svelte` and
-  adding one route entry, with no changes inside `frontend/src/lib/` or other features
+- **THEN** wiring it into the UI requires only shell-level additions — importing its `index.ts`
+  surface in `App.svelte`, adding its route entry and nav link, importing its stylesheet in
+  `main.ts`, and (for a live feature) calling its live-registration function — with no changes
+  inside `frontend/src/lib/` or other features
 
 ### Requirement: Build output served by the existing static mount
 The frontend SHALL be built by Vite into `static/` as a self-contained bundle (Leaflet and all other
@@ -53,13 +57,13 @@ running application SHALL NOT require Node.
 
 ### Requirement: Frontend dev server proxies the API
 Local frontend development SHALL use the Vite dev server with a proxy forwarding `/api` requests —
-including the WebSocket upgrade for `/api/v1/timeseries/ws` — to the locally running backend, so the
+including the WebSocket upgrade for the shared live-update bus at `/api/v1/ws` — to the locally running backend, so the
 backend requires no CORS or configuration changes for development.
 
 #### Scenario: Dev server round-trips REST and WebSocket
 - **WHEN** the backend runs on `:8000` and `npm run dev` serves the frontend
 - **THEN** the app loaded from the Vite dev server successfully fetches `/api/v1/...` endpoints and
-  holds a live `/api/v1/timeseries/ws` connection through the proxy
+  holds a live `/api/v1/ws` connection through the proxy
 
 ### Requirement: TypeScript checking passes
 The frontend SHALL compile under TypeScript with `svelte-check` (strict mode) reporting no errors,
@@ -77,8 +81,8 @@ dependency): it tracks the current path as reactive state, navigates via the His
 features. The route table SHALL be: `/` renders the home feature, `/news` renders the news
 feature, `/map` renders the timeseries feature, and `/events` renders the events feature. The
 shell SHALL render a persistent navigation header linking the routes. Unknown paths SHALL show a
-not-found message linking back to the home page. Feature-specific UI (such as the timeseries
-connection indicator) SHALL appear only on that feature's route.
+not-found message linking back to the home page. The header SHALL show the shared live-update
+bus's connection indicator on every route, since every feature receives live updates.
 
 #### Scenario: Root renders the home feature
 - **WHEN** the user opens `/`
@@ -100,9 +104,10 @@ connection indicator) SHALL appear only on that feature's route.
 - **WHEN** the user opens an unrecognized path such as `/nope`
 - **THEN** a not-found message renders with a link that navigates to `/`
 
-#### Scenario: Timeseries indicator is scoped to its route
-- **WHEN** the home or news route is active
-- **THEN** the timeseries WebSocket connection indicator is not shown
+#### Scenario: Connection indicator shows on every route
+- **WHEN** any route (`/`, `/news`, `/map`, or `/events`) is active
+- **THEN** the header shows the live-update bus connection state (live, connecting, or
+  disconnected)
 
 ### Requirement: Shell hosts theming
 The application shell SHALL host the theme system's user-facing and bootstrap surfaces: a

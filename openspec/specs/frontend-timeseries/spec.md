@@ -42,7 +42,8 @@ Each source's config SHALL map every one of its categories to an icon; a categor
 icon SHALL fall back to a generic icon rather than rendering an empty marker. The category-to-icon
 assignments SHALL be: `police=siren`, `fire=flame`, `ems=ambulance`, `other=circle-question-mark`,
 `incident=triangle-alert`, `construction=traffic-cone`, `special_event=party-popper`,
-`severe=octagon-alert`, `energy=zap`, `fiber=cable`.
+`severe=octagon-alert`, `energy=zap`, `fiber=cable`, and for `tnaw` advisories
+`emergency=octagon-alert`, `general=droplet`. The generic fallback icon SHALL be `map-pin`.
 
 #### Scenario: Category glyph for a 911 incident
 - **WHEN** an active `hc911` fire incident is visible
@@ -271,16 +272,6 @@ refetching or re-rendering unaffected entities.
 - **THEN** the indicator shows the disconnected state, the bus reconnects automatically, and on
   reconnect the feature reloads active entities so no missed diffs are lost
 
-### Requirement: Behavioral parity with the replaced UI
-The Svelte implementation SHALL be a straight port of the vanilla-JS dashboard: no feature of the
-replaced UI is removed and no new user-facing behavior is added in this change.
-
-#### Scenario: Side-by-side equivalence
-- **WHEN** the old and new frontends are pointed at the same backend and exercised with the same
-  filters and interactions
-- **THEN** the same entities are visible with the same styling, table ordering, popup/detail
-  content, and live-update behavior
-
 ### Requirement: Themed basemap
 The map's basemap SHALL follow the active theme. `MapView` SHALL use the active theme's basemap tile
 override when the theme registry declares one. Otherwise it SHALL use the server-configured
@@ -358,11 +349,12 @@ partially restored one.
 - **THEN** the new zoom and center are written to browser storage on `moveend` / `zoomend`
 
 ### Requirement: Humanized status labels
-The timeseries feature SHALL display a feature's `status` to the user through a source-aware
-humanizing lookup rather than the raw upstream value. The per-source display config MAY declare a
-`statusLabels` table mapping a raw status code to a human-readable label; a status with no table
-entry (and any source with no table) SHALL fall back to the existing `catLabel()` humanizer. This
-lookup SHALL be the single place status labels are produced and SHALL be applied at every surface
+The timeseries feature SHALL display a feature's `status` to the user through a humanizing lookup
+rather than the raw upstream value. The per-source display config MAY declare a
+`statusLabels` table mapping a raw status code to a human-readable label; the lookup SHALL resolve a raw code against every source's `statusLabels` table (raw codes with
+labels SHALL therefore be unique across sources), and a code found in no table SHALL fall back to
+the existing `catLabel()` humanizer. This lookup SHALL be the single place status labels are
+produced and SHALL be applied at every surface
 that shows a status to the user: the map marker popup, the map timeline-point tooltip, the incident
 table's status cell, the detail panel's observation history, the EPB detail row, and the status
 filter dropdown's option text.
