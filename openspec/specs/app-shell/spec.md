@@ -26,7 +26,8 @@ The system SHALL serve global frontend bootstrap configuration at `GET /api/v1/c
 The static mount SHALL serve the SPA's `index.html` for any non-`/api` request path that does not
 match a built file and has no file extension, so client-side routes (e.g. `/map`) deep-link and
 survive a page reload. Requests for missing asset paths (paths with a file extension) SHALL still
-return 404, and `/api/...` paths SHALL never reach the fallback.
+return 404. `/api/...` paths, and the bare `/api` and `/api/` paths, SHALL never reach the
+fallback.
 
 #### Scenario: Deep link to a client route
 - **WHEN** a browser requests `GET /map` directly
@@ -39,6 +40,10 @@ return 404, and `/api/...` paths SHALL never reach the fallback.
 #### Scenario: API paths never fall back
 - **WHEN** a client requests an unknown `/api/...` path
 - **THEN** the API's own 404 is returned, not `index.html`
+
+#### Scenario: Bare API root never falls back
+- **WHEN** a client requests `GET /api` or `GET /api/`
+- **THEN** the response is 404, not `index.html`
 
 ### Requirement: Configurable site name
 
