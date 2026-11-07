@@ -1,8 +1,8 @@
 """Tests for the ingestion service.
 
 `state_changed` is tested purely (no DB). The full upsert/append/closure flow is
-tested against a real Postgres+PostGIS+TimescaleDB if DATABASE_URL is reachable,
-otherwise skipped (e.g. local dev without the DB container running).
+tested against the suite's temporary Postgres+PostGIS+TimescaleDB database (see
+conftest.py); those tests fail if the server in DATABASE_URL is unreachable.
 """
 
 from __future__ import annotations

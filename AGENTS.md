@@ -282,10 +282,19 @@ pytest tests/test_ingest.py::test_state_changed_status_transition   # single tes
 Most tests are pure/offline. The DB-backed tests (the DB cases in `tests/test_ingest.py`,
 `tests/test_api_timeseries.py`, `tests/test_news_db.py`, and the events DB tests in
 `tests/test_events_ingest.py`, `tests/test_api_events.py`, and `tests/test_events_cityspark.py`, via
-the `db_session` / `news_db_session` / events fixtures in `conftest.py`) **auto-skip** unless
-`DATABASE_URL` points at a reachable Postgres — bring up `docker compose up -d db` (and
-`alembic upgrade head`) to make them run. They commit to that database (cleaning up only their own
-`test-*` rows), so locally they share data with your running app.
+the `db_session` / `news_db_session` / `events_db_session` fixtures in `conftest.py`) never touch
+the app's database. Each run creates a temporary `localdash_test_<epoch>_<rand>` database on the
+server named by `DATABASE_URL`, migrates it with `alembic upgrade head` (in a subprocess), empties
+every table before each DB-backed test, and drops it when the run ends. Databases left behind by
+killed runs are dropped by a later run once they are over an hour old. `conftest.py` overrides
+`DATABASE_URL` before any `app.*` import, so app code that opens its own sessions (the global
+`SessionLocal` in `refresh()` and the scheduler) uses the temporary database too. Keep that override
+first in `conftest.py`. Every truncate and drop refuses to run on a database whose name doesn't start
+with `localdash_test`. Bring up `docker compose up -d db` first; the role in `DATABASE_URL` needs
+`CREATE DATABASE` and the right to create the PostGIS and TimescaleDB extensions (the compose
+superuser has both). If the server is unreachable or migration fails, DB-backed tests **fail**
+rather than skip. Pure tests don't request a DB fixture, so they still run without Postgres. Seed
+everything a DB test asserts on and assert exact values: the database starts empty.
 
 **CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
 path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
@@ -293,9 +302,9 @@ a job skipped via its `if:` still reports success, so required checks never dead
 docs-only PR. The jobs:
 
 - **`pytest`** — the full suite. CI stands up the same `timescale/timescaledb-ha:pg16` image as a
-  service container and runs `alembic upgrade head` first, so the DB-backed tests actually execute
-  rather than auto-skipping. That migrate step doubles as the guard: if the DB were unreachable it
-  fails loudly instead of letting the suite skip its way to green. The job also `mkdir -p static`
+  service container; the suite creates and migrates its own temporary database there, and the
+  DB-backed tests fail (not skip) if it's unreachable, so CI can't go green on the offline subset
+  alone. The job also `mkdir -p static`
   first — `static/` is a gitignored build artifact and `main.py` mounts it at import time, so a fresh
   checkout can't even import the app without it. Installs are `uv sync --locked`, which makes the
   job double as the lockfile gate: a `pyproject.toml` dependency edit without a matching `uv lock`

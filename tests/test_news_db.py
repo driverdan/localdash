@@ -1,8 +1,7 @@
 """DB-backed tests for the news feature (registry sync, article upsert, API).
 
-Same auto-skip pattern as the timeseries DB tests: the news_db_session fixture
-skips when Postgres is unreachable or migration 0002 hasn't been applied. All
-rows use 'test-' slugs so real registry data is untouched.
+Runs on the suite's temporary database (see conftest.py), emptied before each
+test, so every assertion is against this module's own seed data.
 """
 
 from __future__ import annotations
@@ -44,14 +43,8 @@ TEST_SOURCES_V2 = [
 ]
 
 
-# Sync now deletes any stored source missing from SOURCES, and these tests run
-# against the shared dev DB: always keep the real registry in the patched list
-# so a test sync never removes real outlets (or their articles).
-_REAL_SOURCES = list(registry.SOURCES)
-
-
 def _use_sources(monkeypatch, test_sources):
-    monkeypatch.setattr(registry, "SOURCES", _REAL_SOURCES + test_sources)
+    monkeypatch.setattr(registry, "SOURCES", test_sources)
 
 
 async def _feeds(session, slug):
@@ -116,10 +109,7 @@ async def test_registry_sync_deletes_sources_removed_from_registry(news_db_sessi
     _use_sources(monkeypatch, TEST_SOURCES_V1)
     await registry.sync_registry(news_db_session)
 
-    slugs = await _slugs(news_db_session)
-    assert "test-gone" not in slugs
-    assert "test-outlet" in slugs
-    assert {src["slug"] for src in _REAL_SOURCES} <= slugs  # real outlets untouched
+    assert await _slugs(news_db_session) == {"test-outlet"}
     assert await _feeds(news_db_session, "test-gone") == []
     orphans = (
         await news_db_session.execute(
@@ -188,8 +178,7 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
         ],
     )
     await news_db_session.commit()
-    # Assign the cluster directly — clustering has its own offline tests, and
-    # calling recluster() here would rewrite real rows in a shared dev DB.
+    # Assign the cluster directly — clustering has its own offline tests.
     arts = (
         (
             await news_db_session.execute(
@@ -205,7 +194,8 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
 
     payload = await api_get_stories(hours=1, session=news_db_session)
     assert payload["categories"]["sports"] == "Sports"
-    story = next(s for s in payload["stories"] if s["id"] == arts[0].id)
+    (story,) = payload["stories"]
+    assert story["id"] == arts[0].id
     assert story["title"] == "Test story headline"
     assert story["category"] == "sports"
     assert story["article_count"] == 2 and story["source_count"] == 1
@@ -213,13 +203,11 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
     sources = (await api_get_sources(session=news_db_session))["sources"]
     # Per-source total: every feed row of the outlet reports its 2 stored
     # articles, even the "news" feed whose section none of them were filed under.
-    for cat in ("sports", "news"):
-        row = next(r for r in sources if r["slug"] == "test-outlet" and r["category"] == cat)
-        assert row["article_count"] == 2
-    sports_row = next(
-        r for r in sources if r["slug"] == "test-outlet" and r["category"] == "sports"
-    )
-    assert sports_row["last_status"] is None  # never fetched in this test
+    assert [(r["slug"], r["category"], r["article_count"]) for r in sources] == [
+        ("test-outlet", "sports", 2),
+        ("test-outlet", "news", 2),
+    ]
+    assert sources[0]["last_status"] is None  # never fetched in this test
 
 
 async def _seed_singleton_stories(session, monkeypatch, count: int) -> list[int]:
@@ -257,9 +245,8 @@ async def test_stories_limit_returns_newest_slice(news_db_session, monkeypatch):
     ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=8)
 
     payload = await api_get_stories(hours=24, limit=5, session=news_db_session)
-    ours = [s for s in payload["stories"] if s["id"] in set(ids_newest_first)]
     # Exactly the 5 newest, still sorted latest-activity first, with the label map.
-    assert [s["id"] for s in ours] == ids_newest_first[:5]
+    assert [s["id"] for s in payload["stories"]] == ids_newest_first[:5]
     assert payload["categories"]["news"] == "News"
 
 
@@ -267,5 +254,5 @@ async def test_stories_omitted_limit_returns_full_window(news_db_session, monkey
     ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=8)
 
     payload = await api_get_stories(hours=24, session=news_db_session)
-    ours = [s["id"] for s in payload["stories"] if s["id"] in set(ids_newest_first)]
-    assert ours == ids_newest_first  # all 8, newest-first, nothing dropped
+    ids = [s["id"] for s in payload["stories"]]
+    assert ids == ids_newest_first  # all 8, newest-first, nothing dropped

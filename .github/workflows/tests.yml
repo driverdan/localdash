@@ -63,10 +63,10 @@ jobs:
 
     services:
       # The DB-backed tests (tests/test_ingest.py, test_api_timeseries.py,
-      # test_news_db.py, test_events_*) auto-skip when DATABASE_URL is
-      # unreachable — silently, and skips don't fail a build. Running the same
-      # image as docker-compose is what keeps CI an actual gate rather than a
-      # green light for the offline subset.
+      # test_news_db.py, test_events_*) need a Postgres server with PostGIS and
+      # TimescaleDB, so this is the same image as docker-compose. The suite
+      # creates, migrates, and drops its own temporary database on it (see
+      # tests/conftest.py); if the server is unreachable those tests fail.
       db:
         image: timescale/timescaledb-ha:pg16
         env:
@@ -82,6 +82,8 @@ jobs:
           --health-retries 10
 
     env:
+      # Names the server only: tests run in a temporary localdash_test_* database
+      # on it, never in this database.
       DATABASE_URL: postgresql+asyncpg://localdash:localdash@localhost:5432/localdash
 
     steps:
@@ -115,11 +117,6 @@ jobs:
       # empty directory is enough; building the frontend here would buy nothing.
       - name: Create static mount target
         run: mkdir -p static
-
-      # Creates the news/events tables the DB-backed fixtures need; the fixtures
-      # skip rather than fail when they are missing.
-      - name: Migrate
-        run: uv run alembic upgrade head
 
       - name: Test
         run: uv run pytest -rs

@@ -69,14 +69,19 @@ Most tests are pure and offline — `normalize()`, the change-detection rule, ne
 clustering, and the weather payload shaping all run against saved fixtures in
 `tests/fixtures/`.
 
-Database-backed tests skip automatically unless `DATABASE_URL` points at a
-reachable Postgres. To run them:
+Database-backed tests need the Postgres server named by `DATABASE_URL` to be
+running:
 
 ```bash
 docker compose up -d db
-alembic upgrade head
 pytest
 ```
+
+They never touch the app's database. Each test run creates a temporary
+`localdash_test_*` database on that server, migrates it, empties it before every
+test, and drops it when the run finishes, so you don't need to run
+`alembic upgrade head` for tests. If the server is unreachable, the
+database-backed tests fail rather than skip. Pure tests still run without it.
 
 ## Linting and formatting
 
