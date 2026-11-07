@@ -78,8 +78,9 @@ class Settings(BaseSettings):
     news_refresh_minutes: int = 15
     news_story_window_days: int = 7
 
-    # Events feature (aggregation from configured sources; nothing is configured
-    # by default, so the feature starts empty until feeds/token are set).
+    # Events feature. Five sources ship enabled: CarCruiseFinder and the
+    # Chattanooga Zoo (always on), CitySpark, the iCal feed and the tribe
+    # calendar below. Meetup needs a token.
     events_enabled: bool = True
     events_refresh_minutes: int = 60
     events_ical_feeds: str = "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"  # comma-separated .ics URLs
@@ -107,8 +108,8 @@ class Settings(BaseSettings):
     events_geocode_retry_hours: float = 24
     # Max cached failures re-attempted per refresh cycle.
     events_geocode_retry_batch: int = 25
-    # Drop newly ingested events whose address geocodes farther than this many
-    # miles from the Chattanooga center; non-positive disables the filter.
+    # Drop newly ingested events whose coordinates (source-supplied or geocoded)
+    # lie farther than this many miles from the center; non-positive disables.
     events_ingest_max_miles: float = 100
     # Topic tags that should never exist: comma-separated names, lowercased to
     # match the stored tag vocabulary. Blocked tags are purged from the tags
@@ -117,8 +118,8 @@ class Settings(BaseSettings):
     # a junk `topics` tag to every CitySpark event.
     events_blocked_tags: str = "topics"
 
-    # Weather feature (NWS proxy for the homepage strip; no DB, no scheduler —
-    # fetch-on-demand at the shared center, cached in-process for the TTL below).
+    # Weather feature (NWS proxy for the homepage strip; no DB). Cached in-process
+    # for the TTL below and refreshed by a scheduled job on the same interval.
     weather_enabled: bool = True
     weather_cache_minutes: int = 10
     # AirNow AQI, folded into the weather payload and riding its cache. The key
@@ -130,7 +131,7 @@ class Settings(BaseSettings):
     # hourly, so the default tolerates a missed hour plus a top-of-hour gap.
     airnow_stale_minutes: int = 120
 
-    # Frontend map config (served to the browser via /api/config). Standard
+    # Frontend map config (served to the browser via /api/v1/config). Standard
     # OpenStreetMap tiles need no API key (CARTO's now watermark keyless requests);
     # the OSM tile usage policy requires this attribution and a browser Referer, so
     # don't add a restrictive Referrer-Policy. The dark theme doesn't swap tiles —

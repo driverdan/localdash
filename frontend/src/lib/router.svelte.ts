@@ -1,4 +1,4 @@
-// Minimal path router for the shell. Two routes don't justify a dependency:
+// Minimal path router for the shell. Four routes don't justify a dependency:
 // a reactive current path, History-API navigation, and a popstate listener.
 // The route table itself lives in App.svelte.
 
