@@ -10,6 +10,10 @@ behavior that must not regress:
   * dedup is (source_id, guid); the category is content-derived (classify.py)
     and recomputed on every fetch, so an upsert overwrites it rather than
     one-way upgrading a generic 'news' category to a section.
+  * outlets (Chattanoogan.com especially) publish items with a future pubDate,
+    which would pin them atop the newest-first stories list; upsert_articles
+    caps published at the row's fetched_at, and published is never rewritten
+    by a later fetch.
 """
 
 from __future__ import annotations
@@ -157,6 +161,11 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     Returns the affected-row count (inserts plus conflicting rows). The category
     is content-derived and recomputed each fetch, so a conflict overwrites the
     stored category with the freshly classified one (either direction).
+
+    published is capped at the row's fetched_at: an article can't have been
+    published after we first saw it, and some outlets future-date items. Only
+    category is updated on conflict, so published and fetched_at stay as first
+    inserted — a capped item never jumps back to its claimed future date.
     """
     if not rows:
         return 0
@@ -164,7 +173,9 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     # multi-row INSERT can't touch the same conflict target twice.
     unique: dict[tuple, dict] = {}
     for row in rows:
-        unique.setdefault((row["source_id"], row["guid"]), row)
+        key = (row["source_id"], row["guid"])
+        if key not in unique:
+            unique[key] = {**row, "published": min(row["published"], row["fetched_at"])}
 
     stmt = pg_insert(NewsArticle).values(list(unique.values()))
     stmt = stmt.on_conflict_do_update(
