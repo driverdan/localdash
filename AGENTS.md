@@ -294,7 +294,9 @@ with `localdash_test`. Bring up `docker compose up -d db` first; the role in `DA
 `CREATE DATABASE` and the right to create the PostGIS and TimescaleDB extensions (the compose
 superuser has both). If the server is unreachable or migration fails, DB-backed tests **fail**
 rather than skip. Pure tests don't request a DB fixture, so they still run without Postgres. Seed
-everything a DB test asserts on and assert exact values: the database starts empty.
+everything a DB test asserts on and assert exact values: the database starts empty. If the code
+under test compares dates against the current time (e.g. `reconcile_events()` only sees upcoming
+events), compute test dates relative to now or inject a fixed "now"; never hard-code future dates.
 
 **CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
 path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
