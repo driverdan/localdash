@@ -32,8 +32,10 @@ from `AGENTS.md`, which addresses coding agents.
 
 - **WHEN** a contributor looks for how to run the test suite
 - **THEN** `CONTRIBUTING.md` documents the test command
-- **AND** it explains that database-backed tests skip unless `DATABASE_URL` points
-  at a reachable Postgres
+- **AND** it explains that database-backed tests need the Postgres server named by
+  `DATABASE_URL` to be running, that they run in a temporary database the test run
+  creates, migrates, and drops on that server rather than in the app's database,
+  and that they fail if the server is unreachable
 
 #### Scenario: A contributor finds the linting setup
 
