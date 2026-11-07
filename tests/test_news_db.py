@@ -6,9 +6,11 @@ test, so every assertion is against this module's own seed data.
 
 from __future__ import annotations
 
+import importlib.util
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 import app.news.registry as registry
 from app.api.news import get_sources as api_get_sources
@@ -256,3 +258,129 @@ async def test_stories_omitted_limit_returns_full_window(news_db_session, monkey
     payload = await api_get_stories(hours=24, session=news_db_session)
     ids = [s["id"] for s in payload["stories"]]
     assert ids == ids_newest_first  # all 8, newest-first, nothing dropped
+
+
+# --- future-dated articles: published is capped at fetched_at ---------------
+
+
+async def _stored_times(session, sid, guid):
+    return (
+        await session.execute(
+            select(NewsArticle.published, NewsArticle.fetched_at).where(
+                NewsArticle.source_id == sid, NewsArticle.guid == guid
+            )
+        )
+    ).one()
+
+
+async def test_future_dated_article_is_capped_at_fetch_time(news_db_session, monkeypatch):
+    sid = await _seed_source(news_db_session, monkeypatch)
+    art = _article(sid, "future", "news")
+    art["published"] = art["fetched_at"] + timedelta(days=30)
+    await upsert_articles(news_db_session, [art])
+    await news_db_session.commit()
+
+    published, fetched_at = await _stored_times(news_db_session, sid, "future")
+    assert published == fetched_at == art["fetched_at"]
+
+
+async def test_past_dated_article_keeps_feed_date(news_db_session, monkeypatch):
+    sid = await _seed_source(news_db_session, monkeypatch)
+    art = _article(sid, "past", "news")
+    art["published"] = art["fetched_at"] - timedelta(hours=3)
+    await upsert_articles(news_db_session, [art])
+    await news_db_session.commit()
+
+    published, _ = await _stored_times(news_db_session, sid, "past")
+    assert published == art["published"]
+
+
+async def test_refetch_does_not_move_capped_article(news_db_session, monkeypatch):
+    sid = await _seed_source(news_db_session, monkeypatch)
+    first = _article(sid, "pinned", "news")
+    claimed = first["fetched_at"] + timedelta(days=30)
+    first["published"] = claimed
+    await upsert_articles(news_db_session, [first])
+    await news_db_session.commit()
+
+    # Re-fetched after the claimed date has passed: the feed still carries the
+    # original date, and this fetch's fetched_at is later than it.
+    again = _article(sid, "pinned", "news")
+    again["published"] = claimed
+    again["fetched_at"] = claimed + timedelta(days=1)
+    await upsert_articles(news_db_session, [again])
+    await news_db_session.commit()
+
+    published, fetched_at = await _stored_times(news_db_session, sid, "pinned")
+    assert published == fetched_at == first["fetched_at"]
+
+
+def _backfill_sql() -> str:
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "0009_clamp_future_article_dates.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0009", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.BACKFILL_SQL
+
+
+async def test_backfill_corrects_only_future_dated_rows(news_db_session, monkeypatch):
+    sid = await _seed_source(news_db_session, monkeypatch)
+    await upsert_articles(
+        news_db_session, [_article(sid, g, "news") for g in ("ahead", "behind", "equal")]
+    )
+    await news_db_session.commit()
+    # Write pre-cap data directly, bypassing upsert_articles' cap.
+    fetched = datetime(2026, 10, 28, 16, 31, tzinfo=timezone.utc)
+    seeded = {
+        "ahead": fetched + timedelta(days=30),
+        "behind": fetched - timedelta(hours=2),
+        "equal": fetched,
+    }
+    for guid, published in seeded.items():
+        await news_db_session.execute(
+            text(
+                "UPDATE news_articles SET published = :p, fetched_at = :f "
+                "WHERE source_id = :s AND guid = :g"
+            ),
+            {"p": published, "f": fetched, "s": sid, "g": guid},
+        )
+    await news_db_session.commit()
+
+    await news_db_session.execute(text(_backfill_sql()))
+    await news_db_session.commit()
+
+    stored = {g: (await _stored_times(news_db_session, sid, g)) for g in seeded}
+    assert stored["ahead"] == (fetched, fetched)
+    assert stored["behind"] == (seeded["behind"], fetched)
+    assert stored["equal"] == (fetched, fetched)
+
+
+async def test_capped_article_sorts_by_fetch_time(news_db_session, monkeypatch):
+    sid = await _seed_source(news_db_session, monkeypatch)
+    now = datetime.now(timezone.utc)
+    pinned = _article(sid, "pinned", "news", title="test-cap pinned schedule")
+    pinned["fetched_at"] = now - timedelta(hours=2)
+    pinned["published"] = now + timedelta(days=30)
+    fresh = _article(sid, "fresh", "news", title="test-cap fresh story")
+    fresh["published"] = now - timedelta(minutes=10)
+    await upsert_articles(news_db_session, [pinned, fresh])
+    await news_db_session.commit()
+    rows = (
+        (await news_db_session.execute(select(NewsArticle).where(NewsArticle.source_id == sid)))
+        .scalars()
+        .all()
+    )
+    for a in rows:  # each article is its own cluster
+        a.cluster_id = a.id
+    await news_db_session.commit()
+
+    payload = await api_get_stories(hours=24, session=news_db_session)
+    assert [s["title"] for s in payload["stories"]] == [
+        "test-cap fresh story",
+        "test-cap pinned schedule",
+    ]
