@@ -23,16 +23,16 @@ from datetime import datetime, timezone
 import httpx
 
 from app.config import Settings, get_settings
-from app.weather.airnow import parse_airnow
+from app.weather.airnow import airnow_error_messages, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 
 log = logging.getLogger("localdash.weather")
 
 POINTS_URL = "https://api.weather.gov/points/{lat},{lon}"
-AIRNOW_URL = "https://www.airnowapi.org/aq/observation/latLong/current/"
-# AirNow monitor search radius in miles, matching the app's Chattanooga-radius
-# conventions elsewhere (e.g. the CitySpark events default).
-AIRNOW_DISTANCE_MILES = 25
+# AirNow's current-observations-by-lat/lon-or-ZIP service (the replacement for
+# /aq/observation/latLong/current/, retired 2026-10-01). It takes no radius: it
+# always reports the closest reading per pollutant within a fixed 50 miles.
+AIRNOW_URL = "https://www.airnowapi.org/aq/observation/current/ziplatlong/"
 # Stations tried (nearest first) before giving up on current conditions.
 STATION_LIMIT = 3
 
@@ -167,15 +167,34 @@ class WeatherService:
                     "format": "application/json",
                     "latitude": settings.center_lat,
                     "longitude": settings.center_lon,
-                    "distance": AIRNOW_DISTANCE_MILES,
                     "API_KEY": settings.airnow_api_key,
                 },
             )
-            response.raise_for_status()
-            return parse_airnow(response.json())
         except Exception:
             log.warning("AirNow AQI fetch failed", exc_info=True)
             return None
+        # AirNow explains failures in a WebServiceError envelope (a retired
+        # service, a bad key, or — with a 200 — no monitor data). Log its
+        # messages rather than a bare status: they come from the body, so they
+        # cannot carry the API_KEY query param.
+        if response.is_error:
+            messages = _airnow_messages(response)
+            detail = f": {'; '.join(messages)}" if messages else ""
+            log.warning("AirNow AQI fetch failed: HTTP %d%s", response.status_code, detail)
+            return None
+        try:
+            payload = response.json()
+        except Exception:
+            log.warning("AirNow AQI fetch failed", exc_info=True)
+            return None
+        messages = airnow_error_messages(payload)
+        if messages:
+            log.warning("AirNow returned no observations: %s", "; ".join(messages))
+            return None
+        aqi = parse_airnow(payload)
+        if aqi is None:
+            log.warning("AirNow returned no usable observations")
+        return aqi
 
     async def _fetch_current(self, client: httpx.AsyncClient) -> dict | None:
         for station_url in self._station_urls:
@@ -193,3 +212,11 @@ class WeatherService:
 
 # Process-wide instance behind /api/v1/weather (one cache per uvicorn worker).
 service = WeatherService()
+
+
+def _airnow_messages(response: httpx.Response) -> list[str]:
+    """Best-effort WebServiceError messages from an AirNow error response."""
+    try:
+        return airnow_error_messages(response.json())
+    except ValueError:
+        return []

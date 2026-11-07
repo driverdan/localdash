@@ -17,7 +17,7 @@ import pytest
 
 from app.config import get_settings
 from app.redaction import install as install_log_redaction
-from app.weather.airnow import parse_airnow
+from app.weather.airnow import aqi_category, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 from app.weather.service import AIRNOW_URL, STATION_LIMIT, WeatherService
 
@@ -29,7 +29,7 @@ def _load(name: str) -> dict:
     return json.loads((FIXTURES / f"{name}.json").read_text())
 
 
-def _load_airnow(name: str) -> list:
+def _load_airnow(name: str):
     return json.loads((AIRNOW_FIXTURES / f"{name}.json").read_text())
 
 
@@ -97,32 +97,66 @@ def test_parse_airnow_overall_aqi_is_the_worst_pollutant():
     aqi = parse_airnow(_load_airnow("current"))
     assert aqi == {
         "value": 62,
-        "category": 2,
+        "category": 2,  # derived from the value; the payload carries only the name
         "category_name": "Moderate",
         "pollutant": "PM2.5",
-        # DateObserved 2026-07-16, HourObserved 14, LocalTimeZone EST -> UTC-5.
-        "observed_at": "2026-07-16T14:00:00-05:00",
+        # dateObserved 2026-11-06, hourObserved "22:00", localTimeZone EST -> UTC-5.
+        "observed_at": "2026-11-06T22:00:00-05:00",
     }
 
 
 def test_parse_airnow_unknown_timezone_yields_naive_observed_at():
     entries = _load_airnow("current")
     for entry in entries:
-        entry["LocalTimeZone"] = "ZZZ"  # not in the offset table
+        entry["localTimeZone"] = "ZZZ"  # not in the offset table
     aqi = parse_airnow(entries)
-    assert aqi["observed_at"] == "2026-07-16T14:00:00"  # naive, display-only
+    assert aqi["observed_at"] == "2026-11-06T22:00:00"  # naive, display-only
+
+
+def test_parse_airnow_tolerates_integer_hour():
+    entries = _load_airnow("current")
+    for entry in entries:
+        entry["hourObserved"] = 7
+    assert parse_airnow(entries)["observed_at"] == "2026-11-06T07:00:00-05:00"
 
 
 def test_parse_airnow_skips_sentinel_values():
     entries = _load_airnow("current")
-    entries[1]["AQI"] = -999  # AirNow's missing-value sentinel on PM2.5
+    entries[1]["nowcastAQI"] = -999  # AirNow's missing-value sentinel on PM2.5
     aqi = parse_airnow(entries)
-    assert aqi["pollutant"] == "O3" and aqi["value"] == 41
+    assert aqi["pollutant"] == "OZONE" and aqi["value"] == 41 and aqi["category"] == 1
 
 
 def test_parse_airnow_no_usable_entries_is_none():
     assert parse_airnow([]) is None
-    assert parse_airnow([{"ParameterName": "O3", "AQI": -999}]) is None
+    assert parse_airnow([{"parameterName": "OZONE", "nowcastAQI": -999}]) is None
+    assert parse_airnow([{"parameterName": "OZONE", "nowcastAQI": "41"}]) is None
+
+
+def test_parse_airnow_error_envelope_is_none():
+    assert parse_airnow(_load_airnow("no_observations")) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "category"),
+    [
+        (0, 1),
+        (50, 1),
+        (51, 2),
+        (100, 2),
+        (101, 3),
+        (150, 3),
+        (151, 4),
+        (200, 4),
+        (201, 5),
+        (300, 5),
+        (301, 6),
+        (500, 6),
+        (50.5, 2),
+    ],
+)
+def test_aqi_category_follows_epa_breakpoints(value, category):
+    assert aqi_category(value) == category
 
 
 # --- fetch/cache layer ---
@@ -272,6 +306,41 @@ async def test_refresh_includes_aqi_when_configured(monkeypatch):
     assert "API_KEY=test-key" in _airnow_calls(nws)[0]  # key travels as a param
 
 
+async def test_airnow_request_targets_current_observations_endpoint(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _load_airnow("current")
+    await nws.service().get_current()
+    assert AIRNOW_URL == "https://www.airnowapi.org/aq/observation/current/ziplatlong/"
+    (call,) = _airnow_calls(nws)
+    params = httpx.URL(call).params
+    assert params["latitude"] == "35.0456" and params["longitude"] == "-85.3097"
+    assert params["API_KEY"] == "test-key"
+    assert "distance" not in params  # the service ignores it (fixed 50-mile lookup)
+
+
+async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, caplog):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _load_airnow("no_observations")  # HTTP 200 envelope
+    caplog.set_level(logging.WARNING)
+    payload = await nws.service().get_current()
+    assert payload["aqi"] is None
+    assert payload["current"]["temperature_f"] == 89  # not a refresh error
+    assert "No observations were found for all monitors within 50 miles" in caplog.text
+
+
+async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(monkeypatch):
+    _set_airnow_key(monkeypatch)
+    nws = FakeNWS()
+    nws.routes[AIRNOW_URL] = _airnow_at(0)
+    svc = nws.service()
+    good_aqi = (await svc.get_current())["aqi"]
+    svc._fetched_at = float("-inf")
+    nws.routes[AIRNOW_URL] = _load_airnow("no_observations")
+    assert (await svc.get_current())["aqi"] == good_aqi
+
+
 async def test_empty_key_makes_no_airnow_request():
     nws = FakeNWS()
     payload = await nws.service().get_current()
@@ -288,11 +357,24 @@ async def test_airnow_failure_leaves_weather_intact(monkeypatch):
     assert [p["name"] for p in payload["periods"]] == ["Today", "Tonight"]
 
 
-@pytest.mark.parametrize("status", [410, 500])
-async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status):
+RETIRED = (
+    "This web service has been retired as of October 1, 2026. For more "
+    "information, see https://docs.airnowapi.org/webservices/retired"
+)
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        # The retired latLong endpoint's real answer.
+        (410, {"WebServiceError": [{"Message": RETIRED}]}),
+        (500, None),  # no body: the status alone is logged
+    ],
+)
+async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status, body):
     """The failing AirNow URL carries API_KEY; neither httpx's request log nor
-    the logged HTTPStatusError traceback may contain it (410 = the retired
-    endpoint's real answer)."""
+    the failure warning may contain it, and the warning carries the status and
+    AirNow's own error message."""
     install_log_redaction()
     key = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789"
     _set_airnow_key(monkeypatch, key)
@@ -303,7 +385,7 @@ async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status)
     def gone(request: httpx.Request) -> httpx.Response:
         if str(request.url).startswith(AIRNOW_URL):
             nws.calls.append(str(request.url))
-            return httpx.Response(status)
+            return httpx.Response(status, json=body) if body else httpx.Response(status)
         return handle(request)
 
     svc._transport = httpx.MockTransport(gone)
@@ -312,9 +394,10 @@ async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status)
 
     assert payload["aqi"] is None  # degraded gracefully
     assert f"API_KEY={key}" in _airnow_calls(nws)[0]  # the key really was in the URL
-    assert "AirNow AQI fetch failed" in caplog.text
-    assert "HTTPStatusError" in caplog.text  # traceback still logged...
-    assert key not in caplog.text  # ...but without the key
+    assert f"AirNow AQI fetch failed: HTTP {status}" in caplog.text
+    if body:
+        assert RETIRED in caplog.text  # AirNow's own explanation is logged...
+    assert key not in caplog.text  # ...but never the key
     assert "API_KEY=[REDACTED]" in caplog.text
 
 
@@ -340,9 +423,9 @@ def _airnow_at(minutes_ago: int) -> list:
     entries = _load_airnow("current")
     ts = datetime.now(timezone(timedelta(hours=-5))) - timedelta(minutes=minutes_ago)
     for entry in entries:
-        entry["DateObserved"] = ts.strftime("%Y-%m-%d")
-        entry["HourObserved"] = ts.hour
-        entry["LocalTimeZone"] = "EST"
+        entry["dateObserved"] = ts.strftime("%Y-%m-%d")
+        entry["hourObserved"] = f"{ts.hour:02d}:00"
+        entry["localTimeZone"] = "EST"
     return entries
 
 
