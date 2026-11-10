@@ -132,8 +132,9 @@ this change first.
 - `unify-observation-geometry` (9) also edits `app/ingest.py`'s create and update paths (the
   geometry and fingerprint fields next to `latest_properties`). Expect a trivial rebase.
   There is no semantic overlap.
-- `move-timeseries-into-package` (3) relocates `app/ingest.py` and `app/collectors/`. Landing
-  this first means the move carries the new helper. The tasks here use origin/main paths.
+- `extract-orm-base` (3, formerly `move-timeseries-into-package`) no longer moves any files:
+  `app/ingest.py` and `app/collectors/` stay where they are, so there is no overlap. The tasks
+  here use origin/main paths.
 - `inject-settings-and-clock` (6) changes how `ingest()` gets `now`. That is the same function,
   but different lines.
 - `consolidate-shared-helpers` (7) edits `app/collectors/epb.py` (`_as_float`) near the line
