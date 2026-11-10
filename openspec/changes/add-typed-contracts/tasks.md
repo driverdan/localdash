@@ -28,7 +28,7 @@ landed, read
 - [x] 1.11 (1f) In `tests/test_api_contracts.py`, validate one `/entities` and one `/observations` response against the documentation models, so the docs cannot drift from the dicts
 - [x] 1.12 Add an OpenAPI test: every `/api/v1` JSON route in `app.openapi()` (the WebSocket excluded) has a 200 response whose schema is a `$ref` to a named component
 - [x] 1.13 Check that the golden tests from phase 0 pass unmodified
-- [ ] 1.14 Record before/after latency for `GET /events/items?limit=2000` and `GET /news/stories` on a dev database, and note the numbers in the implementation PR
+- [x] 1.14 Record before/after latency for `GET /events/items?limit=2000` and `GET /news/stories` on a dev database, and note the numbers in the implementation PR
 
 ## 2. Typed refresh results
 
@@ -55,7 +55,7 @@ landed, read
 
 ## 5. Verification
 
-- [ ] 5.1 Full `pytest` passes against the temporary test database, and the phase 0 golden tests are byte-identical to when they were added (`git diff` on them is empty)
-- [ ] 5.2 `grep -rnE "response_model|responses=" app/api` covers every route decorator in `app/api/`
-- [ ] 5.3 `docker compose up --build`, open `/docs`, and confirm the schemas render; spot-check `/map`, `/news`, `/events` and the home page in the browser
-- [ ] 5.4 `ruff` and the pre-commit hooks pass; `npm run check` in `frontend/` is unaffected (no frontend changes)
+- [x] 5.1 Full `pytest` passes against the temporary test database, and the phase 0 golden tests are byte-identical to when they were added (`git diff` on them is empty)
+- [x] 5.2 `grep -rnE "response_model|responses=" app/api` covers every route decorator in `app/api/`
+- [x] 5.3 `docker compose up --build`, open `/docs`, and confirm the schemas render; spot-check `/map`, `/news`, `/events` and the home page in the browser
+- [x] 5.4 `ruff` and the pre-commit hooks pass; `npm run check` in `frontend/` is unaffected (no frontend changes)
