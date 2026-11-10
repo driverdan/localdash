@@ -18,9 +18,8 @@ from __future__ import annotations
 import datetime as dt
 import logging
 
-import httpx
-
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -126,7 +125,9 @@ class MeetupSource(EventSource):
             },
             "first": self.first,
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with make_client(
+            timeout=self.timeout, user_agent=None, follow_redirects=False
+        ) as client:
             resp = await client.post(
                 self.endpoint,
                 json={"query": QUERY, "variables": variables},

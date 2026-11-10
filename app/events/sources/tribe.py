@@ -26,10 +26,10 @@ import datetime as dt
 import html as html_lib
 import logging
 
-import httpx
 from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -132,7 +132,9 @@ class TribeEventsSource(EventSource):
         }
         endpoint = f"{self.base_url}/wp-json/tribe/events/v1/events"
         events: list[RawEvent] = []
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+        async with make_client(
+            timeout=self.timeout, user_agent=None, follow_redirects=True
+        ) as client:
             for page in range(1, MAX_PAGES + 1):
                 resp = await client.get(endpoint, params={**params, "page": page})
                 resp.raise_for_status()

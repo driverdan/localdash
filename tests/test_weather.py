@@ -20,6 +20,7 @@ from app.redaction import install as install_log_redaction
 from app.weather.airnow import aqi_category, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 from app.weather.service import AIRNOW_URL, STATION_LIMIT, WeatherService
+from tests.mock_http import MockHTTP
 
 FIXTURES = Path(__file__).parent / "fixtures" / "nws"
 AIRNOW_FIXTURES = Path(__file__).parent / "fixtures" / "airnow"
@@ -176,7 +177,8 @@ class FakeNWS:
     keeps full URLs so tests can assert on query contents.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, mock_http: MockHTTP) -> None:
+        self.mock_http = mock_http
         self.routes = {
             POINTS: _load("points"),
             STATIONS: _load("stations"),
@@ -187,9 +189,8 @@ class FakeNWS:
         self.calls: list[str] = []
 
     def service(self) -> WeatherService:
-        svc = WeatherService()
-        svc._transport = httpx.MockTransport(self.handle)
-        return svc
+        self.mock_http.install(self.handle)
+        return WeatherService()
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(str(request.url))
@@ -200,15 +201,15 @@ class FakeNWS:
         return httpx.Response(200, json=self.routes[url])
 
 
-async def test_refresh_shapes_full_payload():
-    nws = FakeNWS()
+async def test_refresh_shapes_full_payload(mock_http):
+    nws = FakeNWS(mock_http)
     payload = await nws.service().get_current()
     assert payload["current"]["temperature_f"] == 89
     assert [p["name"] for p in payload["periods"]] == ["Today", "Tonight"]
 
 
-async def test_second_request_within_ttl_hits_cache():
-    nws = FakeNWS()
+async def test_second_request_within_ttl_hits_cache(mock_http):
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     first = await svc.get_current()
     calls_after_first = len(nws.calls)
@@ -216,8 +217,8 @@ async def test_second_request_within_ttl_hits_cache():
     assert len(nws.calls) == calls_after_first  # no upstream traffic
 
 
-async def test_forced_refresh_within_ttl_hits_upstream():
-    nws = FakeNWS()
+async def test_forced_refresh_within_ttl_hits_upstream(mock_http):
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     await svc.get_current()
     calls_after_first = len(nws.calls)
@@ -228,8 +229,8 @@ async def test_forced_refresh_within_ttl_hits_upstream():
     assert len(nws.calls) == calls_after_forced  # request path still honors the TTL
 
 
-async def test_discovery_happens_once_per_process():
-    nws = FakeNWS()
+async def test_discovery_happens_once_per_process(mock_http):
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     await svc.get_current()
     # Expire the TTL. -inf, not 0: time.monotonic() is seconds since boot on
@@ -241,8 +242,8 @@ async def test_discovery_happens_once_per_process():
     assert nws.calls.count(FORECAST) == 2
 
 
-async def test_failed_discovery_is_retried_next_request():
-    nws = FakeNWS()
+async def test_failed_discovery_is_retried_next_request(mock_http):
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     nws.failing.add(POINTS)
     with pytest.raises(Exception):
@@ -253,8 +254,8 @@ async def test_failed_discovery_is_retried_next_request():
     assert payload["current"] is not None
 
 
-async def test_stale_payload_served_on_refresh_failure():
-    nws = FakeNWS()
+async def test_stale_payload_served_on_refresh_failure(mock_http):
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     fresh = await svc.get_current()
     # Expire the TTL. -inf, not 0: time.monotonic() is seconds since boot on
@@ -265,23 +266,23 @@ async def test_stale_payload_served_on_refresh_failure():
     assert await svc.get_current() is fresh
 
 
-async def test_cold_failure_raises():
-    nws = FakeNWS()
+async def test_cold_failure_raises(mock_http):
+    nws = FakeNWS(mock_http)
     nws.failing.update({FORECAST, OBS_KCHA})
     with pytest.raises(RuntimeError):
         await nws.service().get_current()
 
 
-async def test_partial_failure_yields_partial_payload():
-    nws = FakeNWS()
+async def test_partial_failure_yields_partial_payload(mock_http):
+    nws = FakeNWS(mock_http)
     nws.failing.add(OBS_KCHA)  # every station fails -> no current conditions
     payload = await nws.service().get_current()
     assert payload["current"] is None
     assert [p["name"] for p in payload["periods"]] == ["Today", "Tonight"]
 
 
-async def test_null_temperature_falls_back_to_next_station():
-    nws = FakeNWS()
+async def test_null_temperature_falls_back_to_next_station(mock_http):
+    nws = FakeNWS(mock_http)
     nws.routes[OBS_KCHA] = _load("observation_null_temp")
     nws.routes[OBS_KDNT] = _load("observation")
     payload = await nws.service().get_current()
@@ -296,9 +297,9 @@ def _airnow_calls(nws: FakeNWS) -> list[str]:
     return [call for call in nws.calls if call.startswith(AIRNOW_URL)]
 
 
-async def test_refresh_includes_aqi_when_configured(monkeypatch):
+async def test_refresh_includes_aqi_when_configured(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     payload = await nws.service().get_current()
     assert payload["aqi"]["value"] == 62 and payload["aqi"]["category"] == 2
@@ -306,9 +307,9 @@ async def test_refresh_includes_aqi_when_configured(monkeypatch):
     assert "API_KEY=test-key" in _airnow_calls(nws)[0]  # key travels as a param
 
 
-async def test_airnow_request_targets_current_observations_endpoint(monkeypatch):
+async def test_airnow_request_targets_current_observations_endpoint(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     await nws.service().get_current()
     assert AIRNOW_URL == "https://www.airnowapi.org/aq/observation/current/ziplatlong/"
@@ -319,9 +320,9 @@ async def test_airnow_request_targets_current_observations_endpoint(monkeypatch)
     assert "distance" not in params  # the service ignores it (fixed 50-mile lookup)
 
 
-async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, caplog):
+async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, caplog, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _load_airnow("no_observations")  # HTTP 200 envelope
     caplog.set_level(logging.WARNING)
     payload = await nws.service().get_current()
@@ -330,9 +331,9 @@ async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, capl
     assert "No observations were found for all monitors within 50 miles" in caplog.text
 
 
-async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(monkeypatch):
+async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _airnow_at(0)
     svc = nws.service()
     good_aqi = (await svc.get_current())["aqi"]
@@ -341,16 +342,16 @@ async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(monkeyp
     assert (await svc.get_current())["aqi"] == good_aqi
 
 
-async def test_empty_key_makes_no_airnow_request():
-    nws = FakeNWS()
+async def test_empty_key_makes_no_airnow_request(mock_http):
+    nws = FakeNWS(mock_http)
     payload = await nws.service().get_current()
     assert payload["aqi"] is None
     assert _airnow_calls(nws) == []
 
 
-async def test_airnow_failure_leaves_weather_intact(monkeypatch):
+async def test_airnow_failure_leaves_weather_intact(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()  # no AirNow route -> 500, the error-status path
+    nws = FakeNWS(mock_http)  # no AirNow route -> 500, the error-status path
     payload = await nws.service().get_current()
     assert payload["aqi"] is None
     assert payload["current"]["temperature_f"] == 89
@@ -371,14 +372,14 @@ RETIRED = (
         (500, None),  # no body: the status alone is logged
     ],
 )
-async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status, body):
+async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status, body, mock_http):
     """The failing AirNow URL carries API_KEY; neither httpx's request log nor
     the failure warning may contain it, and the warning carries the status and
     AirNow's own error message."""
     install_log_redaction()
     key = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789"
     _set_airnow_key(monkeypatch, key)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     svc = nws.service()
     handle = nws.handle
 
@@ -388,7 +389,7 @@ async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status,
             return httpx.Response(status, json=body) if body else httpx.Response(status)
         return handle(request)
 
-    svc._transport = httpx.MockTransport(gone)
+    nws.mock_http.install(gone)
     caplog.set_level(logging.INFO)
     payload = await svc.get_current()
 
@@ -401,9 +402,9 @@ async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status,
     assert "API_KEY=[REDACTED]" in caplog.text
 
 
-async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch):
+async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     nws.failing.update({FORECAST, OBS_KCHA})
     with pytest.raises(RuntimeError):
@@ -429,9 +430,9 @@ def _airnow_at(minutes_ago: int) -> list:
     return entries
 
 
-async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch):
+async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _airnow_at(0)  # fresh, well within the max age
     svc = nws.service()
     first = await svc.get_current()
@@ -445,9 +446,9 @@ async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch):
     assert second["current"]["temperature_f"] == 89  # NWS half fresh
 
 
-async def test_stale_aqi_dropped_past_max_age(monkeypatch):
+async def test_stale_aqi_dropped_past_max_age(monkeypatch, mock_http):
     _set_airnow_key(monkeypatch)
-    nws = FakeNWS()
+    nws = FakeNWS(mock_http)
     nws.routes[AIRNOW_URL] = _airnow_at(240)  # older than airnow_stale_minutes (120)
     svc = nws.service()
     first = await svc.get_current()

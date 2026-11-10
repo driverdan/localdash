@@ -24,10 +24,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
 from app.collectors.base import BaseCollector, NormalizedObservation
 from app.config import Settings
+from app.http import make_client
 
 
 def _parse_layers(spec: str) -> list[tuple[str, str]]:
@@ -54,7 +53,7 @@ class TnawCollector(BaseCollector):
         self.layers = _parse_layers(settings.tnaw_layers)
 
     async def fetch(self) -> Any:
-        headers = {"Accept": "application/json", "User-Agent": self.settings.user_agent}
+        headers = {"Accept": "application/json"}
         params = {
             "where": f"EventState='{self.state}'",
             "outFields": "*",
@@ -63,7 +62,9 @@ class TnawCollector(BaseCollector):
             "f": "geojson",
         }
         out: list[tuple[str, list]] = []
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(
+            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
+        ) as client:
             for layer, category in self.layers:
                 resp = await client.get(
                     f"{self.base_url}/{layer}/query", params=params, headers=headers

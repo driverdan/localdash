@@ -39,9 +39,8 @@ import json
 import logging
 import re
 
-import httpx
-
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -228,7 +227,9 @@ class CitySparkSource(EventSource):
     async def fetch(self) -> list[RawEvent]:
         start = dt.datetime.now(dt.timezone.utc)
         end = start + dt.timedelta(days=self.lookahead_days)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with make_client(
+            timeout=self.timeout, user_agent=None, follow_redirects=False
+        ) as client:
             resp = await client.get(f"{PORTAL}/PortalScripts/{self.slug}")
             resp.raise_for_status()
             bootstrap = parse_bootstrap(resp.text)

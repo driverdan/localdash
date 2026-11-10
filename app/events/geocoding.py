@@ -18,6 +18,8 @@ from abc import ABC, abstractmethod
 
 import httpx
 
+from app.http import make_client
+
 log = logging.getLogger("localdash.events")
 
 Coords = tuple[float, float]
@@ -58,6 +60,13 @@ class NullGeocoder(Geocoder):
 
 
 class NominatimGeocoder(Geocoder):
+    """Nominatim lookups over one HTTP client held for the geocoder's lifetime.
+
+    Use it as an async context manager: the client opens on enter and closes on
+    exit, so every lookup in a refresh cycle shares one connection pool.
+    ``geocode()`` outside the context raises rather than opening a client.
+    """
+
     def __init__(
         self,
         user_agent: str,
@@ -71,6 +80,20 @@ class NominatimGeocoder(Geocoder):
         self.min_interval = min_interval
         self._slot_lock = asyncio.Lock()
         self._next_send = 0.0  # monotonic time before which no request may go out
+        self._client: httpx.AsyncClient | None = None
+
+    async def __aenter__(self) -> NominatimGeocoder:
+        if self._client is not None:
+            raise RuntimeError("NominatimGeocoder is already open")
+        self._client = make_client(
+            timeout=self.timeout, user_agent=self.user_agent, follow_redirects=False
+        )
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        client, self._client = self._client, None
+        if client is not None:
+            await client.aclose()
 
     async def _wait_for_slot(self) -> None:
         """Claim the next send slot so requests are >= min_interval apart.
@@ -89,6 +112,9 @@ class NominatimGeocoder(Geocoder):
             await asyncio.sleep(delay)
 
     async def geocode(self, address: str) -> Coords | None:
+        client = self._client
+        if client is None:
+            raise RuntimeError("NominatimGeocoder.geocode() called outside `async with`")
         if not address:
             return None
         # Try progressively simplified variants; only an empty result advances
@@ -97,14 +123,11 @@ class NominatimGeocoder(Geocoder):
         for query in _candidate_queries(address):
             await self._wait_for_slot()
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    resp = await client.get(
-                        self.base_url,
-                        params={"q": query, "format": "json", "limit": 1},
-                        headers={"User-Agent": self.user_agent},
-                    )
-                    resp.raise_for_status()
-                    results = resp.json()
+                resp = await client.get(
+                    self.base_url, params={"q": query, "format": "json", "limit": 1}
+                )
+                resp.raise_for_status()
+                results = resp.json()
             except Exception:  # noqa: BLE001 — network/service failures resolve to None
                 log.exception("geocoding failed for %r", query)
                 return None

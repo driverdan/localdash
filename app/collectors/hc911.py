@@ -12,10 +12,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-
 from app.collectors.base import BaseCollector, NormalizedObservation
 from app.config import Settings
+from app.http import make_client
 
 # Calls with this type are filtered out by the source site (permitted burns).
 EXCLUDED_TYPES = {"PERBURN"}
@@ -47,9 +46,10 @@ class HC911Collector(BaseCollector):
             "Content-Type": "application/json",
             "X-Frontend-Auth": self.settings.hc911_auth_token,
             "Origin": self.settings.hc911_origin,
-            "User-Agent": self.settings.user_agent,
         }
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(
+            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
+        ) as client:
             resp = await client.get(self.settings.hc911_api_url, headers=headers)
             resp.raise_for_status()
             return resp.json()

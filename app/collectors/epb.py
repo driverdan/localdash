@@ -24,10 +24,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
 from app.collectors.base import BaseCollector, NormalizedObservation
 from app.config import Settings
+from app.http import make_client
 
 # service -> human label shown as the marker's title.
 _SERVICE_LABEL = {"energy": "Energy Outage", "fiber": "Fiber Outage"}
@@ -44,9 +43,11 @@ class EpbCollector(BaseCollector):
         self.services = [s.strip() for s in settings.epb_services.split(",") if s.strip()]
 
     async def fetch(self) -> Any:
-        headers = {"Accept": "application/json", "User-Agent": self.settings.user_agent}
+        headers = {"Accept": "application/json"}
         out: dict[str, list] = {}
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(
+            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
+        ) as client:
             for service in self.services:
                 resp = await client.get(f"{self.base_url}/{service}/incidents", headers=headers)
                 resp.raise_for_status()

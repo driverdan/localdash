@@ -47,6 +47,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -250,7 +251,8 @@ class ChattZooSource(EventSource):
     def __init__(
         self,
         url: str = LISTING_URL,
-        user_agent: str = "LocalDash/0.1",
+        *,
+        user_agent: str,
         timeout: int = 20,
     ):
         self.url = url
@@ -258,10 +260,9 @@ class ChattZooSource(EventSource):
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        headers = {"User-Agent": self.user_agent}
         now = _now()
-        async with httpx.AsyncClient(
-            timeout=self.timeout, follow_redirects=True, headers=headers
+        async with make_client(
+            timeout=self.timeout, user_agent=self.user_agent, follow_redirects=True
         ) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()

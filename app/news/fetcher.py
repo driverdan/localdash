@@ -3,7 +3,7 @@
 Ported from ChattNews. feedparser is synchronous, so the network fetch + parse
 runs in a thread; row upserts go through the async session. Hard-won feed
 behavior that must not regress:
-  * requests send a real-browser User-Agent (registry.USER_AGENT) — TownNews
+  * requests send a real-browser User-Agent (app.http.BROWSER_USER_AGENT) — TownNews
     sites answer unfamiliar UAs with HTTP 429;
   * a feed erroring must never abort the cycle — failures are caught per-feed
     and recorded in news_feeds.last_status;
@@ -26,15 +26,15 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 import feedparser
-import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.http import BROWSER_USER_AGENT, make_client
 from app.news.classify import classify
 from app.news.models import NewsArticle, NewsFeed, NewsSource
-from app.news.registry import USER_AGENT, feed_kind, uses_feed_tags
+from app.news.registry import feed_kind, uses_feed_tags
 from app.news.textutil import strip_html, truncate_sentences
 from app.redaction import redact
 
@@ -90,7 +90,7 @@ def _entry_tags(entry) -> list[str]:
 def _parse_feed(url: str):
     return feedparser.parse(
         url,
-        agent=USER_AGENT,
+        agent=BROWSER_USER_AGENT,
         request_headers={"Accept": "application/rss+xml, application/xml, */*"},
     )
 
@@ -147,8 +147,8 @@ def parse_html_listing(html: str, base_url: str) -> list[dict]:
 
 async def _fetch_html(url: str) -> str:
     """GET a listing page with the shared browser User-Agent. Raises on non-2xx."""
-    async with httpx.AsyncClient(
-        timeout=30, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+    async with make_client(
+        timeout=30, user_agent=BROWSER_USER_AGENT, follow_redirects=True
     ) as client:
         resp = await client.get(url)
         resp.raise_for_status()
