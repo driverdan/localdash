@@ -13,7 +13,8 @@ at `/` by the frontend's `home` feature):
   be added without schema changes.
 - **News** (`/news`): an RSS aggregator for Chattanooga outlets that clusters articles
   covering the same story across outlets (ported from the standalone ChattNews app). Not a geo
-  source — it is a sibling feature beside the timeseries pipeline, not a collector.
+  source — it is a sibling feature beside the timeseries pipeline, not a collector ("sibling"
+  describes the data pipeline, not an import boundary; see "Backend code organisation").
 - **Events** (`/events`): aggregates, de-duplicates, tags, and geocodes local happenings (The
   Pulse's CitySpark calendar, car cruises, the Chattanooga Zoo, Meetup groups, configurable iCal
   calendars, The Events Calendar (tribe) WordPress calendars — by default the Chattanooga Public
@@ -93,7 +94,8 @@ inside `MapView.svelte`, not through marker components. Marker icons are CSS `di
 no image assets to manage. Node is needed only to build the frontend, never at runtime (multi-stage
 Dockerfile).
 
-The frontend mirrors the API's feature-namespace convention: each feature owns
+The frontend lays out its source by the API's feature namespaces and adds import rules of its
+own (the backend has no matching rules): each feature owns
 `frontend/src/features/<feature>/` (`home` on `/`, `news` on `/news`, `timeseries` on `/map` — it
 owns the Leaflet map — and `events` on `/events`), composed per-route by `App.svelte`;
 feature-agnostic shell code lives in `frontend/src/lib/`. Routing is a **tiny hand-rolled path
@@ -517,6 +519,28 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 `redact()` on exception text that is persisted or returned (`sources.last_error`,
 `news_feeds.last_status`). Add new credential settings to `SECRET_SETTINGS`.
 
+### Backend code organisation
+The backend (`app/`) is one application. Its packages (`app/news/`, `app/events/`,
+`app/weather/`, `app/collectors/`) and its top-level modules group code by feature to make it
+easier to find. They are not boundaries: any backend module may import from any other.
+
+Before writing a helper, constant or mechanism, look for an existing one anywhere in `app/`
+and reuse it. If it lives somewhere awkward for the new caller, promote it to a shared
+module (move it, then import it from both places) instead of copying it. Two copies of the
+same logic drift apart.
+
+Feature separation still holds in three places, and none of them is about backend imports:
+- **Data flow.** News, events and weather do not flow through collectors/ingest; each has
+  its own pipeline and tables (weather has none).
+- **The API.** Each feature owns `/api/v1/<feature>/` and one router module in `app/api/`.
+- **The frontend.** Its import rules (above) apply to `frontend/src/` only.
+
+**Import cycles.** Shared code should sit below the code that uses it. Entry and orchestration
+modules (`main.py`, `scheduler.py`, `app/api/`) import feature code; feature code should not
+import them. When two modules need each other's code, move the shared part into a module both
+can import, rather than adding a function-local import. This is advice for fixing a cycle,
+not a list of forbidden imports.
+
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
   `/api/v1/<feature>/` (`timeseries`, `news`, `events`, `weather`), and feature-agnostic app-shell
@@ -543,7 +567,8 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 - Weather route: `GET /api/v1/weather/current` (current station observation, the leading NWS
   forecast periods, and `aqi` — null without an AirNow key; served from the in-process cache, 502
   only when NWS is unreachable with a cold cache).
-- The frontend (`frontend/`, Svelte + TS, built into `static/`) mirrors the namespace convention:
+- The frontend (`frontend/`, Svelte + TS, built into `static/`) lays out its source by the same
+  feature namespaces (its import rules are frontend-only):
   `src/features/home/` is the `/` widget digest (news, weather, outages, today's events);
   `src/features/timeseries/` loads `/api/v1/timeseries/entities` and applies bus diffs into a runes
   store; `src/features/news/` and `src/features/events/` load into their own runes stores and
