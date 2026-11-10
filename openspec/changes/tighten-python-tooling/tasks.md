@@ -31,20 +31,20 @@
 
 ## 4. Hook, CI, docs (commit 4)
 
-- [ ] 4.1 `.pre-commit-config.yaml`: replace the `astral-sh/ruff-pre-commit` repo with `local` `ruff-check` / `ruff-format` hooks running `uv run --locked --extra dev ruff ...` (design.md §4); update the header comment. Verify fix-then-abort still holds by staging a file with a fixable issue
-- [ ] 4.2 `frontend/package.json`: add `"format:check": "prettier --check ."`; confirm `npm run format:check` passes on `main` (format first in its own commit if not)
-- [ ] 4.3 `.github/workflows/tests.yml`: add a `lint` job (`needs: changes`, `if: needs.changes.outputs.python == 'true'`, same `setup-python`/`setup-uv` pins as `pytest`, `uv sync --locked --extra dev`, then `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`), with a comment explaining why it is tool-native rather than `pre-commit run --all-files`
-- [ ] 4.4 `.github/workflows/tests.yml`: add `npm run format:check` to the `frontend` job; add `lint` to the `docker` job's `needs` and mention it in the guard comment
-- [ ] 4.5 `AGENTS.md` "Linting & formatting (pre-commit)": describe the widened rule set and `RUF100`; that the hook runs the locked ruff via `uv run` (needs `uv` on `PATH`); delete the "Keep the hook's ruff `rev` in step" instruction; replace the "Known gap … CI job is deferred" text with the CI enforcement; add `uv run mypy` alongside the `svelte-check` paragraph (whole-project, not in the hook)
-- [ ] 4.6 `AGENTS.md` "CI" bullet list: add the `lint` job and the `format:check` step in `frontend`; note `lint` runs on the `python` category
-- [ ] 4.7 `AGENTS.md` Tech stack / dev setup: mention mypy in the dev extras and `uv run mypy` in the local-dev command block; add a short note on typing expectations for new `app/` code (annotated signatures, no bare `# type: ignore`)
-- [ ] 4.8 `CONTRIBUTING.md` "Linting and formatting": `uv sync --extra dev` comment lists mypy; add the `uv run mypy` command; replace "treat it as a convenience rather than a hard gate" with the CI enforcement note
-- [ ] 4.9 Grep `AGENTS.md`, `CONTRIBUTING.md`, `README.md` and `.pre-commit-config.yaml` for `ruff-pre-commit`, `rev`, "deferred", and "no CI backstop" and fix any stale text
+- [x] 4.1 `.pre-commit-config.yaml`: replace the `astral-sh/ruff-pre-commit` repo with `local` `ruff-check` / `ruff-format` hooks running `uv run --locked --extra dev ruff ...` (design.md §4); update the header comment. Verify fix-then-abort still holds by staging a file with a fixable issue
+- [x] 4.2 `frontend/package.json`: add `"format:check": "prettier --check ."`; confirm `npm run format:check` passes on `main` (format first in its own commit if not)
+- [x] 4.3 `.github/workflows/tests.yml`: add a `lint` job (`needs: changes`, `if: needs.changes.outputs.python == 'true'`, same `setup-python`/`setup-uv` pins as `pytest`, `uv sync --locked --extra dev`, then `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`), with a comment explaining why it is tool-native rather than `pre-commit run --all-files`
+- [x] 4.4 `.github/workflows/tests.yml`: add `npm run format:check` to the `frontend` job; add `lint` to the `docker` job's `needs` and mention it in the guard comment
+- [x] 4.5 `AGENTS.md` "Linting & formatting (pre-commit)": describe the widened rule set and `RUF100`; that the hook runs the locked ruff via `uv run` (needs `uv` on `PATH`); delete the "Keep the hook's ruff `rev` in step" instruction; replace the "Known gap … CI job is deferred" text with the CI enforcement; add `uv run mypy` alongside the `svelte-check` paragraph (whole-project, not in the hook)
+- [x] 4.6 `AGENTS.md` "CI" bullet list: add the `lint` job and the `format:check` step in `frontend`; note `lint` runs on the `python` category
+- [x] 4.7 `AGENTS.md` Tech stack / dev setup: mention mypy in the dev extras and `uv run mypy` in the local-dev command block; add a short note on typing expectations for new `app/` code (annotated signatures, no bare `# type: ignore`)
+- [x] 4.8 `CONTRIBUTING.md` "Linting and formatting": `uv sync --extra dev` comment lists mypy; add the `uv run mypy` command; replace "treat it as a convenience rather than a hard gate" with the CI enforcement note
+- [x] 4.9 Grep `AGENTS.md`, `CONTRIBUTING.md`, `README.md` and `.pre-commit-config.yaml` for `ruff-pre-commit`, `rev`, "deferred", and "no CI backstop" and fix any stale text
 
 ## 5. Verification
 
-- [ ] 5.1 `pre-commit run --all-files` passes with the new local hooks
-- [ ] 5.2 Staging a file with a `timezone.utc` use aborts the commit with the rewrite applied; staging a bare `except Exception: pass` aborts with `BLE001`
+- [x] 5.1 `pre-commit run --all-files` passes with the new local hooks
+- [x] 5.2 Staging a file with a `timezone.utc` use aborts the commit with the rewrite applied; staging a bare `except Exception: pass` aborts with `BLE001`
 - [ ] 5.3 CI on the PR: `lint`, `pytest`, `frontend`, `docker` all run and pass
-- [ ] 5.4 `openspec validate tighten-python-tooling --strict` passes
-- [ ] 5.5 PR description lists the manual post-merge step: the repo owner adds `lint` to the required status checks
+- [x] 5.4 `openspec validate tighten-python-tooling --strict` passes
+- [x] 5.5 PR description lists the manual post-merge step: the repo owner adds `lint` to the required status checks

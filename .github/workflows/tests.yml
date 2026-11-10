@@ -19,7 +19,7 @@ permissions:
 jobs:
   # Classifies each run's changed files so the test jobs run only when files
   # they exercise changed. Filtering lives here (a job-level `if:`), not in an
-  # `on.*.paths` filter: all three jobs are required status checks, and a job
+  # `on.*.paths` filter: the check jobs are required status checks, and a job
   # skipped via `if:` reports success — whereas a workflow skipped via
   # `on.paths` never reports the check and leaves the PR blocked forever. Each
   # filter also matches this workflow file, so any CI edit forces the full run.
@@ -121,11 +121,48 @@ jobs:
       - name: Test
         run: uv run pytest -rs
 
+  # Lint, format and type checks for Python, in check mode. Tool-native commands
+  # rather than one `pre-commit run --all-files` job: the hooks run in fix mode
+  # (CI must only check), and a single job would need Python, uv and Node at once
+  # while ignoring the per-category filtering above. It needs no database, so it
+  # fails faster than pytest. ruff and mypy come from uv.lock, like the hook's.
+  lint:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          # Matches the runtime image in the Dockerfile.
+          python-version: "3.14"
+
+      # Same pin and cache as the pytest job.
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.11.29"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install
+        run: uv sync --locked --extra dev
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
   # The frontend has no test suite yet (no runner, no *.test.ts) — there is
-  # nothing to execute. Until there is, its real gates are the strict
-  # svelte-check pass AGENTS.md requires to stay at 0 errors, and the build
-  # itself. Both catch what npm dependency bumps actually break, which pytest
-  # never sees.
+  # nothing to execute. Until there is, its real gates are the prettier check,
+  # the strict svelte-check pass AGENTS.md requires to stay at 0 errors, and the
+  # build itself. The last two catch what npm dependency bumps actually break,
+  # which pytest never sees.
   frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
@@ -148,6 +185,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Check mode: fails on any file the commit hook's prettier would rewrite.
+      - name: Format
+        run: npm run format:check
+
       - name: Typecheck
         run: npm run check
 
@@ -160,12 +201,13 @@ jobs:
   # that branch, so the event name alone is the branch check).
   docker:
     runs-on: ubuntu-latest
-    # A bare `needs: [pytest, frontend]` treats a *skipped* job as unmet, so a
-    # one-sided change (only Python, or only frontend) would wrongly skip the
-    # build. This guard builds when either test job ran (python || frontend) or
-    # the image files changed, while `!failure() && !cancelled()` still keeps a
-    # broken or half-run suite from producing — or pushing — an image.
-    needs: [changes, pytest, frontend]
+    # A bare `needs: [pytest, lint, frontend]` treats a *skipped* job as unmet, so
+    # a one-sided change (only Python, or only frontend) would wrongly skip the
+    # build. This guard builds when any check job ran (python || frontend) or the
+    # image files changed, while `!failure() && !cancelled()` still keeps a broken
+    # or half-run suite, or a lint/type failure, from producing — or pushing — an
+    # image.
+    needs: [changes, pytest, lint, frontend]
     if: >-
       ${{ !cancelled() && !failure() &&
           (needs.changes.outputs.python == 'true' ||
