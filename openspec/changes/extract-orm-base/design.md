@@ -153,9 +153,10 @@ What remains:
 - **`relax-backend-feature-separation`** lands first and records why this change does not move
   code. It edits AGENTS.md. This change adds one line to the data-model section and touches the
   `Diff` mention in the architecture walkthrough, so any overlap should be small.
-- **`unify-refresh-orchestration`** was written assuming an `app/timeseries/` package would exist
-  for its timeseries refresh module. **That package no longer comes from this change.** Its
-  proposal needs to choose its own location under the new guideline.
+- **`unify-refresh-orchestration`** originally assumed an `app/timeseries/` package would exist for
+  its timeseries refresh module. It has since been revised to put that cycle in a top-level
+  `app/collect.py`, so it no longer depends on this change. The only overlap left is that its
+  tests import `Diff` from `app.diff` once this change has landed.
 - **`ingest-owns-entity-status`** edits `app/ingest.py`, and this change edits that file's
   `from app.schemas import Diff` line. A conflict is possible only if it also edits the import
   block, and is trivial to resolve.
