@@ -17,7 +17,7 @@ from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
 from app.timeutil import as_utc
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
 

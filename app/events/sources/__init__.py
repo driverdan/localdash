@@ -29,7 +29,7 @@ from app.events.sources.ical import ICalSource
 from app.events.sources.meetup import MeetupSource
 from app.events.sources.tribe import TribeEventsSource
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 
 def build_sources(settings: Settings) -> list[EventSource]:

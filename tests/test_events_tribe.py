@@ -106,11 +106,13 @@ def test_html_is_reduced_to_text():
 
 
 def test_event_without_utc_start_is_skipped_and_parse_continues(caplog):
-    with caplog.at_level("WARNING", logger="localdash.events"):
+    with caplog.at_level("WARNING", logger="app.events.sources.tribe"):
         events = parse_page(load_page(), SOURCE_NAME)
 
     assert "9999002" not in [e.source_event_id for e in events]
     assert "utc_start_date" in caplog.text
+    [record] = [r for r in caplog.records if "utc_start_date" in r.getMessage()]
+    assert record.name == "app.events.sources.tribe"
 
 
 # --- parse: synthetic edges ---
@@ -247,7 +249,7 @@ def test_build_sources_empty_setting_disables_tribe_ingestion():
 
 
 def test_build_sources_skips_malformed_entries_loudly(caplog):
-    with caplog.at_level("WARNING", logger="localdash.events"):
+    with caplog.at_level("WARNING", logger="app.events.sources"):
         sources = build_sources(
             Settings(
                 _env_file=None,
@@ -258,3 +260,5 @@ def test_build_sources_skips_malformed_entries_loudly(caplog):
 
     assert [t.name for t in tribes] == ["Venue A"]
     assert "events_tribe_calendars" in caplog.text
+    [record] = [r for r in caplog.records if "events_tribe_calendars" in r.getMessage()]
+    assert record.name == "app.events.sources"

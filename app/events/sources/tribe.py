@@ -32,7 +32,7 @@ from app.events.sources.base import EventSource, RawEvent, clean_image_url, join
 from app.http import make_client
 from app.timeutil import parse_iso_utc
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 PAGE_SIZE = 50  # the API's per_page maximum
 # Guard against a pathological non-terminating pagination loop.

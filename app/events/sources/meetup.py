@@ -21,7 +21,7 @@ from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
 from app.timeutil import parse_iso_utc
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 ENDPOINT = "https://api.meetup.com/gql"
 
