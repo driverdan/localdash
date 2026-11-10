@@ -47,9 +47,9 @@ This change is #2 of 13. It overlaps with:
 
 - **#1 `ingest-owns-entity-status`**: touches `normalize()` in the same collector files. The two
   only overlap textually: this change edits `fetch()` and that one edits `normalize()`.
-- **#3 `move-timeseries-into-package`**: moves `app/collectors/` into `app/timeseries/`. It lands
-  after this change and carries the edited collectors and their new fetch tests with it, so their
-  import paths need updating there. `app/http.py` is feature-agnostic and stays at the top level.
+- **#3 `extract-orm-base`** (formerly `move-timeseries-into-package`): no longer moves any files,
+  so `app/collectors/` keeps its path and there is no overlap. `app/http.py` stays at the top
+  level.
 - **#4 `unify-refresh-orchestration`**: rewrites `app/events/refresh.py`. It must keep the
   `async with NominatimGeocoder(...)` scope added here, so that one geocoder and one client cover
   `run_sources` plus `retry_failed_geocodes` in a cycle.
