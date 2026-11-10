@@ -1,0 +1,103 @@
+## ADDED Requirements
+
+### Requirement: Outbound HTTP clients come from one factory
+Every `httpx` client the application uses to call an upstream service SHALL be constructed by the
+factory in `app/http.py`. The factory SHALL require each caller to state its timeout, its
+User-Agent (a string, or none to send httpx's default), and whether redirects are followed. None of
+these SHALL have a default. The factory SHALL NOT read application settings: callers pass the
+values. Requests made through `feedparser` (news RSS feeds) are outside the factory's scope, but
+SHALL use the same browser User-Agent constant (see "One shared browser User-Agent").
+
+#### Scenario: No direct client construction outside the factory
+- **WHEN** the application package `app/` is searched for `httpx.AsyncClient(`
+- **THEN** the only match is inside `app/http.py`
+
+#### Scenario: A call site states its request settings
+- **WHEN** a collector, event source, geocoder, news fetcher or weather service obtains a client
+- **THEN** its timeout, User-Agent choice and redirect policy are passed explicitly at that call
+
+### Requirement: Per-upstream request settings are preserved
+Each upstream fetch SHALL send the User-Agent, use the timeout, apply the redirect policy and carry
+the site-specific headers listed below. A change to any of these is a wire change and SHALL be made
+deliberately, by updating this requirement.
+
+| Fetch | User-Agent | Timeout (s) | Redirects followed |
+|---|---|---|---|
+| hc911, TDOT, EPB, TN American Water collectors | `user_agent` setting | 30 | no |
+| Nominatim geocoder | `events_geocoder_user_agent` setting | 10 | no |
+| Chattanooga Zoo source | `user_agent` setting | 20 | yes |
+| Meetup source | httpx default | 20 | no |
+| iCal source | httpx default | 20 | yes |
+| Events Calendar (tribe) source | httpx default | 30 | yes |
+| CitySpark source | httpx default | 30 | no |
+| CarCruiseFinder source | browser User-Agent | 20 | yes |
+| News `kind: html` listing scrape | browser User-Agent | 30 | yes |
+| NWS / AirNow (weather) | `user_agent` setting | 10 | yes |
+
+Site-specific headers SHALL also be preserved: hc911 sends `Content-Type: application/json`,
+`X-Frontend-Auth` and `Origin`; TDOT sends `X-API-Key`; EPB and TN American Water send
+`Accept: application/json`; Meetup sends a bearer `Authorization` and
+`Content-Type: application/json`; weather sends `Accept: application/geo+json`.
+
+#### Scenario: Request settings are pinned by a test
+- **WHEN** the test suite runs each fetch listed above against a mock transport
+- **THEN** each request's User-Agent, timeout and site-specific headers match the table, and a
+  redirect response is followed exactly by the fetches marked "yes"
+
+#### Scenario: A default-UA source sends httpx's User-Agent
+- **WHEN** the Meetup, iCal, tribe or CitySpark source fetches
+- **THEN** its `User-Agent` header is httpx's default (`python-httpx/<version>`), not the app's
+  `user_agent` setting and not the browser User-Agent
+
+### Requirement: One shared browser User-Agent
+The application SHALL define the mainstream browser User-Agent string exactly once, as
+`BROWSER_USER_AGENT` in `app/http.py`. The news RSS fetch (via feedparser), the news HTML scrape,
+and the CarCruiseFinder source SHALL all use that constant.
+
+#### Scenario: News feeds and CarCruiseFinder share one constant
+- **WHEN** a news RSS feed is fetched, a news `kind: html` listing is scraped, or CarCruiseFinder's
+  listing is fetched
+- **THEN** the request's User-Agent is `app.http.BROWSER_USER_AGENT`
+
+#### Scenario: The string is not duplicated
+- **WHEN** the application package is searched for the browser User-Agent string literal
+- **THEN** it appears only in `app/http.py`
+
+### Requirement: The geocoder reuses one client per refresh cycle
+The Nominatim geocoder SHALL hold a single HTTP client for its lifetime, opened and closed by using
+the geocoder as an async context manager. An events refresh cycle SHALL open one geocoder and share
+it between source ingest and the geocode-failure retry pass. Calling `geocode` outside that context
+SHALL raise an error rather than opening a client implicitly. Request spacing (at least
+`events_geocoder_min_interval_seconds` between sends), the request's URL, query and headers, and
+the "first query variant with a result wins" fallback SHALL be unchanged.
+
+#### Scenario: Several lookups share one client
+- **WHEN** a geocoder context performs several lookups
+- **THEN** every request goes through the same client, and that client is closed when the context
+  exits
+
+#### Scenario: Spacing is unchanged with a shared client
+- **WHEN** two lookups are issued back to back with `min_interval` set
+- **THEN** the second request is sent no sooner than `min_interval` after the first
+
+#### Scenario: Use outside the context fails fast
+- **WHEN** `geocode` is called on a geocoder that has not been entered
+- **THEN** it raises an error and sends no request
+
+### Requirement: Tests substitute the transport and never reach the network
+`app/http.py` SHALL expose a transport override that the test suite sets to route every
+factory-built client through a mock transport. Production code SHALL NOT set it. The test suite
+SHALL provide one shared fixture for installing a mock handler and recording the requests sent. By
+default, every test SHALL run with a transport that refuses outbound requests, and a test that
+sends any unmocked outbound request SHALL fail, even when the application code under test catches
+the resulting error.
+
+#### Scenario: A test mocks an upstream
+- **WHEN** a test installs a handler through the shared fixture and calls code that fetches
+- **THEN** the request reaches the handler, and the test can inspect the recorded request's URL,
+  headers and timeout
+
+#### Scenario: An unmocked request fails the test
+- **WHEN** a test runs code that sends an outbound request without installing a mock
+- **THEN** the test fails and names the requested URL, even when the caller swallowed the error
+  (for example per-source isolation in an events or news refresh)
