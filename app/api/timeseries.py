@@ -21,6 +21,7 @@ from fastapi import (
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.collect import run_collector
 from app.db import get_session
 from app.geojson import entity_properties, feature_collection, feature_geom
 from app.models import Entity, Observation, Source
@@ -257,6 +258,4 @@ async def refresh(key: str, request: Request):
     collector = collectors.get(key)
     if collector is None:
         raise HTTPException(404, f"unknown source '{key}'")
-    from app.scheduler import run_collector
-
     return await run_collector(collector)

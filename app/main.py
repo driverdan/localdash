@@ -16,12 +16,13 @@ from starlette.responses import HTMLResponse, Response
 from starlette.types import Scope
 
 from app.api import events, news, root, timeseries, weather
+from app.collectors import build_collectors
 from app.config import get_settings
 from app.db import SessionLocal
 from app.events.ingest import purge_blocked_tags
 from app.news.registry import sync_registry
 from app.redaction import install as install_log_redaction
-from app.scheduler import build_scheduler
+from app.scheduler import build_scheduler, job_specs
 
 logging.basicConfig(level=logging.INFO)
 # Mask credentials (e.g. AirNow's API_KEY query param, which httpx echoes in its
@@ -119,8 +120,10 @@ async def lifespan(app: FastAPI):
         await sync_registry(session)
         # Purge blocklisted event tags before the first refresh re-tags events.
         await purge_blocked_tags(session)
-    scheduler, collectors = build_scheduler()
+    settings = get_settings()
+    collectors = {c.source_key: c for c in build_collectors(settings)}
     app.state.collectors = collectors
+    scheduler = build_scheduler(job_specs(settings, collectors))
     app.state.scheduler = scheduler
     scheduler.start()
     try:

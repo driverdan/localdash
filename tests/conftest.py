@@ -12,7 +12,7 @@ from __future__ import annotations
 # This block MUST stay above every other `app.*` import. app/db.py builds its
 # global engine/SessionLocal at import time from get_settings(), so pointing
 # DATABASE_URL at the temporary database before anything imports app.db is what
-# keeps app code that opens its own sessions (refresh(), the scheduler) off the
+# keeps app code that opens its own sessions (refresh(), run_collector()) off the
 # real database. Environment variables take precedence over .env, so every
 # get_settings()/Settings() in the run resolves to the temporary database.
 import os
