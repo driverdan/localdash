@@ -1,7 +1,7 @@
 ## 0. Before starting
 
 - [ ] 0.1 Check which sibling changes have landed (`decompose-events-upsert`,
-  `unify-refresh-orchestration`, `move-timeseries-into-package`, `ingest-owns-entity-status`,
+  `unify-refresh-orchestration`, `ingest-owns-entity-status`,
   `add-shared-http-client`) and apply the tasks below to the current function names and paths
   (see design.md "Sibling changes and landing order")
 - [ ] 0.2 Re-run `grep -rn "get_settings" app` and
@@ -42,8 +42,8 @@
 
 ## 4. Timeseries and weather
 
-- [ ] 4.1 Timeseries `ingest(session, source_key, observations, *, now=None)` (`app/ingest.py`, or
-  `app/timeseries/ingest.py` if moved): replace the `datetime.now` line with the resolved `now`
+- [ ] 4.1 Timeseries `ingest(session, source_key, observations, *, now=None)` (`app/ingest.py`):
+  replace the `datetime.now` line with the resolved `now`
 - [ ] 4.2 `WeatherService.__init__(self, settings: Settings | None = None)`: store it; in
   `get_current` use `self._settings or get_settings()`; keep the module singleton
   `service = WeatherService()` (no import-time settings read)

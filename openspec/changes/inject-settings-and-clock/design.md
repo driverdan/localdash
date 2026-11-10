@@ -186,9 +186,9 @@ without global mutation.
 
 This is item 6 of 13 in the suggested order. Overlaps:
 
-- **`ingest-owns-entity-status` (1)** and **`move-timeseries-into-package` (3)** both touch timeseries
-  `ingest` in `app/ingest.py`; (3) moves it to `app/timeseries/ingest.py`. Land after both and add
-  `now` at whatever path exists. The change to `ingest` is one parameter and one line.
+- **`ingest-owns-entity-status` (1)** touches timeseries `ingest` in `app/ingest.py`. Land after it.
+  The change to `ingest` is one parameter and one line. **`extract-orm-base` (3, formerly
+  `move-timeseries-into-package`)** no longer moves that file, so there is no overlap.
 - **`add-shared-http-client` (2)** replaces `WeatherService._make_client` / `_transport`. This change
   only touches the constructor and `get_current`'s settings line, so the textual conflict is small.
 - **`unify-refresh-orchestration` (4)** makes each feature own its refresh cycle. Those cycles are
