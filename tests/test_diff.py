@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.schemas import Diff
+from app.diff import Diff
 
 
 def test_empty_diff_is_empty():

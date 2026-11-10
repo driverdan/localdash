@@ -1,4 +1,4 @@
-"""API response models and the ingest Diff structure."""
+"""The ingest `Diff`: one cycle's new/updated/closed entities and its bus message."""
 
 from __future__ import annotations
 
