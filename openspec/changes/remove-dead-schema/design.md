@@ -1,84 +1,74 @@
 ## Context
 
-Migration `0001` created `sources` with `enabled BOOLEAN NOT NULL DEFAULT TRUE` and
-`config JSONB NOT NULL DEFAULT '{}'`, presumably for a database-driven source registry. That
-registry never happened: collectors are code-as-config in `app/collectors/__init__.py`, and
-`build_collectors()` decides which run from the `hc911_enabled` / `tdot_enabled` / `epb_enabled`
-/ `tnaw_enabled` settings. A grep of `app/`, `tests/`, `alembic/`, and `frontend/src/` on current
-`main` confirms the review's findings:
+A grep of `app/`, `tests/`, `alembic/`, and `frontend/src/` on current `main` shows five
+relationship attributes with no reader:
 
-- `Source.config` (`app/models.py:45`) has no reader or writer anywhere outside migration `0001`.
-- `Source.enabled` (`app/models.py:43`) is written only by `_record_run`
-  (`app/scheduler.py:108`) as the literal `True` on insert. It is not in the upsert's `set_`
-  clause, so it can never change. Its only reader is `list_sources`
-  (`app/api/timeseries.py:242`), which echoes it.
-- `_record_run` runs only for registered collectors, so a collector that is later disabled stops
-  updating its row, but the row stays, and `/sources` keeps reporting `enabled: true` for it.
-- The frontend never calls `GET /api/v1/timeseries/sources`. `frontend/src/features/timeseries/`
-  builds its source list from the static `SOURCES` table in `sources.ts`. The only `enabled`
-  field the frontend reads is the news one (`features/news/types.ts`, from
-  `/api/v1/news/sources`). No test calls `list_sources`.
-- Relationships with no reader: `Entity.observations` (`app/models.py:83`),
-  `Observation.entity` (`app/models.py:104`), `NewsSource.feeds` (`app/news/models.py:38`),
-  `NewsFeed.source` (`app/news/models.py:56`), and `Tag.events` (`app/events/models.py:46`). No
-  code accesses them, passes them to `selectinload`/`joinedload`, or uses them as constructor
-  keywords. Every delete that touches these tables is a Core `delete()` statement
-  (`purge_blocked_tags`, the news registry sync) that relies on the database's
-  `ON DELETE CASCADE`, not on ORM cascades. The one ORM `session.delete()` (merging a duplicate
-  event in `app/events/ingest.py`) deletes an `Event`, whose `tags` and `links` relationships
-  stay.
+- `Entity.observations` and `Observation.entity` (`app/models.py`)
+- `NewsSource.feeds` and `NewsFeed.source` (`app/news/models.py`)
+- `Tag.events` (`app/events/models.py`)
 
-Not dead, and left alone: `Source.poll_interval_seconds` (written by `_record_run`, served by
-`/sources`), `NewsSource.enabled` (registry-synced; the news fetcher and `/news/sources` filter on
-it), `Event.tags`, `Event.links`, and `EventLink.event`.
+No code accesses them, passes them to `selectinload`/`joinedload`, or uses them as constructor
+keywords. Every delete that touches these tables is a Core `delete()` statement
+(`purge_blocked_tags`, the news registry sync) that relies on the database's `ON DELETE CASCADE`,
+not on ORM cascades. The one ORM `session.delete()` (merging a duplicate event in
+`app/events/ingest.py`) deletes an `Event`, whose `tags` and `links` relationships stay.
+
+Migration `0001` also created `sources` with `enabled BOOLEAN NOT NULL DEFAULT TRUE` and
+`config JSONB NOT NULL DEFAULT '{}'`. Today they are dormant:
+
+- `Source.config` has no reader or writer outside migration `0001`.
+- `Source.enabled` is written only by `_record_run` as the literal `True` on insert, and is not
+  in the upsert's `set_` clause. Its only reader is `list_sources` (`app/api/timeseries.py`),
+  which echoes it.
+- Which collectors run is decided by `build_collectors()` in `app/collectors/__init__.py`, from
+  the `hc911_enabled` / `tdot_enabled` / `epb_enabled` / `tnaw_enabled` settings.
+
+The first version of this change dropped both columns for that reason. In review on PR #330 the
+repo owner said that configuration will soon move from files into the database, and that existing
+fields that work will use, such as `sources.enabled`, should be kept. `sources.config` is the
+per-source configuration field of the same table, so the same reasoning covers it.
+
+Not dead, and left alone as before: `Source.poll_interval_seconds` (written by `_record_run`,
+served by `/sources`), `NewsSource.enabled` (registry-synced; the news fetcher and
+`/news/sources` filter on it), `Event.tags`, `Event.links`, and `EventLink.event`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- The `Source` model and `sources` table hold only columns the code reads or writes.
-- `/sources` reports a truthful `enabled` without a stored flag.
 - ORM models declare only relationships that some code uses.
+- `sources.enabled` and `sources.config` are kept, and the code and `AGENTS.md` say why, so they
+  are not mistaken for dead schema again.
 
 **Non-Goals:**
 
-- A database-driven source registry or per-source runtime config. If one is wanted later, it
-  needs its own design (who writes it, how it overrides settings) and its own migration; a
-  dormant JSONB column does not get us there.
-- Deleting `sources` rows for collectors that are no longer registered. Their last-run telemetry
-  stays visible, now marked `enabled: false`.
+- Designing or building database-backed configuration. That is its own change. This one only
+  avoids removing the fields it will use.
+- Changing what `GET /api/v1/timeseries/sources` reports for `enabled`. It keeps echoing the
+  stored value. See the decision below.
+- Any migration or schema change.
 - Adding a Pydantic response model for `/sources`. That belongs to `add-typed-contracts`.
 - Any other model/migration alignment (index names, `spatial_index`, etc.). That is PR #269.
 
 ## Decisions
 
-**Drop `sources.config`.** Nothing reads or writes it and nothing planned needs it. The proposed
-sibling changes add no per-source DB config. Per-source settings already live in
-`config.py` and the collector classes. Keeping a column "in case" costs a misleading line in the
-model and a `{}` in every row. Alternative considered: keep it as a reserved extension point.
-Rejected, because a future feature would have to design its semantics anyway, and adding a
-JSONB column back is a one-line migration.
+**Keep `sources.enabled` and `sources.config`, and mark them as reserved.** The columns stay in
+the schema and on `Source` exactly as they are. A comment above them in `app/models.py`, and one
+sentence in the `AGENTS.md` data-model section, say that they are reserved for the planned move
+of configuration into the database, and that until then the `*_enabled` settings in
+`build_collectors()` decide which collectors run. Alternative considered: keep the columns and
+say nothing. Rejected, because the original review flagged them as dead on good evidence, and the
+next reader will reach the same conclusion unless the intent is written down where they look.
 
-**Drop `sources.enabled`, but keep `enabled` in the `/sources` response, derived from the running
-collectors.** `list_sources` gains a `request: Request` parameter and reports
-`r.key in request.app.state.collectors`. This is the same registry `POST
-/sources/{key}/refresh` already reads, and it is exactly the set built from the `*_enabled`
-settings. Alternatives considered:
-
-- *Keep the column and echo it (status quo).* Rejected: it is a stored constant that is wrong for
-  every disabled collector's leftover row.
-- *Keep the column and start writing it* (set `false` at startup for rows not in the collector
-  set). Rejected: it duplicates in the database a fact the process already knows, and needs a
-  startup write to keep it correct.
-- *Drop `enabled` from the response.* This is the smallest change and nothing in the repo would
-  break, since the frontend never calls this endpoint. Rejected because the spec documents the
-  key, external tools or curl users may read it, and a truthful value is one line. It also keeps
-  the response shape stable for the `/sources` response model that `add-typed-contracts` adds
-  first (see below).
-
-`app.state.collectors` is set in `main.py`'s lifespan. Offline route tests already set it to `{}`
-(`tests/test_api_routes.py`); DB-backed handler tests call `list_sources` directly and pass a
-minimal stand-in request carrying `app.state.collectors`.
+**Leave `/sources` and `_record_run` alone.** The first version derived the response's `enabled`
+from the collectors registered in the running app, because a stored constant is wrong for the
+leftover row of a collector that has since been disabled. That inaccuracy is real, but the fix
+would be undone as soon as the stored flag becomes the source of truth, which is the direction
+configuration is taking. Changing the meaning of the key twice is worse than leaving it as is
+for now. The frontend never calls this endpoint, so nothing visible depends on it meanwhile.
+Alternative considered: have startup write `enabled = false` for rows whose collector is not
+registered. Rejected: it decides how the database flag and the settings relate, which is exactly
+what the configuration change has to design.
 
 **Remove the five unread relationship attributes.** They cost little at rest, but each is a trap.
 Under `AsyncSession`, touching an unloaded relationship raises `MissingGreenlet`, so the
@@ -92,6 +82,10 @@ Alternative considered: keep them as documentation. Rejected, because the `Forei
 column already documents the link and a reader adding a real use can re-declare the pair in two
 lines.
 
+These are not "fields that will be used for configuration": they are Python attributes with no
+column behind them, and none of them carries configuration. Database-backed configuration can
+re-declare any relationship it turns out to need.
+
 **`Event.tags` becomes a one-way relationship.** `Tag.events` is the `back_populates` partner of
 `Event.tags`, so the implementation declares `Event.tags` as
 `relationship(secondary=event_tags)` with no `back_populates`. Appending tags to `event.tags` in
@@ -100,86 +94,54 @@ side, which nothing reads. Deleting an `Event` through the ORM still clears its 
 through `Event.tags`. Deleting a `Tag` happens only through Core `delete()`, where the database's
 `ON DELETE CASCADE` on `event_tags.tag_id` removes the links.
 
-**Migration `0010`, raw SQL like every other migration.** The number is the next free one on
-current `main` (`0009` is the head). If another change adds a migration first, take the next
-number and set `down_revision` to match.
-
-```sql
--- upgrade
-ALTER TABLE sources DROP COLUMN config;
-ALTER TABLE sources DROP COLUMN enabled;
-
--- downgrade
-ALTER TABLE sources ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE sources ADD COLUMN config JSONB NOT NULL DEFAULT '{}'::jsonb;
-```
-
-The downgrade restores the original column definitions from `0001`. It loses no information:
-every existing row held `enabled = true` and `config = '{}'`, which are exactly the defaults the
-re-added columns fill in. Column order differs after a downgrade (the columns move to the end of
-the table). Nothing depends on column order, because every query names its columns.
+**The change keeps its name.** `remove-dead-schema` no longer drops schema, but the merged
+sibling proposals refer to it by this name, and renaming it would leave those references
+pointing at nothing.
 
 ## Risks / Trade-offs
 
-- [An external client relied on `enabled` always being `true`] → It now goes `false` only for
-  sources whose collector is not running, which is the case the flag was supposed to describe.
-  The proposal calls this out as an observable change.
-- [Old app code against the new schema during a deploy] → `select(Source)` and `_record_run` in
-  the old code name `enabled` and `config`, so they would fail against a migrated table. The
-  compose deploy runs migrations in the new container before it serves, and the old container is
-  replaced in the same step, so there is no mixed window in practice. Rolling back the app means
-  running the `0010` downgrade first.
+- [`/sources` keeps reporting `enabled: true` for the leftover row of a disabled collector] →
+  Accepted until database-backed configuration gives the flag a real meaning. Nothing in the
+  repo reads the endpoint's `enabled`.
 - [Someone wants a relationship back] → Re-declare it. No schema change is needed.
+- [The "reserved" note goes stale if the configuration work changes direction] → It is one
+  comment and one sentence, and the change that settles the design updates both.
 
 ## Migration Plan
 
-1. Deploy normally (`docker compose up --build`): the app container runs `alembic upgrade head`,
-   which applies `0010`, then serves.
-2. `DROP COLUMN` on a table of a handful of rows is instant.
-3. Rollback: `alembic downgrade 0009`, then deploy the previous image.
+None. There is no schema change. Rollback is a plain revert.
 
 ## Interaction with other changes
 
 **PR #269 (`fix-alembic-schema-drift`, open, last updated 2026-10-14).** It makes `alembic check`
-pass by fixing model declarations (explicit GIST `Index` entries with `spatial_index=False`, no
-standalone `is_active` index, `ix_obs_source_time` with `DESC`), imports the news and events
-models in `alembic/env.py`, filters extension-owned objects, and adds `alembic check` to CI. It
-changes no schema and adds no migration.
+pass by fixing model declarations, imports the news and events models in `alembic/env.py`,
+filters extension-owned objects, and adds `alembic check` to CI.
 
-- *Semantics:* compatible in either order. This change removes the two columns from both the
-  model and the schema in the same change, so `alembic check` stays clean. Relationships are
-  not schema, so `alembic check` ignores their removal. If #269 lands first, its CI step verifies
-  this change's migration against the model, and the implementation should also run
-  `alembic upgrade head && alembic check` locally. If this change lands first, #269 still needs
-  no new migration.
+- *Semantics:* compatible in either order. Relationships are not schema, so `alembic check`
+  ignores their removal, and this change no longer touches any column.
 - *Text:* both touch `app/models.py` and `app/events/models.py`, so whichever lands second will
   have small rebase conflicts. #269's last `app/models.py` hunk uses the
   `entity: Mapped["Entity"] = relationship(back_populates="observations")` line as context, and
   this change deletes it. Its `app/events/models.py` hunks sit just above the `Event.tags` line
-  that this change edits. #269 is also stale against `main` (its `AGENTS.md` CI hunk predates the
-  `isolate-test-database` rewrite), so it needs a rebase regardless.
+  that this change edits.
 
-**Sibling proposals from the same architecture review** (suggested landing order; this change is
-12th):
+**Sibling proposals from the same architecture review.** Without the column drop, this change no
+longer has an ordering constraint. It can land at any point.
 
-- `extract-orm-base` (3, formerly `move-timeseries-into-package`) relocates `Base` to
-  `app/orm.py` but no longer moves `app/models.py`. `Source`, `Entity`, and `Observation` stay in
-  `app/models.py`, so the file paths in `tasks.md` hold; only the `Base` import there changes.
-- `unify-refresh-orchestration` (4) moves `_record_run` out of `app/scheduler.py`. This change
-  removes `enabled=True` from that function wherever it lives by then.
-- `inject-settings-and-clock` (6) may change `_record_run`'s signature (injected `now`). That does
-  not interact with dropping `enabled`.
-- `add-typed-contracts` (8) adds a response model for `/sources` that will include `enabled:
-  bool`. Keeping the key means that model's shape is unchanged; only how `list_sources` fills
-  `enabled` changes. If `add-typed-contracts` builds the model with `from_attributes` from the ORM
-  row, `enabled` must be passed explicitly once the column is gone.
-- `tighten-python-tooling` (11) enforces unused-import rules. The `relationship` imports in
+- `extract-orm-base` relocates `Base` to `app/orm.py`. It edits the top of `app/models.py`; this
+  change edits the `Source` comment, two relationship lines and the import line. Any conflict is
+  in the import block and is trivial.
+- `unify-refresh-orchestration` moves `_record_run`. This change no longer touches it.
+- `add-typed-contracts` adds a `SourceStatus` response model that includes `enabled: bool`. Its
+  notes say this change "may drop" or "owns removing" `enabled`. That no longer applies: the key
+  and the column both stay, and that model needs no follow-up.
+- `tighten-python-tooling` enforces unused-import rules. The `relationship` imports in
   `app/models.py` and `app/news/models.py` become unused here and are removed in this change.
-
-No other sibling touches these columns or relationships.
+- `relax-backend-feature-separation` and several other siblings edit `AGENTS.md`. This change
+  edits one bullet in the data-model section.
 
 ## Open Questions
 
-- Should `/sources` drop rows for collectors that are no longer registered instead of listing
-  them with `enabled: false`? This design keeps them, because their last-run telemetry is still
-  informative and deleting rows is a separate decision.
+- Is `sources.config` one of the fields the configuration work will use? This design assumes
+  yes, since it is the per-source configuration column next to `enabled`. If not, dropping it is
+  a small follow-up migration.
