@@ -45,7 +45,7 @@ def _strip_html(fragment: str) -> str:
     return BeautifulSoup(fragment, "html.parser").get_text(" ", strip=True)
 
 
-def _coord(value) -> float | None:
+def _coord(value: object) -> float | None:
     # The API emits false (not null) for absent venue geo fields.
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
@@ -113,7 +113,7 @@ class TribeEventsSource(EventSource):
 
     async def fetch(self) -> list[RawEvent]:
         today = dt.datetime.now(dt.UTC).date()
-        params = {
+        params: dict[str, str | int] = {
             "start_date": today.isoformat(),
             "end_date": (today + dt.timedelta(days=self.lookahead_days)).isoformat(),
             "per_page": PAGE_SIZE,

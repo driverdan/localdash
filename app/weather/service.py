@@ -123,10 +123,11 @@ class WeatherService:
 
     async def _refresh(self, settings: Settings) -> WeatherPayload:
         async with self._make_client(settings) as client:
-            if self._forecast_url is None or not self._station_urls:
-                await self._discover(client, settings)
+            forecast_url = self._forecast_url
+            if forecast_url is None or not self._station_urls:
+                forecast_url = await self._discover(client, settings)
             periods, current, aqi = await asyncio.gather(
-                self._fetch_periods(client),
+                self._fetch_periods(client, forecast_url),
                 self._fetch_current(client),
                 self._fetch_aqi(client, settings),
             )
@@ -136,7 +137,7 @@ class WeatherService:
             raise RuntimeError("both NWS fetches failed")
         return WeatherPayload(current=current, periods=periods or [], aqi=aqi)
 
-    async def _discover(self, client: httpx.AsyncClient, settings: Settings) -> None:
+    async def _discover(self, client: httpx.AsyncClient, settings: Settings) -> str:
         response = await client.get(
             POINTS_URL.format(lat=settings.center_lat, lon=settings.center_lon)
         )
@@ -148,10 +149,13 @@ class WeatherService:
         if not stations:
             raise RuntimeError("NWS returned no observation stations")
         self._forecast_url, self._station_urls = forecast_url, stations
+        return forecast_url
 
-    async def _fetch_periods(self, client: httpx.AsyncClient) -> list[ForecastPeriod] | None:
+    async def _fetch_periods(
+        self, client: httpx.AsyncClient, forecast_url: str
+    ) -> list[ForecastPeriod] | None:
         try:
-            response = await client.get(self._forecast_url)
+            response = await client.get(forecast_url)
             response.raise_for_status()
             return parse_forecast(response.json())
         except Exception:

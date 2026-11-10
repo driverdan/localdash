@@ -110,7 +110,9 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
                     "carcruisefinder: event without start date skipped: %r", node.get("name")
                 )
                 continue
-            location = node.get("location") if isinstance(node.get("location"), dict) else {}
+            location = node.get("location")
+            if not isinstance(location, dict):
+                location = {}
             url = node.get("url") or listing_url
             events.append(
                 RawEvent(

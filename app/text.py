@@ -14,11 +14,11 @@ _WS_RE = re.compile(r"\s+")
 
 
 class _TextExtractor(HTMLParser):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.parts = []
+        self.parts: list[str] = []
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         self.parts.append(data)
 
 

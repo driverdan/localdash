@@ -86,16 +86,16 @@ class _Prepared:
     source_id: int
     ts: float
     norm_title: str
-    title_toks: frozenset
-    numbers: frozenset
+    title_toks: frozenset[str]
+    numbers: frozenset[str]
     # Title+summary tokens; None when the article has no usable summary.
-    text_toks: frozenset | None
+    text_toks: frozenset[str] | None
 
 
 class _Weights:
     """IDF weights from a corpus; tokens absent from the corpus get the maximum weight."""
 
-    def __init__(self, docs: list[frozenset]):
+    def __init__(self, docs: list[frozenset[str]]):
         df: dict[str, int] = {}
         for doc in docs:
             for tok in doc:
@@ -117,12 +117,12 @@ def build_weights(corpus: Iterable[tuple[str, str]]) -> tuple[_Weights, _Weights
     return _Weights(title_docs), _Weights(text_docs)
 
 
-def weighted_jaccard(a: frozenset, b: frozenset, weights: _Weights) -> float:
+def weighted_jaccard(a: frozenset[str], b: frozenset[str], weights: _Weights) -> float:
     union = weights.total(a | b)
     return weights.total(a & b) / union if union else 0.0
 
 
-def weighted_containment(a: frozenset, b: frozenset, weights: _Weights) -> float:
+def weighted_containment(a: frozenset[str], b: frozenset[str], weights: _Weights) -> float:
     smaller = min(weights.total(a), weights.total(b))
     return weights.total(a & b) / smaller if smaller else 0.0
 

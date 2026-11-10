@@ -41,8 +41,7 @@ def _candidate_queries(address: str) -> list[str]:
         candidates.append(", ".join(parts[1:]))
     if len(parts) >= 5:
         candidates.append(", ".join(parts[-4:]))
-    seen: set[str] = set()
-    return [c for c in candidates if not (c in seen or seen.add(c))]
+    return list(dict.fromkeys(candidates))  # dedupe, first occurrence wins
 
 
 class Geocoder(ABC):

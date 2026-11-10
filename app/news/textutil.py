@@ -59,7 +59,7 @@ STOPWORDS = frozenset(
 _WORD_RE = re.compile(r"[a-z0-9']+")
 
 
-def title_tokens(title: str) -> frozenset:
+def title_tokens(title: str) -> frozenset[str]:
     """Clustering tokens: lowercase words over 2 chars minus stopwords, plus numbers.
 
     Numbers of any length are kept ("27", "41", "23"): a highway number, a score

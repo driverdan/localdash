@@ -25,7 +25,7 @@ from app.http import make_client
 from app.timeutil import parse_iso_utc
 
 # eventTypeName -> our category. `isSevere` items override to "severe" (see _category).
-_TYPE_CATEGORY = {
+_TYPE_CATEGORY: dict[str | None, str] = {
     "Incident": "incident",
     "Operations": "construction",
     "SpecialEvent": "special_event",

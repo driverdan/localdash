@@ -22,6 +22,7 @@ import logging
 import re
 from collections.abc import Mapping
 from contextvars import ContextVar
+from typing import Any
 from urllib.parse import quote
 
 REDACTED = "[REDACTED]"
@@ -124,7 +125,7 @@ def install() -> None:
     if getattr(current, "_localdash_redacting", False):
         return
 
-    def factory(*args, **kwargs) -> logging.LogRecord:
+    def factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
         return redact_record(current(*args, **kwargs))
 
     factory._localdash_redacting = True  # type: ignore[attr-defined]

@@ -24,6 +24,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import Function
 
 from app.collectors.base import NormalizedObservation
 from app.diff import Diff
@@ -82,7 +84,7 @@ def geom_fingerprint(obs: NormalizedObservation) -> str | None:
     return hashlib.sha1(blob.encode()).hexdigest()
 
 
-def _geom_value(obs: NormalizedObservation):
+def _geom_value(obs: NormalizedObservation) -> Function[Any] | None:
     """SQL geometry value for `obs`'s resolved geometry, or None when it has none."""
     g = obs.resolved_geometry
     if g is None:
@@ -117,7 +119,7 @@ def _entity_feature(entity: Entity, obs: NormalizedObservation) -> dict:
 
 
 async def ingest(
-    session,
+    session: AsyncSession,
     source_key: str,
     observations: list[NormalizedObservation],
     *,
@@ -219,7 +221,13 @@ async def ingest(
     return diff
 
 
-def _observation(entity_id: int, source_key: str, now, obs: NormalizedObservation, geom):
+def _observation(
+    entity_id: int,
+    source_key: str,
+    now: datetime,
+    obs: NormalizedObservation,
+    geom: Function[Any] | None,
+) -> Observation:
     props = dict(obs.properties)
     if obs.source_time is not None:
         props.setdefault("source_time", obs.source_time.isoformat())

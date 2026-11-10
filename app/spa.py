@@ -67,6 +67,8 @@ class NoCacheStaticFiles(StaticFiles):
         so a name with <, ", or </script> can't break out of either.
         """
         if self._index is None:
+            if self.directory is None:  # StaticFiles allows packages-only; this mount never is
+                raise TypeError("NoCacheStaticFiles needs a directory to serve index.html from")
             raw = (Path(self.directory) / "index.html").read_text(encoding="utf-8")
             name = self._site_name
             # JS string-literal context first (matches the quoted placeholder incl. quotes).
@@ -84,7 +86,7 @@ class NoCacheStaticFiles(StaticFiles):
             return
         await super().__call__(scope, receive, send)
 
-    async def get_response(self, path: str, scope: Scope):
+    async def get_response(self, path: str, scope: Scope) -> Response:
         try:
             # The root request resolves to index.html via html=True; serve the
             # site-name-injected copy instead of the raw file. Starlette normpaths

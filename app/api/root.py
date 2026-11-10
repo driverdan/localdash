@@ -31,7 +31,7 @@ async def config(settings: Settings = Depends(get_settings)) -> AppConfig:
 
 
 @router.websocket("/ws")
-async def ws_live(ws: WebSocket):
+async def ws_live(ws: WebSocket) -> None:
     """The global live-update bus: all features' diffs and pings, one socket."""
     await manager.connect(ws)
     try:

@@ -9,14 +9,14 @@ itself, then the exact canonical key, then the location-gated fuzzy match.
 
 from __future__ import annotations
 
-import datetime as dt
 import logging
 from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, cast
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -48,7 +48,7 @@ async def _get_or_create_tag(session: AsyncSession, name: str, cache: dict[str, 
         # no-op insert never violates the unique constraint, and the re-select
         # returns whichever row won.
         await session.execute(pg_insert(Tag).values(name=name).on_conflict_do_nothing())
-        tag = await session.scalar(select(Tag).where(Tag.name == name))
+        tag = (await session.execute(select(Tag).where(Tag.name == name))).scalar_one()
     cache[name] = tag
     return tag
 
@@ -59,7 +59,9 @@ async def purge_blocked_tags(session: AsyncSession, blocked: Collection[str]) ->
     deleted."""
     if not blocked:
         return 0
-    result = await session.execute(delete(Tag).where(Tag.name.in_(blocked)))
+    result = cast(
+        CursorResult[Any], await session.execute(delete(Tag).where(Tag.name.in_(blocked)))
+    )
     await session.commit()
     return result.rowcount or 0
 
@@ -72,7 +74,7 @@ def _supplied_coords(raw: RawEvent) -> Coords | None:
 
 def _coords(lat: float | None, lon: float | None) -> Coords | None:
     """A (lat, lon) tuple from nullable columns; None when the latitude is missing."""
-    return (lat, lon) if lat is not None else None
+    return (lat, lon) if lat is not None and lon is not None else None
 
 
 async def _geocode(
@@ -174,6 +176,7 @@ async def _find_fuzzy_candidate(
         venue_name=raw.venue_name,
         address=raw.address,
     )
+    event: Event  # select() with SQL function columns is typed as Any rows
     for event, lat, lon in rows:
         if events_match(raw_side, _event_side(event, _coords(lat, lon))):
             return event
@@ -343,7 +346,7 @@ async def upsert_raw_events(
     if max_miles > 0 and center is None:
         raise ValueError("upsert_raw_events: max_miles > 0 requires a center")
     if now is None:
-        now = datetime.now(dt.UTC)
+        now = datetime.now(UTC)
     geocoder = geocoder or NullGeocoder()
     created = 0
     merged = 0
@@ -454,7 +457,7 @@ async def reconcile_events(session: AsyncSession, *, now: datetime | None = None
     UTC time) are considered. Idempotent; returns the merge count.
     """
     if now is None:
-        now = datetime.now(dt.UTC)
+        now = datetime.now(UTC)
     rows = (
         await session.execute(
             select(Event, func.ST_Y(Event.location), func.ST_X(Event.location))
@@ -464,7 +467,7 @@ async def reconcile_events(session: AsyncSession, *, now: datetime | None = None
         )
     ).all()
 
-    buckets: dict[dt.date, list[_Candidate]] = defaultdict(list)
+    buckets: dict[date, list[_Candidate]] = defaultdict(list)
     for event, lat, lon in rows:
         candidate = _Candidate(
             event, _coords(lat, lon), canonical_key(event.title, event.starts_at)
@@ -501,7 +504,7 @@ async def retry_failed_geocodes(
         return GeocodeRetryStats(retried=0, resolved=0)
 
     if now is None:
-        now = datetime.now(dt.UTC)
+        now = datetime.now(UTC)
     cutoff = now - timedelta(hours=retry_hours)
     rows = (
         await session.scalars(
