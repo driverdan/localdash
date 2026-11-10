@@ -23,15 +23,28 @@ class NormalizedObservation(BaseModel):
     label: str | None = None
     lat: float | None = None
     lon: float | None = None
-    # Explicit GeoJSON geometry for non-point sources (Polygon / MultiPolygon /
-    # etc.). Point collectors keep setting lat/lon and leave this None; when both
-    # are absent the entity has null geometry. Ingest prefers `geometry` when set.
+    # Explicit GeoJSON geometry for area sources (Polygon / MultiPolygon / etc.).
+    # Point sources set lat/lon and leave this None. Explicit `geometry` wins when
+    # both are set. Consumers read `resolved_geometry`, never these raw fields.
     geometry: dict | None = None
     status: str | None = None
     # The source's own notion of when this state occurred (stored in properties).
     # The canonical hypertable `observed_at` is stamped by the ingest service.
     source_time: datetime | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def resolved_geometry(self) -> dict[str, Any] | None:
+        """The observation's geometry as a GeoJSON geometry dict.
+
+        `geometry` when set, else a `Point` built from `lon`/`lat` when both are
+        set, else None (null geometry).
+        """
+        if self.geometry is not None:
+            return self.geometry
+        if self.lat is not None and self.lon is not None:
+            return {"type": "Point", "coordinates": [self.lon, self.lat]}
+        return None
 
 
 def as_float(value: Any) -> float | None:

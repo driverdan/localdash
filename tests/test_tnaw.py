@@ -55,6 +55,8 @@ def test_basic_fields_and_stable_event_id():
     # Polygon geometry is carried through verbatim.
     assert obs.geometry["type"] == "Polygon"
     assert obs.lat is None and obs.lon is None
+    # Ingest reads resolved_geometry, which is the feature's polygon unchanged.
+    assert obs.resolved_geometry == _feature()["geometry"]
     assert obs.source_time is None
 
 

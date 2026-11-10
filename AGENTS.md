@@ -388,7 +388,10 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
      `latest_properties["status"]`, which the next poll's change detection reads,
    - **append an `observation` only when state changed** (status moved, or the geometry
      fingerprint changed — coordinates rounded to ~0.1 m, so point jitter is ignored) — this is
-     what avoids one duplicate row per poll, and is the core of the time-series,
+     what avoids one duplicate row per poll, and is the core of the time-series. The point
+     fingerprint format (`lon,lat` at 6 decimals) is persisted in `entities.geom_fingerprint`;
+     never change it without a data migration, or every point entity records a spurious
+     observation on the next poll,
    - **closure sweep**: entities that were active but are absent from this payload are flipped
      `is_active=false` (with `last_seen_at` set to the close time) and get a final `Closed`
      observation. A successful fetch that normalizes to nothing therefore closes every active
@@ -426,7 +429,9 @@ Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async 
 changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic. `fetch()`
 builds its client with `app.http.make_client` (never `httpx.AsyncClient` directly); add the source
 to `tests/test_http_wire.py`. Coerce coordinates with `as_float` from `app/collectors/base.py` and
-parse source timestamps with `parse_iso_utc(..., naive_tz=...)` from `app/timeutil.py`.
+parse source timestamps with `parse_iso_utc(..., naive_tz=...)` from `app/timeutil.py`. Point
+sources set `lat`/`lon`; area sources set a GeoJSON `geometry` (which wins if both are set); ingest
+reads only `NormalizedObservation.resolved_geometry`.
 
 **Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
 entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
