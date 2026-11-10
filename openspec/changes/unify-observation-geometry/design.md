@@ -135,7 +135,7 @@ would collide with sibling changes editing those imports.
 ## Relationship to sibling changes
 
 These are proposed in parallel. Suggested landing order: `ingest-owns-entity-status`,
-`add-shared-http-client`, `move-timeseries-into-package`, `unify-refresh-orchestration`,
+`add-shared-http-client`, `extract-orm-base`, `unify-refresh-orchestration`,
 `decompose-events-upsert`, `inject-settings-and-clock`, `consolidate-shared-helpers`,
 `add-typed-contracts`, this change, `extract-spa-serving`, `tighten-python-tooling`,
 `remove-dead-schema`, `tidy-small-inconsistencies`.
@@ -143,11 +143,9 @@ These are proposed in parallel. Suggested landing order: `ingest-owns-entity-sta
 - **`ingest-owns-entity-status`** edits `ingest()` and `_entity_feature` in the same file. This
   change touches only the geometry line of `_entity_feature`, so whichever lands second rebases
   trivially. No semantic overlap.
-- **`move-timeseries-into-package`** moves `app/ingest.py` and `app/collectors/` under
-  `app/timeseries/`. Tasks are written against current paths. If that move lands first, apply them
-  to the moved files (`app/timeseries/ingest.py`, `app/timeseries/collectors/base.py`). Whether
-  `app/geojson.py` moves is up to that change, and the `feature()` removal applies wherever it
-  ends up.
+- **`extract-orm-base`** (formerly `move-timeseries-into-package`) no longer moves any files:
+  `app/ingest.py`, `app/collectors/` and `app/geojson.py` stay where they are, so the paths in the
+  tasks hold and there is no overlap.
 - **`consolidate-shared-helpers`** dedupes the EWKT point builders at `app/ingest.py:90` and
   `app/events/ingest.py:38`. This change deletes the ingest copy. If consolidation lands first,
   this change removes timeseries ingest's call to the shared helper, and events remains its only
