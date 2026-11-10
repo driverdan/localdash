@@ -41,16 +41,16 @@ landed, read
 
 ## 3. News registry dataclasses
 
-- [ ] 3.1 In `app/news/registry.py` add frozen `FeedSpec(category, url, kind: Literal["rss", "html"] = "rss")` and `Outlet(slug, name, homepage, feeds: tuple[FeedSpec, ...], enabled=True, use_feed_tags=True)`, and rewrite `SOURCES` as `tuple[Outlet, ...]`, keeping every comment beside its outlet
-- [ ] 3.2 Rewrite `uses_feed_tags`, `feed_kind` and `sync_registry` to use attributes. Keep both lookups as linear scans over `SOURCES`, so monkeypatching still works; add a comment saying so
-- [ ] 3.3 Update the `use_feed_tags: False` wording in `app/news/classify.py` and `app/news/fetcher.py` comments to the attribute form
-- [ ] 3.4 Update `tests/test_news_db.py` (`TEST_SOURCES_V1/V2` and `TEST_SOURCE_GONE` built from `Outlet`/`FeedSpec`) and `tests/test_news_classify.py:56` (`s.slug`)
-- [ ] 3.5 Add a registry test: every outlet slug and feed URL is unique, and every feed category is a key of `CATEGORIES`
+- [x] 3.1 In `app/news/registry.py` add frozen `FeedSpec(category, url, kind: Literal["rss", "html"] = "rss")` and `Outlet(slug, name, homepage, feeds: tuple[FeedSpec, ...], enabled=True, use_feed_tags=True)`, and rewrite `SOURCES` as `tuple[Outlet, ...]`, keeping every comment beside its outlet
+- [x] 3.2 Rewrite `uses_feed_tags`, `feed_kind` and `sync_registry` to use attributes. Keep both lookups as linear scans over `SOURCES`, so monkeypatching still works; add a comment saying so
+- [x] 3.3 Update the `use_feed_tags: False` wording in `app/news/classify.py` and `app/news/fetcher.py` comments to the attribute form
+- [x] 3.4 Update `tests/test_news_db.py` (`TEST_SOURCES_V1/V2` and `TEST_SOURCE_GONE` built from `Outlet`/`FeedSpec`) and `tests/test_news_classify.py:56` (`s.slug`)
+- [x] 3.5 Add a registry test: every outlet slug and feed URL is unique, and every feed category is a key of `CATEGORIES`
 
 ## 4. Documentation
 
 - [x] 4.1 `AGENTS.md` "API / frontend conventions": response models live in a schemas module beside the code that produces them (`app/<pkg>/schemas.py`, `app/timeseries_schemas.py` for the top-level timeseries code), as a layout preference consistent with the guideline from `relax-backend-feature-separation`; the shared `app/contracts.py`; the `IsoDateTime` rule (never emit `Z`); GeoJSON routes are documented, not validated, and their properties stay open; new routes must declare a response model; `/docs` now shows schemas; generating frontend types is a possible follow-up
-- [ ] 4.2 `AGENTS.md` news section: the registry is a tuple of frozen `Outlet`/`FeedSpec` dataclasses (`kind`, `use_feed_tags` as defaulted fields)
+- [x] 4.2 `AGENTS.md` news section: the registry is a tuple of frozen `Outlet`/`FeedSpec` dataclasses (`kind`, `use_feed_tags` as defaulted fields)
 - [x] 4.3 `AGENTS.md` weather section: the shaping functions return models and the service caches a `WeatherPayload`
 
 ## 5. Verification

@@ -440,9 +440,11 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
 
 - `registry.py` — nine outlets + their feeds as **code-as-config**: synced into the DB at startup
   (upsert; feeds *and whole outlets* removed from the registry are deleted, articles cascading).
-  Each feed has a section category and a `kind` (`rss` by default; `html` = a server-rendered
-  listing page to scrape, used by the City of Chattanooga). A source registered with
-  `use_feed_tags: False` declares its `<category>` tags meaningless. Specific sections are listed
+  `SOURCES` is a tuple of frozen `Outlet` dataclasses, each holding a tuple of frozen `FeedSpec`s;
+  fields with defaults (`Outlet.enabled`, `Outlet.use_feed_tags`, `FeedSpec.kind`) replace
+  optional dict keys. Each feed has a section category and a `kind` (`rss` by default; `html` = a
+  server-rendered listing page to scrape, used by the City of Chattanooga). A source registered
+  with `use_feed_tags=False` declares its `<category>` tags meaningless. Specific sections are listed
   before the general news feed so the section fallback prefers the specific category.
 - `classify.py` — **per-article content categorization**, first match wins: a mapped feed
   `<category>` tag → a keyword match on title + summary → the feed's section as last resort. The

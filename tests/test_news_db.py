@@ -17,34 +17,31 @@ from app.api.news import get_sources as api_get_sources
 from app.api.news import get_stories as api_get_stories
 from app.news.fetcher import upsert_articles
 from app.news.models import NewsArticle, NewsFeed, NewsSource
+from app.news.registry import FeedSpec, Outlet
 from app.news.stories import get_stories
 from tests.conftest import make_settings
 
-TEST_SOURCES_V1 = [
-    {
-        "slug": "test-outlet",
-        "name": "Test Outlet",
-        "homepage": "https://test.example.com",
-        "enabled": True,
-        "feeds": [
-            {"category": "sports", "url": "https://test.example.com/sports/feed"},
-            {"category": "news", "url": "https://test.example.com/news/feed"},
-        ],
-    },
-]
+TEST_SOURCES_V1 = (
+    Outlet(
+        slug="test-outlet",
+        name="Test Outlet",
+        homepage="https://test.example.com",
+        feeds=(
+            FeedSpec(category="sports", url="https://test.example.com/sports/feed"),
+            FeedSpec(category="news", url="https://test.example.com/news/feed"),
+        ),
+    ),
+)
 
 # v2: renamed, sports feed removed.
-TEST_SOURCES_V2 = [
-    {
-        "slug": "test-outlet",
-        "name": "Test Outlet Renamed",
-        "homepage": "https://test.example.com",
-        "enabled": True,
-        "feeds": [
-            {"category": "news", "url": "https://test.example.com/news/feed"},
-        ],
-    },
-]
+TEST_SOURCES_V2 = (
+    Outlet(
+        slug="test-outlet",
+        name="Test Outlet Renamed",
+        homepage="https://test.example.com",
+        feeds=(FeedSpec(category="news", url="https://test.example.com/news/feed"),),
+    ),
+)
 
 
 def _use_sources(monkeypatch, test_sources):
@@ -87,13 +84,12 @@ async def test_registry_sync_upserts_and_deletes(news_db_session, monkeypatch):
     assert name == "Test Outlet Renamed"
 
 
-TEST_SOURCE_GONE = {
-    "slug": "test-gone",
-    "name": "Test Gone",
-    "homepage": "https://gone.example.com",
-    "enabled": True,
-    "feeds": [{"category": "news", "url": "https://gone.example.com/feed"}],
-}
+TEST_SOURCE_GONE = Outlet(
+    slug="test-gone",
+    name="Test Gone",
+    homepage="https://gone.example.com",
+    feeds=(FeedSpec(category="news", url="https://gone.example.com/feed"),),
+)
 
 
 async def _slugs(session):
@@ -101,7 +97,7 @@ async def _slugs(session):
 
 
 async def test_registry_sync_deletes_sources_removed_from_registry(news_db_session, monkeypatch):
-    _use_sources(monkeypatch, TEST_SOURCES_V1 + [TEST_SOURCE_GONE])
+    _use_sources(monkeypatch, (*TEST_SOURCES_V1, TEST_SOURCE_GONE))
     await registry.sync_registry(news_db_session)
     gone_id = (
         await news_db_session.execute(select(NewsSource.id).where(NewsSource.slug == "test-gone"))
