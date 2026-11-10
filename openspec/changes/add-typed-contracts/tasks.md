@@ -8,10 +8,10 @@ landed, read
 
 ## 0. Pin the wire format (before touching any handler)
 
-- [ ] 0.1 Add `tests/test_api_contracts.py` with golden-response tests that seed known rows and compare parsed JSON to literal expected values for: `GET /timeseries/entities` (including a source-specific key in stored `latest_properties` and an inactive entity's `"Closed"` status), `/timeseries/entities/{id}`, `/timeseries/entities/{id}/track` (one point and one polygon observation, so `lon`/`lat` are `null` for the polygon), `/timeseries/observations`, `/timeseries/sources`, `GET /news/stories`, `/news/sources`, `GET /events/items`, `/events/tags`, `GET /config`
-- [ ] 0.2 Add golden tests for `GET /weather/current` from the existing NWS/AirNow fixtures through the service's mock transport, covering an integer AQI `value`, a `null` `wind_mph`, and the verbatim NWS `observed_at`
-- [ ] 0.3 Add golden tests for the three refresh routes (`POST /events/refresh`, `POST /news/refresh`, `POST /timeseries/sources/{key}/refresh` with a fake collector), asserting the exact key set and value types
-- [ ] 0.4 Make every expected timestamp in these tests a literal `+00:00` string, and every expected integer a literal int, so a `Z` or `42.0` regression fails
+- [x] 0.1 Add `tests/test_api_contracts.py` with golden-response tests that seed known rows and compare parsed JSON to literal expected values for: `GET /timeseries/entities` (including a source-specific key in stored `latest_properties` and an inactive entity's `"Closed"` status), `/timeseries/entities/{id}`, `/timeseries/entities/{id}/track` (one point and one polygon observation, so `lon`/`lat` are `null` for the polygon), `/timeseries/observations`, `/timeseries/sources`, `GET /news/stories`, `/news/sources`, `GET /events/items`, `/events/tags`, `GET /config`
+- [x] 0.2 Add golden tests for `GET /weather/current` from the existing NWS/AirNow fixtures through the service's mock transport, covering an integer AQI `value`, a `null` `wind_mph`, and the verbatim NWS `observed_at`
+- [x] 0.3 Add golden tests for the three refresh routes (`POST /events/refresh`, `POST /news/refresh`, `POST /timeseries/sources/{key}/refresh` with a fake collector), asserting the exact key set and value types
+- [x] 0.4 Make every expected timestamp in these tests a literal `+00:00` string, and every expected integer a literal int, so a `Z` or `42.0` regression fails
 
 ## 1. Response models (phases 1a–1f; one commit each)
 
