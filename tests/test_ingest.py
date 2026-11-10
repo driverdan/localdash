@@ -51,7 +51,8 @@ def _obs(ext, status, lat=35.0, lon=-85.0, **props):
         lat=lat,
         lon=lon,
         status=status,
-        properties={"status": status, **props},
+        # No `status` copy: ingest owns the entity's status key.
+        properties=props,
     )
 
 
@@ -101,6 +102,57 @@ async def test_diff_features_share_rest_property_contract(db_session):
     assert props["last_seen_at"] is not None
 
 
+# --- ingest owns the entity's status --------------------------------------------
+
+
+async def test_unchanged_poll_without_status_in_properties_records_nothing(db_session):
+    obs = _obs("1", "Queued", note="x")
+    assert "status" not in obs.properties
+    await ingest(db_session, "test", [obs])
+
+    diff = await ingest(db_session, "test", [_obs("1", "Queued", note="x")])
+    assert not diff.new and not diff.updated and not diff.closed
+    assert await _count(db_session, Observation) == 1
+    ent = await _entity(db_session, "1")
+    assert ent.latest_properties == {"note": "x", "status": "Queued"}
+
+
+async def test_status_change_without_status_in_properties_is_detected(db_session):
+    await ingest(db_session, "test", [_obs("1", "Queued")])
+    diff = await ingest(db_session, "test", [_obs("1", "Enroute")])
+    assert len(diff.updated) == 1
+    assert await _count(db_session, Observation) == 2
+
+
+def _obs_with_raw_status(ext, status, raw_status):
+    obs = _obs(ext, status)
+    obs.properties["status"] = raw_status
+    return obs
+
+
+async def test_normalized_status_overrides_raw_status_key(db_session):
+    diff = await ingest(db_session, "test", [_obs_with_raw_status("1", "Queued", "raw-something")])
+    assert diff.new[0]["properties"]["status"] == "Queued"
+    ent = await _entity(db_session, "1")
+    assert ent.latest_properties["status"] == "Queued"
+
+    # Same normalized status, same conflicting raw key -> nothing recorded.
+    diff = await ingest(db_session, "test", [_obs_with_raw_status("1", "Queued", "raw-something")])
+    assert not diff.updated
+    assert await _count(db_session, Observation) == 1
+
+
+async def test_none_status_is_written_explicitly(db_session):
+    await ingest(db_session, "test", [_obs("1", None)])
+    ent = await _entity(db_session, "1")
+    assert "status" in ent.latest_properties
+    assert ent.latest_properties["status"] is None
+
+    diff = await ingest(db_session, "test", [_obs("1", None)])
+    assert not diff.updated
+    assert await _count(db_session, Observation) == 1
+
+
 _RING = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-84.9, 35.0], [-85.0, 35.0]]
 
 
@@ -111,7 +163,7 @@ def _poly_obs(ext, status, ring=_RING, **props):
         label="Advisory",
         geometry={"type": "Polygon", "coordinates": [ring]},
         status=status,
-        properties={"status": status, **props},
+        properties=props,
     )
 
 

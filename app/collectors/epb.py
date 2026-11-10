@@ -82,10 +82,7 @@ class EpbCollector(BaseCollector):
                     status=item.get("incident_status"),
                     # The feed carries no timestamp; observed_at (poll time) is the series clock.
                     source_time=None,
-                    # Expose the incident status under the canonical `status` key (the feed
-                    # calls it `incident_status`); ingest's state-change dedup and the frontend
-                    # both read `properties["status"]`.
-                    properties={**item, "service": service, "status": item.get("incident_status")},
+                    properties={**item, "service": service},
                 )
         return list(by_id.values())
 

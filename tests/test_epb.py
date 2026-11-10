@@ -29,8 +29,8 @@ def test_basic_fields_and_location_key():
     assert obs.label == "Energy Outage"
     assert obs.status == "OUTAGE_REPORTED"
     assert obs.lat == 35.022620 and obs.lon == -85.444421
-    # status is exposed under the canonical key for ingest dedup + the frontend.
-    assert obs.properties["status"] == "OUTAGE_REPORTED"
+    # The collector sets only obs.status; ingest records it on the entity.
+    assert "status" not in obs.properties
     assert obs.properties["service"] == "energy"
     assert obs.source_time is None
 

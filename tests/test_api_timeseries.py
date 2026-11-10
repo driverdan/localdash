@@ -25,7 +25,8 @@ def _obs(ext, status, lat=35.0, lon=-85.0, **props):
         lat=lat,
         lon=lon,
         status=status,
-        properties={"status": status, **props},
+        # No `status` copy: ingest owns the entity's status key.
+        properties=props,
     )
 
 
@@ -78,6 +79,22 @@ async def test_snapshot_has_no_track(db_session):
     assert d["external_id"] == "1" and d["is_active"] is True
 
 
+async def test_entity_serves_normalized_status(db_session):
+    # Properties carry no `status`, and a raw `status` that disagrees is overridden.
+    raw = _obs("2", "Enroute")
+    raw.properties["status"] = "raw"
+    await ingest(db_session, "test", [_obs("1", "Queued"), raw])
+    fc = await entities(source="test", session=db_session)
+    by_ext = {f["properties"]["external_id"]: f["properties"] for f in fc["features"]}
+    assert by_ext["1"]["status"] == "Queued"
+    assert by_ext["2"]["status"] == "Enroute"
+
+    d1 = await entity_detail(await _entity_id(db_session, "1"), session=db_session)
+    assert d1["latest_properties"]["status"] == "Queued"
+    d2 = await entity_detail(await _entity_id(db_session, "2"), session=db_session)
+    assert d2["latest_properties"]["status"] == "Enroute"
+
+
 async def test_track_ordered_oldest_first(db_session):
     await ingest(db_session, "test", [_obs("1", "Queued")])
     await ingest(db_session, "test", [_obs("1", "Enroute")])
@@ -95,13 +112,14 @@ async def test_polygon_entity_round_trips_as_polygon(db_session):
         label="Advisory",
         geometry={"type": "Polygon", "coordinates": [ring]},
         status="Planned Work",
-        properties={"status": "Planned Work"},
+        properties={},
     )
     await ingest(db_session, "test", [poly])
 
     fc = await entities(source="test", session=db_session)
     [feat] = fc["features"]
     assert feat["geometry"]["type"] == "Polygon"
+    assert feat["properties"]["status"] == "Planned Work"
 
     eid = (
         await db_session.execute(

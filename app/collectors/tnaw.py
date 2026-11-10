@@ -95,8 +95,8 @@ class TnawCollector(BaseCollector):
 
                 external_id = str(event_id)
                 # EventType (Planned Work / Emergency Repair) is more informative on
-                # the map than EventStatus (almost always "Active"); expose it as the
-                # canonical status that ingest dedup and the frontend both read.
+                # the map than EventStatus (almost always "Active"), so it is the
+                # normalized status; ingest records it on the entity.
                 status = props.get("EventType") or props.get("EventStatus")
                 by_id[external_id] = NormalizedObservation(
                     external_id=external_id,
@@ -107,6 +107,6 @@ class TnawCollector(BaseCollector):
                     # The feed carries edit timestamps in properties; observed_at
                     # (poll time) remains the series clock.
                     source_time=None,
-                    properties={**props, "advisory_type": category, "status": status},
+                    properties={**props, "advisory_type": category},
                 )
         return list(by_id.values())
