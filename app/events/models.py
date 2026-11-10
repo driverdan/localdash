@@ -27,7 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models import Base
+from app.orm import Base
 
 event_tags = Table(
     "event_tags",
