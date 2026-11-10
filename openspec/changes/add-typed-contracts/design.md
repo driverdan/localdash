@@ -70,25 +70,40 @@ Wire-format facts that constrain the design (checked against Pydantic 2.14 in th
 
 ## Decisions
 
-### 1. Where the models live: a `schemas.py` per feature, plus one shared module
+### 1. Where the models live: a schemas module beside the code it describes
+
+The backend is one application. Packages under `app/` organise the code but are not boundaries,
+and any module may import any other (`relax-backend-feature-separation` writes this down). So the
+placement below is chosen because it makes the models easy to find, not because a rule requires
+it.
 
 - `app/contracts.py` (new, about 30 lines): `ApiModel`, the base for all response models
   (`ConfigDict(extra="forbid")`, so a handler that passes a field the model lacks fails loudly
   instead of the field being dropped silently), and `IsoDateTime` (decision 2).
-- `app/news/schemas.py`, `app/events/schemas.py`, `app/weather/schemas.py`: that feature's
-  response models and result dataclasses.
-- Timeseries: `app/schemas.py`, beside `Diff`. Its docstring already reads "API response models
-  and the ingest Diff structure". If `move-timeseries-into-package` lands first (it is earlier in
-  the landing order), this becomes `app/timeseries/schemas.py`.
+- `app/news/schemas.py`, `app/events/schemas.py`, `app/weather/schemas.py`: the response models
+  and result dataclasses for the code in that package.
+- Timeseries: a new top-level `app/timeseries_schemas.py`. The timeseries code lives at the top
+  of `app/` (`app/ingest.py`, `app/geojson.py`, `app/scheduler.py`, `app/api/timeseries.py`), and
+  there is no `app/timeseries/` package to hold a `schemas.py`. `app/schemas.py` is not reused:
+  `extract-orm-base` renames it to `app/diff.py` because a generic name holding only `Diff` is
+  misleading, and refilling that name would undo that. `app/api/schemas.py` would also work, but
+  `CollectorRun` (decision 5) is produced by `run_collector`, not by a route, so a module named
+  for the feature fits both uses better.
 - GeoJSON envelope models go in `app/geojson.py`, next to the dict helpers that build what they
   describe.
 - The app-shell `/config` model (`AppConfig`, two fields) goes in `app/api/root.py`. A separate
   module for two fields isn't worth it.
 
-Alternative: one `app/api/schemas.py` for every feature. Rejected because it breaks the
-"feature is a self-contained package" layout `AGENTS.md` describes, and because the refresh
-dataclasses are produced by feature code (`app/events/refresh.py`), which should not import from
-`app/api/`.
+Alternative: one `app/api/schemas.py` for every route. It would be allowed, but it puts about 25
+unrelated models in one file that every feature change touches, and it puts the refresh result
+dataclasses away from `app/events/refresh.py` and `app/news/refresh.py`, which build them.
+Keeping each model beside its producer means a reader finds the shape next to the code that
+fills it.
+
+Shared models across features are now allowed. Two candidates exist: one source-health shape for
+`/timeseries/sources` and `/news/sources`, and one refresh-result shape for the three refresh
+routes. Both would change response bodies, because today's fields differ, so this change does not
+add them. They are possible follow-ups (see Open Questions).
 
 ### 2. Datetime rule: keep `.isoformat()` exactly
 
@@ -231,8 +246,12 @@ rebases onto whatever has landed by then.
   conflict: `status` stays a documented property key.
 - `add-shared-http-client` (2): touches `WeatherService._make_client` only; this change touches
   the parsers and payload type. Small textual overlap in `service.py`.
-- `move-timeseries-into-package` (3): decides where the timeseries models live
-  (`app/timeseries/schemas.py`). If it has landed, follow its paths.
+- `relax-backend-feature-separation` (lands first): records that backend packages are for
+  organisation, not boundaries. Decision 1's placement follows from that guideline and does not
+  claim more than it.
+- `extract-orm-base` (3): moves `Base` to `app/orm.py` and renames `app/schemas.py` to
+  `app/diff.py`. This change adds no models to either file, so the only interaction is that
+  `Diff` is imported from `app/diff.py` once it has landed.
 - `unify-refresh-orchestration` (4): moves `run_collector` out of `app/scheduler.py` and may give
   each feature a common refresh entry point. **Overlap:** that change reshapes the functions whose
   return types phase 2 here types. If 4 introduces a shared refresh-result shape, phase 2 adopts
@@ -263,7 +282,7 @@ rebases onto whatever has landed by then.
 - [Validation cost on large responses] → GeoJSON routes are documentation-only. `/events/items`
   (≤ 2,000) and stories (one window) are small enough. The phase 1 verification task records
   before/after latency for `/events/items?limit=2000`.
-- [Large diff conflicting with siblings 3–7] → landing order puts this change after them, and the
+- [Large diff conflicting with siblings 4–7] → landing order puts this change after them, and the
   phases can merge separately.
 - [Documented GeoJSON schema drifts from the dicts actually returned, since it is not validated]
   → the golden test for `/entities` and `/observations` also validates one response against the
@@ -285,5 +304,8 @@ revert. No schema migration, no config change.
   `add-api-response-models`, `type-refresh-results` and `type-news-registry`. The tasks below are
   already grouped that way, so splitting means moving task groups, not rewriting them. This
   proposal stays one change, as the brief asked, until the user decides.
+- Shared cross-feature models (one source-health shape, one refresh-result shape) are possible
+  follow-ups. Each would change a response body, so each needs its own proposal that names the
+  change.
 - Generating `frontend/src/features/*/types.ts` from `/openapi.json` (for example with
   `openapi-typescript`) is left as a follow-up proposal.

@@ -12,12 +12,12 @@ checked at the boundary, and visible to the tooling that `tighten-python-tooling
 ## What Changes
 
 - **API response models.** Every JSON route under `/api/v1` gets a Pydantic response model,
-  declared with `response_model=` (or the return annotation). The models live in a `schemas.py`
-  in each feature's package (`app/news/schemas.py`, `app/events/schemas.py`,
-  `app/weather/schemas.py`); timeseries models go in `app/schemas.py`, which already holds `Diff`
-  and whose docstring already calls it "API response models" (in `app/timeseries/schemas.py` if
-  `move-timeseries-into-package` has landed first). A small shared module, `app/contracts.py`,
-  holds the base model and the datetime type that keeps today's wire format.
+  declared with `response_model=` (or the return annotation). Each model lives in a schemas
+  module beside the code that produces it: `app/news/schemas.py`, `app/events/schemas.py`,
+  `app/weather/schemas.py`, and `app/timeseries_schemas.py` for the timeseries routes, whose
+  code sits at the top level of `app/`. This is a layout preference, not a boundary rule. A small
+  shared module, `app/contracts.py`, holds the base model and the datetime type that keeps
+  today's wire format.
 - **GeoJSON routes are documented, not validated.** `/timeseries/entities` and
   `/timeseries/observations` (up to 50,000 features) declare their schema for OpenAPI only. Their
   per-feature `properties` stay open objects, because they carry arbitrary source fields passed
@@ -64,9 +64,9 @@ None.
 
 ## Impact
 
-- New: `app/contracts.py`, `app/news/schemas.py`, `app/events/schemas.py`,
-  `app/weather/schemas.py`.
-- Changed: `app/schemas.py`, `app/geojson.py` (OpenAPI-only GeoJSON models beside the existing
+- New: `app/contracts.py`, `app/timeseries_schemas.py`, `app/news/schemas.py`,
+  `app/events/schemas.py`, `app/weather/schemas.py`.
+- Changed: `app/geojson.py` (OpenAPI-only GeoJSON models beside the existing
   dict helpers), `app/api/{timeseries,news,events,weather,root}.py`, `app/news/{stories,registry,
   refresh,fetcher,classify}.py` (registry attribute access; `fetch_all` result), `app/events/
   {ingest,refresh}.py`, `app/weather/{nws,airnow,service}.py`, `app/scheduler.py`

@@ -1,8 +1,9 @@
 Phases 0–1 are the response-model work, phase 2 the typed refresh results, and phase 3 the news
 registry. Each phase leaves the suite green and can merge on its own; if the change is split (see
 design.md Open Questions), phases 0–1, 2 and 3 become the three changes. Paths are those on
-`origin/main`. If `move-timeseries-into-package` has landed, read `app/schemas.py` as
-`app/timeseries/schemas.py`. If `unify-refresh-orchestration` has landed, read
+`origin/main`. If `extract-orm-base` has landed, `Diff` is in `app/diff.py` rather than
+`app/schemas.py`. This change adds nothing to either file. If `unify-refresh-orchestration` has
+landed, read
 `app/scheduler.py:run_collector` as its new home.
 
 ## 0. Pin the wire format (before touching any handler)
@@ -22,7 +23,7 @@ design.md Open Questions), phases 0–1, 2 and 3 become the three changes. Paths
 - [ ] 1.6 (1c) Update `tests/test_news_clustering.py` (`_row` builds `StoryArticle` with `datetime` published; assertions read attributes or `model_dump(mode="json")`) and `tests/test_news_db.py` story/source assertions
 - [ ] 1.7 (1d, weather) Add `app/weather/schemas.py` with `CurrentConditions`, `ForecastPeriod`, `AirQuality` and `WeatherPayload`. Passed-through numbers (`temperature`, `precip_percent`, AQI `value`) are `int | float`; `observed_at` fields are `str | None`. Make `parse_forecast`, `parse_observation` and `parse_airnow` return models, have `WeatherService` cache a `WeatherPayload` (`_carry_forward_aqi` via `model_copy`), and set `response_model=WeatherPayload` on `/current`
 - [ ] 1.8 (1d) Update `tests/test_weather.py` for model attributes, and confirm `tests/test_live_signals.py`'s weather ping tests still pass with model equality in `run_weather_refresh`
-- [ ] 1.9 (1e, timeseries) In `app/schemas.py` add `EntitySnapshot`, `TrackPoint` and `SourceStatus` (keep `enabled` for now; `remove-dead-schema` owns removing it). Set response models on `/entities/{id}`, `/entities/{id}/track` and `/sources`. Update the module docstring
+- [ ] 1.9 (1e, timeseries) Add `app/timeseries_schemas.py` with `EntitySnapshot`, `TrackPoint` and `SourceStatus` (keep `enabled` for now; `remove-dead-schema` owns removing it). Set response models on `/entities/{id}`, `/entities/{id}/track` and `/sources`
 - [ ] 1.10 (1f, GeoJSON) In `app/geojson.py` add documentation-only models: `EntityProperties` and `ObservationProperties` (`extra="allow"`, system keys only), plus `EntityFeature`/`EntityFeatureCollection` and `ObservationFeature`/`ObservationFeatureCollection`. Declare them on `/entities` and `/observations` via `responses={200: {"model": ...}}` with `response_model=None`, and leave the returned dicts as they are
 - [ ] 1.11 (1f) In `tests/test_api_contracts.py`, validate one `/entities` and one `/observations` response against the documentation models, so the docs cannot drift from the dicts
 - [ ] 1.12 Add an OpenAPI test: every `/api/v1` JSON route in `app.openapi()` (the WebSocket excluded) has a 200 response whose schema is a `$ref` to a named component
@@ -34,7 +35,7 @@ design.md Open Questions), phases 0–1, 2 and 3 become the three changes. Paths
 - [ ] 2.1 In `app/events/schemas.py` add frozen dataclasses `UpsertStats`, `GeocodeRetryStats` and `EventsRefreshResult`, the last with a `changed_visible_data` property. Return them from `upsert_raw_events`/`run_sources` (or the functions `decompose-events-upsert` split them into) and from `retry_failed_geocodes`. Build `EventsRefreshResult` in `app/events/refresh.py` and drop `|=` and the string-key reads
 - [ ] 2.2 Set `response_model=EventsRefreshResult` on `POST /events/refresh`
 - [ ] 2.3 In `app/news/schemas.py` add `NewsRefreshResult(sources: dict[str, str], clusters: int)`, return it from `app/news/refresh.py:refresh`, and declare it on `POST /news/refresh`. Annotate `fetch_all` as `-> dict[str, str]`
-- [ ] 2.4 In `app/schemas.py` add `CollectorRun(source, status: Literal["ok", "error"], error, count)`, return it from `run_collector`, and declare it on `POST /timeseries/sources/{key}/refresh`
+- [ ] 2.4 In `app/timeseries_schemas.py` add `CollectorRun(source, status: Literal["ok", "error"], error, count)`, return it from `run_collector`, and declare it on `POST /timeseries/sources/{key}/refresh`
 - [ ] 2.5 If `unify-refresh-orchestration` introduced a shared refresh-result type, use it instead of 2.1–2.4's per-feature names, keeping the JSON fields
 - [ ] 2.6 Update `tests/test_events_ingest.py`, `tests/test_events_cityspark.py`, `tests/test_api_events.py` and `tests/test_live_signals.py` from `stats["x"]`/`result["x"]` to attribute access, and confirm the refresh golden tests from 0.3 pass unmodified
 
@@ -48,7 +49,7 @@ design.md Open Questions), phases 0–1, 2 and 3 become the three changes. Paths
 
 ## 4. Documentation
 
-- [ ] 4.1 `AGENTS.md` "API / frontend conventions": response models live in each feature's `schemas.py` (timeseries in `app/schemas.py` or `app/timeseries/schemas.py`); the shared `app/contracts.py`; the `IsoDateTime` rule (never emit `Z`); GeoJSON routes are documented, not validated, and their properties stay open; new routes must declare a response model; `/docs` now shows schemas; generating frontend types is a possible follow-up
+- [ ] 4.1 `AGENTS.md` "API / frontend conventions": response models live in a schemas module beside the code that produces them (`app/<pkg>/schemas.py`, `app/timeseries_schemas.py` for the top-level timeseries code), as a layout preference consistent with the guideline from `relax-backend-feature-separation`; the shared `app/contracts.py`; the `IsoDateTime` rule (never emit `Z`); GeoJSON routes are documented, not validated, and their properties stay open; new routes must declare a response model; `/docs` now shows schemas; generating frontend types is a possible follow-up
 - [ ] 4.2 `AGENTS.md` news section: the registry is a tuple of frozen `Outlet`/`FeedSpec` dataclasses (`kind`, `use_feed_tags` as defaulted fields)
 - [ ] 4.3 `AGENTS.md` weather section: the shaping functions return models and the service caches a `WeatherPayload`
 
