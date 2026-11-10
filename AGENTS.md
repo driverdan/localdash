@@ -311,6 +311,16 @@ rather than skip. Pure tests don't request a DB fixture, so they still run witho
 everything a DB test asserts on and assert exact values: the database starts empty. If the code
 under test compares dates against the current time (e.g. `reconcile_events()` only sees upcoming
 events), compute test dates relative to now or inject a fixed "now"; never hard-code future dates.
+The pipeline functions that filter, age or stamp stored data by the current time take a
+keyword-only `now` (default: the current UTC time, read once per call): `upsert_raw_events`,
+`run_sources`, `reconcile_events` and `retry_failed_geocodes` (events), `recluster` and
+`get_stories` (news), and the timeseries `ingest`. Pass a timezone-aware `now` to pin time. Vary
+configuration by passing values (`blocked_tags=`, `center=`, `window_days=`) or a `Settings` built
+with `make_settings(**overrides)` from `conftest.py` (defaults plus overrides, ignoring `.env`);
+never mutate the cached `get_settings()` instance or set environment variables and clear its cache.
+The exceptions are tests whose code under test is itself a composition root that reads
+`get_settings()`: refresh-cycle tests patch `app.<feature>.refresh.get_settings`, and the
+log-redaction tests set the environment.
 
 **CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
 path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
@@ -615,4 +625,7 @@ weather knobs (`weather_enabled`, `weather_cache_minutes`, `airnow_api_key`,
 the `settings.center` tuple) used
 by the events distance origin, the CitySpark/Meetup source defaults, and the weather location.
 There is no `.env` by default; the code runs on the defaults in
-`config.py`. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
+`config.py`. `get_settings()` is read only at composition roots (the refresh cycles, the app
+lifespan and `main.py`, which hand the settings to the scheduler's `job_specs`, `db.py`, the
+redaction filter, router `Depends(get_settings)`, and `WeatherService`'s fallback when built
+without settings); pipeline functions receive the values they use as arguments. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
