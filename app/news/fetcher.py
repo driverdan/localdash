@@ -302,7 +302,7 @@ async def fetch_all(session: AsyncSession) -> dict[str, str]:
         label = f"{source_slug}/{feed.category}"
         try:
             _, status = await fetch_feed(session, feed, source_slug)
-        except Exception as exc:  # a broken feed must not kill the cycle
+        except Exception as exc:  # noqa: BLE001 — a broken feed must not kill the cycle
             status = f"error ({redact(str(exc))})"  # persisted + served: mask credentials
             log.warning("fetch failed for %s: %s", label, exc)
         await session.execute(

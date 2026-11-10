@@ -171,15 +171,15 @@ def _matches(a: _Prepared, b: _Prepared, title_w: _Weights, text_w: _Weights) ->
         return False
 
     jaccard = weighted_jaccard(a.title_toks, b.title_toks, title_w)
-    if jaccard < MATCH_JACCARD:
-        if (
-            jaccard < CONTAINMENT_JACCARD_FLOOR
-            or len(a.title_toks & b.title_toks) < CONTAINMENT_MIN_SHARED
-            or weighted_containment(a.title_toks, b.title_toks, title_w) < MATCH_CONTAINMENT
-        ):
-            return False
+    if jaccard < MATCH_JACCARD and (
+        jaccard < CONTAINMENT_JACCARD_FLOOR
+        or len(a.title_toks & b.title_toks) < CONTAINMENT_MIN_SHARED
+        or weighted_containment(a.title_toks, b.title_toks, title_w) < MATCH_CONTAINMENT
+    ):
+        return False
 
-    if a.text_toks is not None and b.text_toks is not None:
+    # Collapsing this would turn the tail into a negated boolean return (SIM103).
+    if a.text_toks is not None and b.text_toks is not None:  # noqa: SIM102
         if weighted_jaccard(a.text_toks, b.text_toks, text_w) < SUMMARY_VETO:
             return False
     return True

@@ -144,9 +144,11 @@ def test_index_is_not_read_at_construction(tmp_path):
 
 def test_stray_websocket_is_closed_without_accepting(static_dir, caplog):
     client = _client(static_dir)
-    with caplog.at_level(logging.ERROR):
-        with pytest.raises(WebSocketDisconnect):
-            with client.websocket_connect("/api/v1/timeseries/ws"):
-                pass
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/api/v1/timeseries/ws"),
+    ):
+        pass
     assert "Traceback" not in caplog.text
     assert not [rec for rec in caplog.records if rec.levelno >= logging.ERROR]

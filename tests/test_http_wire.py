@@ -13,6 +13,7 @@ which is swallowed here: only what went out on the wire is asserted.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -163,10 +164,8 @@ async def test_request_settings(site: Site, mock_http):
     sent: list[httpx.Request] = []
     mock_http.install(lambda request: _redirect_first(request, sent))
 
-    try:
+    with contextlib.suppress(Exception):  # only the requests sent matter here
         await site.run()
-    except Exception:  # noqa: BLE001 — only the requests sent matter here
-        pass
 
     assert sent, "the fetch sent no request"
     for request in sent:

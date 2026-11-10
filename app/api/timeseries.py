@@ -48,7 +48,7 @@ def _bbox_filter(column, bbox: str | None):
     try:
         minx, miny, maxx, maxy = (float(x) for x in bbox.split(","))
     except ValueError:
-        raise HTTPException(400, "bbox must be 'minLon,minLat,maxLon,maxLat'")
+        raise HTTPException(400, "bbox must be 'minLon,minLat,maxLon,maxLat'") from None
     return func.ST_Intersects(column, func.ST_MakeEnvelope(minx, miny, maxx, maxy, 4326))
 
 

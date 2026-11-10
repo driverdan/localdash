@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from app.collectors.base import BaseCollector, NormalizedObservation
 
@@ -17,7 +18,7 @@ def test_normalized_observation_defaults():
 
 
 def test_normalized_observation_requires_external_id():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         NormalizedObservation()  # type: ignore[call-arg]
 
 

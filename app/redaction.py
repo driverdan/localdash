@@ -87,7 +87,7 @@ def _redact_arg(arg: object) -> object:
         return arg
     try:
         text = str(arg)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — a broken __str__ must not break logging
         return arg
     cleaned = redact(text)
     return arg if cleaned == text else cleaned
