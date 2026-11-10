@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import httpx
+import pytest
+
 from app.collectors.epb import EpbCollector
 from app.config import Settings
 
@@ -62,3 +65,33 @@ def test_same_location_collapses_to_one_entity():
 def test_non_dict_payload_is_empty():
     assert _collector().normalize([{"not": "a dict-keyed-by-service"}]) == []
     assert _collector().normalize({"energy": "not a list"}) == []
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_requests_each_service_and_keys_incidents_by_it(mock_http):
+    collector = _collector()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        service = request.url.path.split("/")[-2]
+        if service == "fiber":
+            return httpx.Response(200, json={"unexpected": True})  # no incidents list
+        return httpx.Response(200, json={"incidents": [_incident()]})
+
+    mock_http.install(handler)
+
+    raw = await collector.fetch()
+
+    assert [str(r.url) for r in mock_http.requests] == [
+        f"{collector.base_url}/{s}/incidents" for s in collector.services
+    ]
+    assert raw == {"energy": [_incident()], "fiber": []}
+    assert len(collector.normalize(raw)) == 1
+
+
+async def test_fetch_non_2xx_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(502))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _collector().fetch()
