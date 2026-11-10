@@ -25,17 +25,14 @@ from __future__ import annotations
 from typing import Any
 
 from app.collectors.base import BaseCollector, NormalizedObservation
-from app.config import Settings
+from app.config import Settings, split_csv
 from app.http import make_client
 
 
 def _parse_layers(spec: str) -> list[tuple[str, str]]:
     """ "17:emergency,16:general" -> [("17","emergency"), ("16","general")]."""
     out: list[tuple[str, str]] = []
-    for part in spec.split(","):
-        part = part.strip()
-        if not part:
-            continue
+    for part in split_csv(spec):
         layer, _, category = part.partition(":")
         out.append((layer.strip(), (category.strip() or "general")))
     return out

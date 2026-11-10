@@ -34,6 +34,15 @@ class NormalizedObservation(BaseModel):
     properties: dict[str, Any] = Field(default_factory=dict)
 
 
+def as_float(value: Any) -> float | None:
+    """``float(value)``, or None when it cannot be converted or is NaN."""
+    try:
+        f = float(value)
+    except TypeError, ValueError:
+        return None
+    return f if f == f else None  # reject NaN
+
+
 class BaseCollector(ABC):
     """Subclass per data source."""
 

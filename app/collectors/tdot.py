@@ -17,12 +17,12 @@ excluded from this time-series source.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
-from app.collectors.base import BaseCollector, NormalizedObservation
+from app.collectors.base import BaseCollector, NormalizedObservation, as_float
 from app.config import Settings
 from app.http import make_client
+from app.timeutil import parse_iso_utc
 
 # eventTypeName -> our category. `isSevere` items override to "severe" (see _category).
 _TYPE_CATEGORY = {
@@ -38,18 +38,6 @@ def _category(item: dict) -> str:
     return _TYPE_CATEGORY.get(item.get("eventTypeName"), "other")
 
 
-def _parse_dt(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
 def _midpoint(item: dict) -> tuple[float | None, float | None]:
     """(lat, lon) from the first location's midPoint, falling back to its first coordinate."""
     locations = item.get("locations")
@@ -62,7 +50,7 @@ def _midpoint(item: dict) -> tuple[float | None, float | None]:
         pt = coords[0] if isinstance(coords, list) and coords else None
     if not isinstance(pt, dict):
         return None, None
-    return _as_float(pt.get("lat")), _as_float(pt.get("lng"))
+    return as_float(pt.get("lat")), as_float(pt.get("lng"))
 
 
 class TdotCollector(BaseCollector):
@@ -74,7 +62,7 @@ class TdotCollector(BaseCollector):
         self.poll_interval = settings.tdot_poll_interval
         self.base_url = settings.tdot_api_base_url.rstrip("/")
         self.api_key = settings.tdot_api_key
-        self.endpoints = [e.strip() for e in settings.tdot_endpoints.split(",") if e.strip()]
+        self.endpoints = settings.tdot_endpoint_list
 
     async def fetch(self) -> Any:
         headers = {"X-API-Key": self.api_key}
@@ -112,8 +100,8 @@ class TdotCollector(BaseCollector):
                 lat=lat,
                 lon=lon,
                 status=item.get("status"),
-                source_time=_parse_dt(item.get("revisedDate"))
-                or _parse_dt(item.get("beginningDate")),
+                source_time=parse_iso_utc(item.get("revisedDate"))
+                or parse_iso_utc(item.get("beginningDate")),
                 properties=item,
             )
 
@@ -122,11 +110,3 @@ class TdotCollector(BaseCollector):
             if prev is None or (obs.category == "severe" and prev.category != "severe"):
                 by_id[obs.external_id] = obs
         return list(by_id.values())
-
-
-def _as_float(value: Any) -> float | None:
-    try:
-        f = float(value)
-    except TypeError, ValueError:
-        return None
-    return f if f == f else None  # reject NaN

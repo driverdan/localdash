@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.collectors.base import BaseCollector, NormalizedObservation
+from app.collectors.base import BaseCollector, NormalizedObservation, as_float
 from app.config import Settings
 from app.http import make_client
 
@@ -40,7 +40,7 @@ class EpbCollector(BaseCollector):
         self.settings = settings
         self.poll_interval = settings.epb_poll_interval
         self.base_url = settings.epb_api_base_url.rstrip("/")
-        self.services = [s.strip() for s in settings.epb_services.split(",") if s.strip()]
+        self.services = settings.epb_service_list
 
     async def fetch(self) -> Any:
         headers = {"Accept": "application/json"}
@@ -67,8 +67,8 @@ class EpbCollector(BaseCollector):
             for item in incidents:
                 if not isinstance(item, dict):
                     continue
-                lat = _as_float(item.get("latitude"))
-                lon = _as_float(item.get("longitude"))
+                lat = as_float(item.get("latitude"))
+                lon = as_float(item.get("longitude"))
                 if lat is None or lon is None:
                     continue
 
@@ -86,11 +86,3 @@ class EpbCollector(BaseCollector):
                     properties={**item, "service": service},
                 )
         return list(by_id.values())
-
-
-def _as_float(value: Any) -> float | None:
-    try:
-        f = float(value)
-    except TypeError, ValueError:
-        return None
-    return f if f == f else None  # reject NaN

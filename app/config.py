@@ -11,6 +11,11 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def split_csv(value: str) -> list[str]:
+    """Split a comma-separated setting into its stripped, non-empty entries, in order."""
+    return [entry for entry in (part.strip() for part in value.split(",")) if entry]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -145,9 +150,22 @@ class Settings(BaseSettings):
     @property
     def blocked_tags(self) -> set[str]:
         """Effective tag blocklist: normalized names from `events_blocked_tags`."""
-        return {
-            name.strip().lower() for name in self.events_blocked_tags.split(",") if name.strip()
-        }
+        return {name.lower() for name in split_csv(self.events_blocked_tags)}
+
+    @property
+    def tdot_endpoint_list(self) -> list[str]:
+        """TDOT SmartWay endpoint paths from `tdot_endpoints`."""
+        return split_csv(self.tdot_endpoints)
+
+    @property
+    def epb_service_list(self) -> list[str]:
+        """EPB outage services from `epb_services`."""
+        return split_csv(self.epb_services)
+
+    @property
+    def events_ical_feed_list(self) -> list[str]:
+        """iCal feed URLs from `events_ical_feeds`."""
+        return split_csv(self.events_ical_feeds)
 
     @property
     def center(self) -> tuple[float, float]:

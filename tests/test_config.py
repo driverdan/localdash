@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from app.config import Settings, get_settings
+import pytest
+
+from app.config import Settings, get_settings, split_csv
+from tests.conftest import make_settings
 
 
 def test_sync_url_swaps_async_driver():
@@ -34,3 +37,51 @@ def test_center_defaults_and_tuple_property():
 def test_center_is_env_overridable():
     s = Settings(center_lat=36.0, center_lon=-86.0)
     assert s.center == (36.0, -86.0)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("a,b,c", ["a", "b", "c"]),
+        (" a , b ,c ", ["a", "b", "c"]),
+        ("a,,b, ,c", ["a", "b", "c"]),
+        ("a,b,", ["a", "b"]),
+        ("c,a,b", ["c", "a", "b"]),
+        ("", []),
+        (" , ", []),
+    ],
+)
+def test_split_csv(value, expected):
+    assert split_csv(value) == expected
+
+
+def test_blocked_tags_lowercases_split_entries():
+    assert make_settings().blocked_tags == {"topics"}
+    assert make_settings(events_blocked_tags=" Food, ,Music ,").blocked_tags == {"food", "music"}
+
+
+def test_tdot_endpoint_list():
+    assert make_settings().tdot_endpoint_list == [
+        "RoadwayIncidents",
+        "RoadwayOperations",
+        "RoadwaySpecialEvents",
+        "RoadwaySevereImpact",
+    ]
+    assert make_settings(tdot_endpoints=" RoadwayIncidents , ").tdot_endpoint_list == [
+        "RoadwayIncidents"
+    ]
+
+
+def test_epb_service_list():
+    assert make_settings().epb_service_list == ["energy", "fiber"]
+    assert make_settings(epb_services="fiber,").epb_service_list == ["fiber"]
+
+
+def test_events_ical_feed_list():
+    assert make_settings().events_ical_feed_list == [
+        "https://carsandcoffeeevents.com/events/category/tennessee/?ical=1"
+    ]
+    assert make_settings(
+        events_ical_feeds=" https://a.example/x.ics ,,https://b.example/y.ics"
+    ).events_ical_feed_list == ["https://a.example/x.ics", "https://b.example/y.ics"]
+    assert make_settings(events_ical_feeds="").events_ical_feed_list == []

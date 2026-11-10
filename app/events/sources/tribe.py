@@ -28,27 +28,15 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.events.sources.base import EventSource, RawEvent, clean_image_url, join_address
 from app.http import make_client
+from app.timeutil import parse_iso_utc
 
 log = logging.getLogger("localdash.events")
 
 PAGE_SIZE = 50  # the API's per_page maximum
 # Guard against a pathological non-terminating pagination loop.
 MAX_PAGES = 10
-
-
-def _parse_utc(value: str | None) -> dt.datetime | None:
-    """Parse the API's naive ``YYYY-MM-DD HH:MM:SS`` UTC fields."""
-    if not value:
-        return None
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=dt.timezone.utc)
-    return parsed.astimezone(dt.timezone.utc)
 
 
 def _strip_html(fragment: str) -> str:
@@ -65,9 +53,9 @@ def _coord(value) -> float | None:
 
 
 def _join_address(venue: dict) -> str | None:
-    parts = (venue.get("address"), venue.get("city"), venue.get("stateprovince"), venue.get("zip"))
-    joined = ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
-    return joined or None
+    return join_address(
+        (venue.get("address"), venue.get("city"), venue.get("stateprovince"), venue.get("zip"))
+    )
 
 
 def _category_tags(event: dict) -> list[str]:
@@ -86,7 +74,7 @@ def parse_page(payload: dict, source_name: str) -> list[RawEvent]:
     """Extract raw events from one ``events`` page payload (pure, offline)."""
     events: list[RawEvent] = []
     for event in payload.get("events") or []:
-        start = _parse_utc(event.get("utc_start_date"))
+        start = parse_iso_utc(event.get("utc_start_date"))
         if start is None:
             log.warning("tribe: event without utc_start_date skipped: %r", event.get("title"))
             continue
@@ -101,7 +89,7 @@ def parse_page(payload: dict, source_name: str) -> list[RawEvent]:
                 title=html_lib.unescape(event.get("title") or "") or "Untitled event",
                 description=_strip_html(event.get("description") or ""),
                 start_time=start,
-                end_time=_parse_utc(event.get("utc_end_date")),
+                end_time=parse_iso_utc(event.get("utc_end_date")),
                 venue_name=venue.get("venue") or None,
                 address=_join_address(venue),
                 latitude=_coord(venue.get("geo_lat")),

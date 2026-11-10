@@ -15,11 +15,11 @@ follow-up.)
 
 from __future__ import annotations
 
-import datetime as dt
 import logging
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
+from app.timeutil import parse_iso_utc
 
 log = logging.getLogger("localdash.events")
 
@@ -49,19 +49,6 @@ query EventSearch($filter: SearchConnectionFilter!, $first: Int) {
   }
 }
 """
-
-
-def _to_aware_utc(value: str | None) -> dt.datetime | None:
-    """Parse a Meetup ISO-8601 datetime (with offset) into aware UTC."""
-    if not value:
-        return None
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is not None:
-        return parsed.astimezone(dt.timezone.utc)
-    return parsed.replace(tzinfo=dt.timezone.utc)
 
 
 def _photo_url(result: dict) -> str | None:
@@ -149,7 +136,7 @@ class MeetupSource(EventSource):
             node = (edge or {}).get("node") or {}
             result = node.get("result") or {}
             event_id = result.get("id")
-            start = _to_aware_utc(result.get("dateTime"))
+            start = parse_iso_utc(result.get("dateTime"))
             if not event_id or start is None:
                 continue  # skip non-Event results or undated entries
 

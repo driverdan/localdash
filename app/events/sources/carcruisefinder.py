@@ -19,7 +19,6 @@ logs, contained by run_sources()'s per-source failure isolation.
 
 from __future__ import annotations
 
-import datetime as dt
 import html as html_lib
 import json
 import logging
@@ -31,6 +30,7 @@ from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import BROWSER_USER_AGENT, make_client
+from app.timeutil import parse_iso_utc
 
 log = logging.getLogger("localdash.events")
 
@@ -49,18 +49,6 @@ def _iter_event_nodes(data: Any) -> Iterator[dict]:
         if data.get("@type") == "Event":
             yield data
         yield from _iter_event_nodes(data.get("@graph", []))
-
-
-def _to_aware_utc(value: str | None) -> dt.datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=LOCAL_TZ)
-    return parsed.astimezone(dt.timezone.utc)
 
 
 def _clean_text(value: str | None) -> str:
@@ -115,7 +103,7 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
             log.warning("carcruisefinder: unparseable JSON-LD block skipped")
             continue
         for node in _iter_event_nodes(data):
-            start = _to_aware_utc(node.get("startDate"))
+            start = parse_iso_utc(node.get("startDate"), naive_tz=LOCAL_TZ)
             if start is None:
                 log.warning(
                     "carcruisefinder: event without start date skipped: %r", node.get("name")
@@ -128,7 +116,7 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
                     title=_clean_text(node.get("name")) or "Untitled event",
                     description=_clean_text(node.get("description")),
                     start_time=start,
-                    end_time=_to_aware_utc(node.get("endDate")),
+                    end_time=parse_iso_utc(node.get("endDate"), naive_tz=LOCAL_TZ),
                     venue_name=_clean_text(location.get("name")) or None,
                     address=_join_address(location),
                     image_url=_image_url(node.get("image")),
