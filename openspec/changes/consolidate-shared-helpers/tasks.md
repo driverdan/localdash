@@ -47,19 +47,19 @@
 
 ## 7. News fetcher
 
-- [ ] 7.1 Add `_entry_raw_content(entry) -> str`, and call it from `_entry_summary` and `_entry_image`.
-- [ ] 7.2 Add `_article_row(feed, *, guid, url, title, summary, image_url, tags, published, now) -> dict`, and use it in both `fetch_feed` (RSS) and `_fetch_html_feed`. Keep the explanatory comments about the tags choice at each call site.
-- [ ] 7.3 Remove the unused `source_slug` parameter from `_fetch_html_feed`, and update its call in `fetch_feed`.
-- [ ] 7.4 In `tests/test_news_fetcher.py`, add `_entry_summary` cases for each priority: `content` beats `summary`, which beats `description`. Add an `_article_row` case that checks the 9 keys and that the HTML-style call passes `[]` tags.
+- [x] 7.1 Add `_entry_raw_content(entry) -> str`, and call it from `_entry_summary` and `_entry_image`.
+- [x] 7.2 Add `_article_row(feed, *, guid, url, title, summary, image_url, tags, published, now) -> dict`, and use it in both `fetch_feed` (RSS) and `_fetch_html_feed`. Keep the explanatory comments about the tags choice at each call site.
+- [x] 7.3 Remove the unused `source_slug` parameter from `_fetch_html_feed`, and update its call in `fetch_feed`.
+- [x] 7.4 In `tests/test_news_fetcher.py`, add `_entry_summary` cases for each priority: `content` beats `summary`, which beats `description`. Add an `_article_row` case that checks the 9 keys and that the HTML-style call passes `[]` tags.
 
 ## 8. Shared text module
 
-- [ ] 8.1 Create `app/text.py` with `keyword_matches(text, table) -> Iterator[str]` as specified in design D8. It pads the lower-cased text with one space on each side, and yields table keys in table order when any keyword is a substring.
-- [ ] 8.2 `app/news/classify.py` tier 2: replace the loop with `next(keyword_matches(f"{title} {summary}", TOPIC_KEYWORDS), None)`, returning the result when it is set. Leave `TOPIC_KEYWORDS`, tier 1, tier 3 and the module docstring's description of the tiers unchanged. Update the docstring's "modeled on the sibling events classifier" note to say the matcher is shared.
-- [ ] 8.3 `app/events/tagging.py`: make `tag_text` return `set(keyword_matches(text, TOPIC_KEYWORDS))`. Leave `TOPIC_KEYWORDS` and `tag_event` unchanged.
-- [ ] 8.4 Move `strip_html` and `truncate_sentences`, with their private `_TextExtractor` and `_WS_RE`, from `app/news/textutil.py` to `app/text.py` unchanged. Add one docstring sentence to `strip_html` saying that it unescapes entities before parsing. `app/news/textutil.py` keeps `STOPWORDS`, `_WORD_RE` and `title_tokens`.
-- [ ] 8.5 Update the imports in `app/news/fetcher.py`, `app/news/stories.py` and `tests/test_news_clustering.py`, with no re-export shim. Leave the tribe `_strip_html` and both `_clean_text` helpers untouched (design D4).
-- [ ] 8.6 Add `tests/test_text.py`:
+- [x] 8.1 Create `app/text.py` with `keyword_matches(text, table) -> Iterator[str]` as specified in design D8. It pads the lower-cased text with one space on each side, and yields table keys in table order when any keyword is a substring.
+- [x] 8.2 `app/news/classify.py` tier 2: replace the loop with `next(keyword_matches(f"{title} {summary}", TOPIC_KEYWORDS), None)`, returning the result when it is set. Leave `TOPIC_KEYWORDS`, tier 1, tier 3 and the module docstring's description of the tiers unchanged. Update the docstring's "modeled on the sibling events classifier" note to say the matcher is shared.
+- [x] 8.3 `app/events/tagging.py`: make `tag_text` return `set(keyword_matches(text, TOPIC_KEYWORDS))`. Leave `TOPIC_KEYWORDS` and `tag_event` unchanged.
+- [x] 8.4 Move `strip_html` and `truncate_sentences`, with their private `_TextExtractor` and `_WS_RE`, from `app/news/textutil.py` to `app/text.py` unchanged. Add one docstring sentence to `strip_html` saying that it unescapes entities before parsing. `app/news/textutil.py` keeps `STOPWORDS`, `_WORD_RE` and `title_tokens`.
+- [x] 8.5 Update the imports in `app/news/fetcher.py`, `app/news/stories.py` and `tests/test_news_clustering.py`, with no re-export shim. Leave the tribe `_strip_html` and both `_clean_text` helpers untouched (design D4).
+- [x] 8.6 Add `tests/test_text.py`:
   - `keyword_matches` yields every match in table order, so the first element is what classify picks.
   - A padded `" ai "` keyword matches at the start of the text, at the end, and when the text is the keyword alone.
   - Matching is case-insensitive.
@@ -67,9 +67,9 @@
 
 ## 9. Docs and verification
 
-- [ ] 9.1 Update the factual mentions in `AGENTS.md` only. The separation guideline is written by `relax-backend-feature-separation`.
+- [x] 9.1 Update the factual mentions in `AGENTS.md` only. The separation guideline is written by `relax-backend-feature-separation`.
   - In "Adding a data source", mention `as_float` in `app/collectors/base.py` and `parse_iso_utc(..., naive_tz=...)` from `app/timeutil.py` for source timestamps.
   - Where the news feature section describes `classify.py`, note that its keyword tier uses the shared `app.text.keyword_matches`.
-- [ ] 9.2 Grep for leftovers. `rg "def _(as_float|as_utc|parse_utc|point)\b|def _to_aware_utc|def _parse_dt" app` should find only iCal `_to_aware_utc` and hc911 `_parse_dt`. `rg "\.split\(\",\"\)" app` should find only `split_csv`, the `bbox` query parser in `app/api/timeseries.py` and the address splitting in `app/events/geocoding.py`. The last two parse request and address data rather than settings, so they are out of scope.
-- [ ] 9.3 Run the full `pytest` suite against the Dockerised DB, then `ruff check` and `ruff format --check`.
+- [x] 9.2 Grep for leftovers. `rg "def _(as_float|as_utc|parse_utc|point)\b|def _to_aware_utc|def _parse_dt" app` should find only iCal `_to_aware_utc` and hc911 `_parse_dt`. `rg "\.split\(\",\"\)" app` should find only `split_csv`, the `bbox` query parser in `app/api/timeseries.py` and the address splitting in `app/events/geocoding.py`. The last two parse request and address data rather than settings, so they are out of scope.
+- [x] 9.3 Run the full `pytest` suite against the Dockerised DB, then `ruff check` and `ruff format --check`.
 - [ ] 9.4 Rebuild and start the stack with `docker compose up --build`. Trigger `POST /api/v1/events/refresh` and `POST /api/v1/news/refresh`, and check that the events count does not jump (no new `canonical_key` duplicates) and that the news feed statuses are unchanged.

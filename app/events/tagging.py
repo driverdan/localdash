@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.text import keyword_matches
+
 # Topic -> keywords. Matching is case-insensitive substring matching.
 TOPIC_KEYWORDS: dict[str, list[str]] = {
     "music": ["concert", "music", "band", "live music", "dj", "jazz", "symphony", "acoustic"],
@@ -32,8 +34,7 @@ TOPIC_KEYWORDS: dict[str, list[str]] = {
 
 def tag_text(text: str) -> set[str]:
     """Return the set of topics whose keywords appear in ``text``."""
-    haystack = f" {text.lower()} "
-    return {topic for topic, kws in TOPIC_KEYWORDS.items() if any(kw in haystack for kw in kws)}
+    return set(keyword_matches(text, TOPIC_KEYWORDS))
 
 
 def tag_event(title: str, description: str = "") -> set[str]:
