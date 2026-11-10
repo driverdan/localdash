@@ -5,7 +5,7 @@ import datetime as dt
 import httpx
 import pytest
 
-from app.events.sources.ical import ICalSource
+from app.events.sources.ical import ICalSource, parse_calendar
 
 UTC = dt.timezone.utc
 
@@ -75,27 +75,31 @@ END:VCALENDAR
 """
 
 
+FEED_URL = "https://example.com/feed.ics"
+SOURCE_NAME = f"iCal: {FEED_URL}"  # ICalSource's default name for FEED_URL
+
+
 def _source() -> ICalSource:
-    return ICalSource("https://example.com/feed.ics")
+    return ICalSource(FEED_URL)
 
 
 def test_image_attach_is_parsed():
-    (event,) = _source().parse(ICS_WITH_IMAGE)
+    (event,) = parse_calendar(ICS_WITH_IMAGE, SOURCE_NAME, FEED_URL)
     assert event.image_url == "https://example.com/photos/opening.jpg"
 
 
 def test_generic_image_attach_is_treated_as_absent():
-    (event,) = _source().parse(ICS_GENERIC_IMAGE)
+    (event,) = parse_calendar(ICS_GENERIC_IMAGE, SOURCE_NAME, FEED_URL)
     assert event.image_url is None
 
 
 def test_event_without_attach_has_no_image():
-    (event,) = _source().parse(ICS_SAMPLE)
+    (event,) = parse_calendar(ICS_SAMPLE, SOURCE_NAME, FEED_URL)
     assert event.image_url is None
 
 
 def test_parses_event_fields():
-    events = _source().parse(ICS_SAMPLE)
+    events = parse_calendar(ICS_SAMPLE, SOURCE_NAME, FEED_URL)
     assert len(events) == 1
     event = events[0]
     assert event.title == "Downtown Art Walk"
@@ -108,14 +112,14 @@ def test_parses_event_fields():
 
 
 def test_undated_components_are_skipped():
-    events = _source().parse(ICS_UNDATED)
+    events = parse_calendar(ICS_UNDATED, SOURCE_NAME, FEED_URL)
     assert [e.title for e in events] == ["Real Event"]
     # No per-event URL -> the feed URL is the link.
     assert events[0].source_url == "https://example.com/feed.ics"
 
 
 def test_date_only_start_becomes_midnight_utc():
-    events = _source().parse(ICS_ALL_DAY)
+    events = parse_calendar(ICS_ALL_DAY, SOURCE_NAME, FEED_URL)
     assert events[0].start_time == dt.datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
 
 
@@ -128,7 +132,9 @@ async def test_fetch_parses_the_downloaded_calendar(mock_http):
     events = await _source().fetch()
 
     assert [str(r.url) for r in mock_http.requests] == ["https://example.com/feed.ics"]
-    assert [e.title for e in events] == [e.title for e in _source().parse(ICS_SAMPLE)]
+    assert [e.title for e in events] == [
+        e.title for e in parse_calendar(ICS_SAMPLE, SOURCE_NAME, FEED_URL)
+    ]
     assert events
 
 

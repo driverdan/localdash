@@ -78,6 +78,42 @@ def _format_address(venue: dict | None) -> str | None:
     return address or (venue.get("name") or None)
 
 
+def parse_payload(payload: dict, source_name: str, fallback_url: str) -> list[RawEvent]:
+    """Convert a GraphQL response into RawEvents (separated for testability)."""
+    search = (payload or {}).get("data", {}).get("keywordSearch") or {}
+    edges = search.get("edges") or []
+
+    events: list[RawEvent] = []
+    for edge in edges:
+        node = (edge or {}).get("node") or {}
+        result = node.get("result") or {}
+        event_id = result.get("id")
+        start = parse_iso_utc(result.get("dateTime"))
+        if not event_id or start is None:
+            continue  # skip non-Event results or undated entries
+
+        venue = result.get("venue")
+        group = result.get("group") or {}
+        description = result.get("description") or ""
+        if group.get("name"):
+            description = f"{group['name']} — {description}".strip(" —")
+
+        events.append(
+            RawEvent(
+                title=result.get("title") or "Untitled event",
+                description=description,
+                start_time=start,
+                venue_name=(venue or {}).get("name"),
+                address=_format_address(venue),
+                image_url=_photo_url(result),
+                source_name=source_name,
+                source_url=result.get("eventUrl") or fallback_url,
+                source_event_id=str(event_id),
+            )
+        )
+    return events
+
+
 class MeetupSource(EventSource):
     name = "Meetup"
 
@@ -86,6 +122,7 @@ class MeetupSource(EventSource):
         token: str,
         lat: float,
         lon: float,
+        # Meetup keywordSearch radius; not config — matches the PoC default.
         radius_miles: int = 50,
         query: str = "",
         first: int = 50,
@@ -124,39 +161,4 @@ class MeetupSource(EventSource):
                 },
             )
             resp.raise_for_status()
-        return self.parse(resp.json())
-
-    def parse(self, payload: dict) -> list[RawEvent]:
-        """Convert a GraphQL response into RawEvents (separated for testability)."""
-        search = (payload or {}).get("data", {}).get("keywordSearch") or {}
-        edges = search.get("edges") or []
-
-        events: list[RawEvent] = []
-        for edge in edges:
-            node = (edge or {}).get("node") or {}
-            result = node.get("result") or {}
-            event_id = result.get("id")
-            start = parse_iso_utc(result.get("dateTime"))
-            if not event_id or start is None:
-                continue  # skip non-Event results or undated entries
-
-            venue = result.get("venue")
-            group = result.get("group") or {}
-            description = result.get("description") or ""
-            if group.get("name"):
-                description = f"{group['name']} — {description}".strip(" —")
-
-            events.append(
-                RawEvent(
-                    title=result.get("title") or "Untitled event",
-                    description=description,
-                    start_time=start,
-                    venue_name=(venue or {}).get("name"),
-                    address=_format_address(venue),
-                    image_url=_photo_url(result),
-                    source_name=self.name,
-                    source_url=result.get("eventUrl") or self.endpoint,
-                    source_event_id=str(event_id),
-                )
-            )
-        return events
+        return parse_payload(resp.json(), self.name, self.endpoint)

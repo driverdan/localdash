@@ -60,6 +60,33 @@ def _to_aware_utc(value) -> dt.datetime | None:
     return None
 
 
+def parse_calendar(ics_bytes: bytes, source_name: str, feed_url: str) -> list[RawEvent]:
+    """Parse ICS bytes into raw events (separated for testability)."""
+    cal = Calendar.from_ical(ics_bytes)
+    events: list[RawEvent] = []
+    for component in cal.walk("VEVENT"):
+        start = _to_aware_utc(component.get("dtstart").dt if component.get("dtstart") else None)
+        if start is None:
+            continue
+        end_prop = component.get("dtend")
+        uid = str(component.get("uid")) if component.get("uid") else None
+        events.append(
+            RawEvent(
+                title=str(component.get("summary") or "Untitled event"),
+                description=str(component.get("description") or ""),
+                start_time=start,
+                end_time=_to_aware_utc(end_prop.dt) if end_prop else None,
+                venue_name=str(component.get("location")) if component.get("location") else None,
+                address=str(component.get("location")) if component.get("location") else None,
+                image_url=_attach_image_url(component),
+                source_name=source_name,
+                source_url=str(component.get("url") or feed_url),
+                source_event_id=uid,
+            )
+        )
+    return events
+
+
 class ICalSource(EventSource):
     def __init__(self, url: str, name: str | None = None, timeout: int = 20):
         self.url = url
@@ -72,32 +99,4 @@ class ICalSource(EventSource):
         ) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()
-        return self.parse(resp.content)
-
-    def parse(self, ics_bytes: bytes) -> list[RawEvent]:
-        """Parse ICS bytes into raw events (separated for testability)."""
-        cal = Calendar.from_ical(ics_bytes)
-        events: list[RawEvent] = []
-        for component in cal.walk("VEVENT"):
-            start = _to_aware_utc(component.get("dtstart").dt if component.get("dtstart") else None)
-            if start is None:
-                continue
-            end_prop = component.get("dtend")
-            uid = str(component.get("uid")) if component.get("uid") else None
-            events.append(
-                RawEvent(
-                    title=str(component.get("summary") or "Untitled event"),
-                    description=str(component.get("description") or ""),
-                    start_time=start,
-                    end_time=_to_aware_utc(end_prop.dt) if end_prop else None,
-                    venue_name=str(component.get("location"))
-                    if component.get("location")
-                    else None,
-                    address=str(component.get("location")) if component.get("location") else None,
-                    image_url=_attach_image_url(component),
-                    source_name=self.name,
-                    source_url=str(component.get("url") or self.url),
-                    source_event_id=uid,
-                )
-            )
-        return events
+        return parse_calendar(resp.content, self.name, self.url)
