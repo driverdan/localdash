@@ -360,7 +360,8 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
    `NormalizedObservation`s. `ingest.py` never knows about source specifics.
 3. **`ingest.py`** reconciles each batch against stored state:
    - upsert the `entity` (keyed by `source_key` + `external_id`; for 911, `external_id` =
-     `master_incident_id`),
+     `master_incident_id`); ingest writes the normalized status into the entity's
+     `latest_properties["status"]`, which the next poll's change detection reads,
    - **append an `observation` only when state changed** (status moved, or the geometry
      fingerprint changed — coordinates rounded to ~0.1 m, so point jitter is ignored) — this is
      what avoids one duplicate row per poll, and is the core of the time-series,
@@ -397,6 +398,11 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async `fetch()` and pure
 `normalize()`), then register it in `app/collectors/__init__.py`'s `build_collectors()`. Nothing else
 changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic.
+
+**Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
+entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
+panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
+in the payload, so if the upstream `status` means something else and must be kept, rename it.
 
 ### The news feature (`app/news/`, ported from ChattNews)
 Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `news_refresh_minutes`

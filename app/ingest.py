@@ -4,6 +4,7 @@ Takes the normalized observations from a collector and reconciles them against
 stored state for that source:
 
   1. Upsert each observed entity (latest snapshot, last_seen, geom, active).
+     Ingest writes the normalized status into the snapshot's `status` key.
   2. Append a new observation row *only when the state changed* (status moved or
      the entity moved) — so we don't store one duplicate row per poll.
   3. Closure sweep: entities that were active but are absent from this payload
@@ -91,6 +92,16 @@ def _geom_value(obs: NormalizedObservation):
     return None
 
 
+def _latest_properties(obs: NormalizedObservation) -> dict:
+    """The entity's `latest_properties` snapshot for `obs`.
+
+    Ingest owns the entity's `status` key: it is always the normalized
+    `obs.status` (even when None), overriding any raw `status` in the payload.
+    Collectors never need to copy their status into `properties`.
+    """
+    return {**obs.properties, "status": obs.status}
+
+
 def _entity_feature(entity: Entity, obs: NormalizedObservation) -> dict:
     # Same property contract as GET /entities, so live diffs and REST agree.
     props = entity_properties(
@@ -151,7 +162,7 @@ async def ingest(session, source_key: str, observations: list[NormalizedObservat
                 is_active=True,
                 last_geom=geom,
                 geom_fingerprint=fingerprint,
-                latest_properties=obs.properties,
+                latest_properties=_latest_properties(obs),
             )
             session.add(entity)
             await session.flush()  # assign entity.id
@@ -159,6 +170,8 @@ async def ingest(session, source_key: str, observations: list[NormalizedObservat
             diff.new.append(_entity_feature(entity, obs))
             continue
 
+        # The previous status was written into latest_properties by ingest on the
+        # last poll (see _latest_properties), not by the collector.
         changed = state_changed(
             entity.latest_properties.get("status") if entity.latest_properties else None,
             entity.geom_fingerprint,
@@ -172,7 +185,7 @@ async def ingest(session, source_key: str, observations: list[NormalizedObservat
         entity.last_seen_at = now
         entity.last_geom = geom
         entity.geom_fingerprint = fingerprint
-        entity.latest_properties = obs.properties
+        entity.latest_properties = _latest_properties(obs)
         entity.is_active = True
 
         if changed:

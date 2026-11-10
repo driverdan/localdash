@@ -45,9 +45,9 @@ def test_basic_fields_and_stable_event_id():
     assert obs.external_id == "130266"
     assert obs.category == "general"
     assert obs.label.startswith("Chattanooga: Planned Water System Improvements")
-    # status is EventType, exposed under the canonical key for dedup + the frontend.
+    # status is EventType; the collector sets only obs.status and ingest records it.
     assert obs.status == "Planned Work"
-    assert obs.properties["status"] == "Planned Work"
+    assert "status" not in obs.properties
     assert obs.properties["advisory_type"] == "general"
     # Polygon geometry is carried through verbatim.
     assert obs.geometry["type"] == "Polygon"
