@@ -109,6 +109,16 @@ def test_event_without_startutc_is_skipped_and_parse_continues():
     assert [e.title for e in events] == ["Has Start"]
 
 
+def test_offset_utc_fields_are_normalised_to_utc():
+    payload = make_payload(
+        [make_event(StartUTC="2026-07-15T08:00:00-04:00", EndUTC="2026-07-15T20:00:00+01:00")]
+    )
+    (event,) = parse_payload(payload)
+
+    assert event.start_time == dt.datetime(2026, 7, 15, 12, 0, tzinfo=UTC)
+    assert event.end_time == dt.datetime(2026, 7, 15, 19, 0, tzinfo=UTC)
+
+
 def test_missing_endutc_yields_none():
     events = parse_payload(load_payload())
     (open_mic,) = [e for e in events if e.title == "Open Mic Night- Arts"]

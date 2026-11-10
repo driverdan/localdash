@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -42,6 +42,11 @@ def test_basic_fields_and_midpoint():
     # revisedDate is Central (-05:00) and is normalized to UTC.
     assert obs.source_time.tzinfo == timezone.utc
     assert obs.source_time.hour == 14
+
+
+def test_naive_revised_date_is_read_as_utc():
+    [obs] = _collector().normalize([_event(revisedDate="2026-06-13T09:42:42")])
+    assert obs.source_time == datetime(2026, 6, 13, 9, 42, 42, tzinfo=timezone.utc)
 
 
 def test_category_mapping():

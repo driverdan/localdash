@@ -1,8 +1,8 @@
 ## 1. Pin current behaviour first
 
-- [ ] 1.0 Confirm `relax-backend-feature-separation` has merged. This change depends on its guideline, and adds none of its own.
-- [ ] 1.1 Before touching any helper, run `pytest tests/test_hc911_helpers.py tests/test_tdot.py tests/test_epb.py tests/test_tnaw.py tests/test_events_*.py tests/test_news_fetcher.py tests/test_news_html_scrape.py tests/test_news_classify.py tests/test_news_clustering.py tests/test_config.py` and record that it is green. These existing tests are the preservation gate. Only the import edits named in 3.3, 4.4 and 8.5 may change them.
-- [ ] 1.2 Add characterisation cases where the current tests leave gaps, against today's code, and commit them first: tdot naive `revisedDate` read as UTC; a tribe event and a CitySpark event with an offset (non-`Z`) UTC field; and the iCal all-day `date` mapping to midnight UTC (if not already covered).
+- [x] 1.0 Confirm `relax-backend-feature-separation` has merged. This change depends on its guideline, and adds none of its own.
+- [x] 1.1 Before touching any helper, run `pytest tests/test_hc911_helpers.py tests/test_tdot.py tests/test_epb.py tests/test_tnaw.py tests/test_events_*.py tests/test_news_fetcher.py tests/test_news_html_scrape.py tests/test_news_classify.py tests/test_news_clustering.py tests/test_config.py` and record that it is green. These existing tests are the preservation gate. Only the import edits named in 3.3, 4.4 and 8.5 may change them.
+- [x] 1.2 Add characterisation cases where the current tests leave gaps, against today's code, and commit them first: tdot naive `revisedDate` read as UTC; a tribe event and a CitySpark event with an offset (non-`Z`) UTC field; and the iCal all-day `date` mapping to midnight UTC (if not already covered).
 
 ## 2. Shared time module
 

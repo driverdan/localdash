@@ -116,6 +116,23 @@ def test_event_without_utc_start_is_skipped_and_parse_continues(caplog):
 # --- parse: synthetic edges ---
 
 
+def test_offset_utc_fields_are_normalised_to_utc():
+    (event,) = parse_page(
+        make_page(
+            [
+                make_event(
+                    utc_start_date="2026-07-20T10:00:00-04:00",
+                    utc_end_date="2026-07-20 15:30:00+01:00",
+                )
+            ]
+        ),
+        SOURCE_NAME,
+    )
+
+    assert event.start_time == dt.datetime(2026, 7, 20, 14, 0, tzinfo=UTC)
+    assert event.end_time == dt.datetime(2026, 7, 20, 14, 30, tzinfo=UTC)
+
+
 def test_absent_subobjects_yield_no_image_venue_or_tags():
     (event,) = parse_page(make_page([make_event()]), SOURCE_NAME)
 
