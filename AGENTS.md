@@ -481,7 +481,10 @@ collectors/ingest.
   traffic; `ChattZooSource` hardcodes its one venue's coordinates for the same reason.
 - `ingest.py` — `run_sources()` fetches + upserts (dedup across sources), `tagging.py` assigns topic
   tags, and `geocoding.py` (`NominatimGeocoder`, rate-limited) resolves addresses to points;
-  `retry_failed_geocodes()` reruns stale geocode misses under the same lock.
+  `retry_failed_geocodes()` reruns stale geocode misses under the same lock. Identity tiers are
+  resolved by `_find_known_event` (source listing, then canonical key) and `_find_fuzzy_candidate`,
+  and both merge paths (ingest and reconciliation) share `_backfill_missing`, so a new backfilled
+  field is added in one place.
 - Distance is done in PostGIS: the API casts `Event.location` to `geography` and filters/measures in
   meters from the shared center origin (`center_lat`/`center_lon` in `config.py`, Chattanooga by
   default — also used by the CitySpark/Meetup source defaults and the weather feature).
