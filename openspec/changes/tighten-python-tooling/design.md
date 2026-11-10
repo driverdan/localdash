@@ -276,7 +276,7 @@ order):
 
 1. `ingest-owns-entity-status`
 2. `add-shared-http-client`
-3. `move-timeseries-into-package`
+3. `extract-orm-base` (formerly `move-timeseries-into-package`)
 4. `unify-refresh-orchestration`
 5. `decompose-events-upsert`
 6. `inject-settings-and-clock`
@@ -292,8 +292,8 @@ the siblings rewrite:
   `add-typed-contracts` (8). That change also replaces many bare `-> dict` API returns, which is
   why `disallow_any_generics` is deferred.
 - `app/ingest.py` (`ingest(session, ...)`, `_geom_value`, `_observation(..., now, ..., geom)`)
-  moves in `move-timeseries-into-package` (3), and its `now` and `geom` parameters change in
-  `inject-settings-and-clock` (6) and `unify-observation-geometry` (9).
+  has its `now` and `geom` parameters changed in `inject-settings-and-clock` (6) and
+  `unify-observation-geometry` (9).
 - `app/events/ingest.py` (6 errors, the mixed datetime imports, `list[list]`) is split by
   `decompose-events-upsert` (5).
 - `app/weather/service.py:152` and the collectors' HTTP calls change in `add-shared-http-client`
