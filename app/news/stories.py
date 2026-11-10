@@ -72,9 +72,19 @@ def build_stories(rows: list[dict]) -> list[dict]:
 
 
 async def get_stories(
-    session: AsyncSession, hours: int = 72, limit: int | None = None
+    session: AsyncSession,
+    hours: int = 72,
+    limit: int | None = None,
+    *,
+    now: datetime | None = None,
 ) -> list[dict]:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    """Stories from clustered articles published in the ``hours`` before ``now``.
+
+    ``now`` defaults to the current UTC time.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
     rows = (
         await session.execute(
             select(

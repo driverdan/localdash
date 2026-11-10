@@ -65,7 +65,7 @@ async def test_news_refresh_pings_every_completed_cycle(monkeypatch, fake_manage
     async def fake_fetch_all(session):
         return {"feed": "ok"}
 
-    async def fake_recluster(session):
+    async def fake_recluster(session, **kwargs):
         return 3
 
     monkeypatch.setattr(news_refresh_mod, "SessionLocal", FakeSessionLocal)
@@ -93,7 +93,7 @@ async def test_news_refresh_failure_does_not_ping(monkeypatch, fake_manager):
 
 
 def _patch_events_cycle(monkeypatch, fake_manager, run_stats, retry_stats, reconciled):
-    async def fake_run_sources(session, sources, geocoder, max_miles):
+    async def fake_run_sources(session, sources, geocoder, max_miles, **kwargs):
         return dict(run_stats)
 
     async def fake_retry(session, geocoder, retry_hours, batch):

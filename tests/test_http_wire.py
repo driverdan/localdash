@@ -24,7 +24,7 @@ from app.collectors.epb import EpbCollector
 from app.collectors.hc911 import HC911Collector
 from app.collectors.tdot import TdotCollector
 from app.collectors.tnaw import TnawCollector
-from app.config import Settings, get_settings
+from app.config import Settings
 from app.events.geocoding import NominatimGeocoder
 from app.events.sources import build_sources
 from app.events.sources.carcruisefinder import CarCruiseFinderSource
@@ -54,6 +54,7 @@ SETTINGS = Settings(
     hc911_auth_token="wire-hc911-token",
     hc911_origin="https://origin.example",
     tdot_api_key="wire-tdot-key",
+    airnow_api_key="wire-airnow-key",
 )
 
 
@@ -74,7 +75,7 @@ async def _geocode() -> None:
 
 
 async def _weather() -> None:
-    await WeatherService().get_current(force=True)
+    await WeatherService(SETTINGS).get_current(force=True)
 
 
 @dataclass
@@ -149,16 +150,6 @@ SITES = [
 ]
 
 
-@pytest.fixture
-def weather_settings(monkeypatch):
-    """WeatherService reads get_settings(); point it at the test UA, with AirNow on."""
-    monkeypatch.setenv("USER_AGENT", APP_UA)
-    monkeypatch.setenv("AIRNOW_API_KEY", "wire-airnow-key")
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
 def _redirect_first(request: httpx.Request, sent: list[httpx.Request]) -> httpx.Response:
     sent.append(request)
     if len(sent) == 1:
@@ -168,7 +159,7 @@ def _redirect_first(request: httpx.Request, sent: list[httpx.Request]) -> httpx.
 
 
 @pytest.mark.parametrize("site", SITES, ids=[s.id for s in SITES])
-async def test_request_settings(site: Site, mock_http, weather_settings):
+async def test_request_settings(site: Site, mock_http):
     sent: list[httpx.Request] = []
     mock_http.install(lambda request: _redirect_first(request, sent))
 

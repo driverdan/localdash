@@ -12,6 +12,7 @@ import datetime as dt
 from app.api.events import items, refresh, tags
 from app.events.ingest import upsert_raw_events
 from app.events.sources.base import RawEvent
+from tests.conftest import make_settings
 from tests.fakes import FakeGeocoder
 
 UTC = dt.timezone.utc
@@ -48,7 +49,7 @@ async def _seed(session):
 
 async def test_default_listing_is_upcoming_in_start_order(events_db_session):
     await _seed(events_db_session)
-    result = await items(session=events_db_session)
+    result = await items(session=events_db_session, settings=make_settings())
 
     assert [i["title"] for i in result["items"]] == [
         "test-Near Jazz Show",
@@ -81,7 +82,7 @@ async def test_default_listing_keeps_in_progress_events(events_db_session):
         ],
         FakeGeocoder({}),
     )
-    result = await items(session=events_db_session)
+    result = await items(session=events_db_session, settings=make_settings())
     assert {i["title"] for i in result["items"]} == {"test-In Progress Show"}
 
 
@@ -95,7 +96,7 @@ async def test_listing_serializes_image_url(events_db_session):
         ],
         geo,
     )
-    result = await items(session=events_db_session)
+    result = await items(session=events_db_session, settings=make_settings())
     by_title = {i["title"]: i for i in result["items"]}
     assert by_title["test-Imaged Show"]["image_url"] == "http://img.test/show.jpg"
     assert by_title["test-Imageless Show"]["image_url"] is None
@@ -103,32 +104,34 @@ async def test_listing_serializes_image_url(events_db_session):
 
 async def test_upcoming_false_includes_past_events(events_db_session):
     await _seed(events_db_session)
-    result = await items(upcoming=False, session=events_db_session)
+    result = await items(upcoming=False, session=events_db_session, settings=make_settings())
     assert result["count"] == 4
     assert result["items"][0]["title"] == "test-Past Gala Dinner"
 
 
 async def test_distance_filter_excludes_far_and_unlocated(events_db_session):
     await _seed(events_db_session)
-    result = await items(max_miles=15, session=events_db_session)
+    result = await items(max_miles=15, session=events_db_session, settings=make_settings())
     assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
 
 
 async def test_topic_filter_matches_any_requested_tag(events_db_session):
     await _seed(events_db_session)
-    result = await items(topic=["music"], session=events_db_session)
+    result = await items(topic=["music"], session=events_db_session, settings=make_settings())
     assert {i["title"] for i in result["items"]} == {
         "test-Near Jazz Show",  # "jazz" -> music
         "test-Far Rock Concert",  # "concert" -> music
     }
 
-    result = await items(topic=["food"], upcoming=False, session=events_db_session)
+    result = await items(
+        topic=["food"], upcoming=False, session=events_db_session, settings=make_settings()
+    )
     assert {i["title"] for i in result["items"]} == {"test-Past Gala Dinner"}  # "dinner" -> food
 
 
 async def test_title_search(events_db_session):
     await _seed(events_db_session)
-    result = await items(search="jazz", session=events_db_session)
+    result = await items(search="jazz", session=events_db_session, settings=make_settings())
     assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
 
 
@@ -187,4 +190,35 @@ async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
         "skipped_far": 0,
         "retried": 0,
         "resolved": 0,
+    }
+
+
+async def test_refresh_forwards_configured_blocklist_and_center(events_db_session, monkeypatch):
+    # refresh() is the composition root: it reads the settings and passes the
+    # blocklist and center down to run_sources, which never reads them itself.
+    from app.events import refresh as events_refresh
+
+    settings = make_settings(
+        events_ical_feeds="",
+        events_geocode_retry_hours=0,
+        events_blocked_tags="test-blocked, Test-Other",
+        center_lat=36.5,
+        center_lon=-84.25,
+        events_ingest_max_miles=42,
+    )
+    monkeypatch.setattr("app.events.refresh.get_settings", lambda: settings)
+    monkeypatch.setattr("app.events.refresh.build_sources", lambda settings: [])
+    captured: dict = {}
+
+    async def fake_run_sources(session, sources, geocoder=None, max_miles=0, **kwargs):
+        captured.update(kwargs, max_miles=max_miles)
+        return {"created": 0, "merged": 0, "skipped_far": 0}
+
+    monkeypatch.setattr(events_refresh, "run_sources", fake_run_sources)
+    await events_refresh.refresh()
+
+    assert captured == {
+        "max_miles": 42,
+        "blocked_tags": {"test-blocked", "test-other"},
+        "center": (36.5, -84.25),
     }

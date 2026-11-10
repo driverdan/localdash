@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
     async with SessionLocal() as session:
         await sync_registry(session)
         # Purge blocklisted event tags before the first refresh re-tags events.
-        await purge_blocked_tags(session)
+        await purge_blocked_tags(session, get_settings().blocked_tags)
     settings = get_settings()
     collectors = {c.source_key: c for c in build_collectors(settings)}
     app.state.collectors = collectors

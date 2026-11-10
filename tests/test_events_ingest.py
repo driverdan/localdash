@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.config import get_settings
 from app.events.ingest import (
     _haversine_miles,
     retry_failed_geocodes,
@@ -20,6 +19,7 @@ from app.events.ingest import (
 )
 from app.events.models import Event, EventLink, GeocodeCache
 from app.events.sources.base import RawEvent
+from tests.conftest import make_settings
 from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
 
 UTC = dt.timezone.utc
@@ -28,6 +28,7 @@ MARKET_ST = "test-100 Market St, Chattanooga, TN"
 BEALE_ST = "test-1 Beale St, Memphis, TN"
 MEMPHIS = (35.1495, -90.0490)
 DOWNTOWN_CHATTANOOGA = (35.0456, -85.3097)
+CENTER = make_settings().center
 
 
 def upcoming(days: int, hour: int) -> dt.datetime:
@@ -208,14 +209,18 @@ async def test_unresolvable_address_is_recorded_and_not_retried(events_db_sessio
 
 
 def test_haversine_known_distance_and_zero():
-    assert _haversine_miles(get_settings().center, MEMPHIS) == pytest.approx(268, abs=10)
+    assert _haversine_miles(CENTER, MEMPHIS) == pytest.approx(268, abs=10)
     assert _haversine_miles(MEMPHIS, MEMPHIS) == 0
 
 
 async def test_far_new_event_is_dropped_and_counted(events_db_session):
     geo = FakeGeocoder({BEALE_ST: MEMPHIS})
     stats = await upsert_raw_events(
-        events_db_session, [make_raw("test-SourceA", address=BEALE_ST)], geo, max_miles=100
+        events_db_session,
+        [make_raw("test-SourceA", address=BEALE_ST)],
+        geo,
+        max_miles=100,
+        center=CENTER,
     )
 
     assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
@@ -231,7 +236,11 @@ async def test_far_new_event_is_dropped_and_counted(events_db_session):
 async def test_nearby_new_event_passes_the_filter(events_db_session):
     geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     stats = await upsert_raw_events(
-        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo, max_miles=100
+        events_db_session,
+        [make_raw("test-SourceA", address=BROAD_ST)],
+        geo,
+        max_miles=100,
+        center=CENTER,
     )
 
     assert stats == {"created": 1, "merged": 0, "skipped_far": 0}
@@ -249,6 +258,7 @@ async def test_unlocated_events_are_kept_when_filter_is_on(events_db_session):
         ],
         geo,
         max_miles=100,
+        center=CENTER,
     )
 
     assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
@@ -271,16 +281,31 @@ async def test_zero_max_miles_disables_the_filter(events_db_session):
 async def test_merge_path_is_exempt_from_the_filter(events_db_session):
     geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA, BEALE_ST: MEMPHIS})
     await upsert_raw_events(
-        events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], geo, max_miles=100
+        events_db_session,
+        [make_raw("test-SourceA", address=BROAD_ST)],
+        geo,
+        max_miles=100,
+        center=CENTER,
     )
     # Same canonical key from a second source, even with a far address, merges.
     stats = await upsert_raw_events(
-        events_db_session, [make_raw("test-SourceB", address=BEALE_ST)], geo, max_miles=100
+        events_db_session,
+        [make_raw("test-SourceB", address=BEALE_ST)],
+        geo,
+        max_miles=100,
+        center=CENTER,
     )
 
     assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
     (event,) = await _events(events_db_session)
     assert {link.source_name for link in event.links} == {"test-SourceA", "test-SourceB"}
+
+
+async def test_radius_filter_without_center_raises(events_db_session):
+    with pytest.raises(ValueError, match="center"):
+        await upsert_raw_events(
+            events_db_session, [make_raw("test-SourceA", address=BROAD_ST)], max_miles=100
+        )
 
 
 # --- source-supplied coordinates and tags ---
@@ -321,6 +346,7 @@ async def test_supplied_coordinates_feed_the_distance_filter(events_db_session):
         [make_raw("test-SourceA", latitude=MEMPHIS[0], longitude=MEMPHIS[1])],
         FakeGeocoder({}),
         max_miles=100,
+        center=CENTER,
     )
 
     assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
@@ -392,18 +418,17 @@ async def test_supplied_tag_names_merge_with_the_keyword_vocabulary(events_db_se
 # --- tag blocklist ---
 
 
-def test_blocked_tags_normalizes_names(monkeypatch):
-    settings = get_settings()
-    monkeypatch.setattr(settings, "events_blocked_tags", " Politics , , MUSIC ")
+def test_blocked_tags_normalizes_names():
+    settings = make_settings(events_blocked_tags=" Politics , , MUSIC ")
     assert settings.blocked_tags == {"politics", "music"}
 
 
-async def test_blocked_keyword_tag_is_stripped_at_ingest(events_db_session, monkeypatch):
-    monkeypatch.setattr(get_settings(), "events_blocked_tags", "food")
+async def test_blocked_keyword_tag_is_stripped_at_ingest(events_db_session):
     # Title keyword-tags both music and food; food must not attach.
     await upsert_raw_events(
         events_db_session,
         [make_raw("test-SourceA", title="Live music and food trucks", description="")],
+        blocked_tags={"food"},
     )
 
     (event,) = await _events(events_db_session)
@@ -412,18 +437,18 @@ async def test_blocked_keyword_tag_is_stripped_at_ingest(events_db_session, monk
     assert "food" not in names
 
 
-async def test_blocked_source_supplied_tag_is_stripped_at_ingest(events_db_session, monkeypatch):
-    monkeypatch.setattr(get_settings(), "events_blocked_tags", "nightlife")
+async def test_blocked_source_supplied_tag_is_stripped_at_ingest(events_db_session):
     await upsert_raw_events(
         events_db_session,
         [make_raw("test-SourceA", title="Rooftop set", tags=["Nightlife", "Music"])],
+        blocked_tags={"nightlife"},
     )
 
     (event,) = await _events(events_db_session)
     assert {tag.name for tag in event.tags} == {"music"}
 
 
-async def test_purge_deletes_blocked_tags_and_associations(events_db_session, monkeypatch):
+async def test_purge_deletes_blocked_tags_and_associations(events_db_session):
     from app.events.ingest import purge_blocked_tags
     from app.events.models import Tag
 
@@ -431,8 +456,7 @@ async def test_purge_deletes_blocked_tags_and_associations(events_db_session, mo
     (event,) = await _events(events_db_session)
     assert "test-blockme" in {tag.name for tag in event.tags}
 
-    monkeypatch.setattr(get_settings(), "events_blocked_tags", "test-blockme")
-    deleted = await purge_blocked_tags(events_db_session)
+    deleted = await purge_blocked_tags(events_db_session, blocked={"test-blockme"})
 
     assert deleted == 1
     assert await events_db_session.scalar(select(Tag).where(Tag.name == "test-blockme")) is None
@@ -440,14 +464,13 @@ async def test_purge_deletes_blocked_tags_and_associations(events_db_session, mo
     assert "test-blockme" not in {tag.name for tag in event.tags}
 
 
-async def test_purge_is_a_noop_when_blocklist_empty(events_db_session, monkeypatch):
+async def test_purge_is_a_noop_when_blocklist_empty(events_db_session):
     from app.events.ingest import purge_blocked_tags
 
-    monkeypatch.setattr(get_settings(), "events_blocked_tags", "")
     await upsert_raw_events(events_db_session, [make_raw("test-SourceA", tags=["test-keepme"])])
     (event,) = await _events(events_db_session)
 
-    deleted = await purge_blocked_tags(events_db_session)
+    deleted = await purge_blocked_tags(events_db_session, blocked=set())
 
     assert deleted == 0
     await events_db_session.refresh(event, ["tags"])
@@ -609,6 +632,24 @@ async def test_non_positive_retry_hours_disables_the_pass(events_db_session):
 
     assert stats == {"retried": 0, "resolved": 0}
     assert retry_geo.calls == []
+
+
+async def test_retry_age_window_follows_injected_now(events_db_session):
+    stamp = dt.datetime(2025, 3, 14, 12, 0, tzinfo=UTC)
+    events_db_session.add(GeocodeCache(address=BROAD_ST, last_attempted_at=stamp))
+    await events_db_session.commit()
+    geo = FakeGeocoder({})
+
+    early = stamp + dt.timedelta(hours=23)
+    stats = await retry_failed_geocodes(events_db_session, geo, retry_hours=24, batch=25, now=early)
+    assert stats == {"retried": 0, "resolved": 0}
+    assert (await _cache_row(events_db_session, BROAD_ST)).last_attempted_at == stamp
+
+    late = stamp + dt.timedelta(hours=25)
+    stats = await retry_failed_geocodes(events_db_session, geo, retry_hours=24, batch=25, now=late)
+    assert stats == {"retried": 1, "resolved": 0}
+    assert geo.calls == [BROAD_ST]
+    assert (await _cache_row(events_db_session, BROAD_ST)).last_attempted_at == late
 
 
 # --- tiered de-duplication ---
@@ -778,6 +819,23 @@ async def test_reconcile_merges_preexisting_duplicates(events_db_session):
     (again,) = await _events(events_db_session)
     assert again.id == event.id
     assert len(again.links) == 2
+
+
+async def test_reconcile_window_follows_injected_now(events_db_session):
+    from app.events.ingest import reconcile_events
+
+    # A fixed past date: only the injected now decides whether the pair is upcoming.
+    start = dt.datetime(2025, 3, 14, 22, 0, tzinfo=UTC)
+    keeper = seed_event("test-Sonic Machines Cruise In", start, venue="Sonic")
+    dupe = seed_event("test-Sonic Machines Sonic Night Cruise In", start, venue="Sonic")
+    events_db_session.add_all([keeper, dupe])
+    await events_db_session.commit()
+
+    assert await reconcile_events(events_db_session, now=start + dt.timedelta(days=1)) == 0
+    assert len(await _events(events_db_session)) == 2
+
+    assert await reconcile_events(events_db_session, now=start - dt.timedelta(days=1)) == 1
+    assert len(await _events(events_db_session)) == 1
 
 
 async def test_reconcile_merges_after_coordinates_appear(events_db_session):

@@ -6,19 +6,18 @@ namespaces; only cross-feature endpoints belong here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.ws import manager
 
 router = APIRouter()
 
 
 @router.get("/config")
-async def config():
+async def config(settings: Settings = Depends(get_settings)):
     """Frontend bootstrap config (map tiles, etc.)."""
-    s = get_settings()
-    return {"tile_url": s.tile_url, "tile_attribution": s.tile_attribution}
+    return {"tile_url": settings.tile_url, "tile_attribution": settings.tile_attribution}
 
 
 @router.websocket("/ws")

@@ -39,7 +39,10 @@ STATION_LIMIT = 3
 
 
 class WeatherService:
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
+        # None: read the process settings on each get_current() (the module
+        # singleton below), so constructing it reads nothing at import time.
+        self._settings = settings
         self._lock = asyncio.Lock()
         self._payload: dict | None = None
         self._fetched_at: float = 0.0
@@ -55,7 +58,7 @@ class WeatherService:
         marginally fresh and every other tick would otherwise be a cache hit).
         Locking, stale-on-failure, and AQI carry-forward still apply.
         """
-        settings = get_settings()
+        settings = self._settings or get_settings()
         ttl = settings.weather_cache_minutes * 60
         async with self._lock:
             fresh = time.monotonic() - self._fetched_at < ttl

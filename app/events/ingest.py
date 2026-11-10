@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from collections import defaultdict
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -20,7 +21,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import get_settings
 from app.events.dedup import MatchSide, canonical_key, events_match
 from app.events.dedup import haversine_miles as _haversine_miles
 from app.events.geocoding import Coords, Geocoder, NullGeocoder
@@ -55,10 +55,10 @@ async def _get_or_create_tag(session: AsyncSession, name: str, cache: dict[str, 
     return tag
 
 
-async def purge_blocked_tags(session: AsyncSession) -> int:
-    """Delete every blocklisted tag; the event_tags cascade detaches them from
-    all events. No-op when the blocklist is empty. Returns the rows deleted."""
-    blocked = get_settings().blocked_tags
+async def purge_blocked_tags(session: AsyncSession, blocked: Collection[str]) -> int:
+    """Delete every tag named in ``blocked``; the event_tags cascade detaches
+    them from all events. No-op when the blocklist is empty. Returns the rows
+    deleted."""
     if not blocked:
         return 0
     result = await session.execute(delete(Tag).where(Tag.name.in_(blocked)))
@@ -82,8 +82,12 @@ async def _geocode(
     geocoder: Geocoder,
     address: str | None,
     cache: dict[str, Coords | None],
+    now: datetime,
 ) -> Coords | None:
-    """Resolve an address to coordinates, using both an in-run and DB-backed cache."""
+    """Resolve an address to coordinates, using both an in-run and DB-backed cache.
+
+    A new cache row is stamped ``last_attempted_at=now``.
+    """
     if not address:
         return None
     if address in cache:
@@ -99,7 +103,7 @@ async def _geocode(
                 address=address,
                 latitude=coords[0] if coords else None,
                 longitude=coords[1] if coords else None,
-                last_attempted_at=datetime.now(timezone.utc),
+                last_attempted_at=now,
             )
         )
     cache[address] = coords
@@ -190,19 +194,20 @@ async def _locate(
     raw: RawEvent,
     address: str | None,
     geo_cache: dict[str, Coords | None],
+    now: datetime,
 ) -> Coords | None:
-    """Source-supplied coordinates when present, else geocode ``address``."""
+    """Source-supplied coordinates when present, else geocode ``address`` (stamped ``now``)."""
     coords = _supplied_coords(raw)
     if coords is None:
-        coords = await _geocode(session, geocoder, address, geo_cache)
+        coords = await _geocode(session, geocoder, address, geo_cache, now)
     return coords
 
 
-def _beyond_radius(raw: RawEvent, coords: Coords | None, max_miles: float) -> bool:
-    """Ingest radius filter: True when a located new event lies beyond max_miles."""
+def _beyond_radius(raw: RawEvent, coords: Coords | None, max_miles: float, center: Coords) -> bool:
+    """Ingest radius filter: True when a located new event lies beyond max_miles of center."""
     if max_miles <= 0 or coords is None:
         return False
-    distance = _haversine_miles(get_settings().center, coords)
+    distance = _haversine_miles(center, coords)
     if distance <= max_miles:
         return False
     log.debug(
@@ -214,7 +219,7 @@ def _beyond_radius(raw: RawEvent, coords: Coords | None, max_miles: float) -> bo
     return True
 
 
-def _tag_names(raw: RawEvent, blocked_tags: set[str]) -> set[str]:
+def _tag_names(raw: RawEvent, blocked_tags: Collection[str]) -> set[str]:
     """Tag names for a new event: supplied tags, else keyword tags, minus the blocklist."""
     # Source-supplied tags (lowercased to merge with the keyword
     # vocabulary) replace keyword tagging entirely.
@@ -223,7 +228,7 @@ def _tag_names(raw: RawEvent, blocked_tags: set[str]) -> set[str]:
     else:
         names = tag_event(raw.title, raw.description or "")
     # Blocklisted topics are never created or attached (both paths).
-    return names - blocked_tags
+    return names.difference(blocked_tags)
 
 
 async def _create_event(
@@ -231,7 +236,7 @@ async def _create_event(
     raw: RawEvent,
     key: str,
     coords: Coords | None,
-    blocked_tags: set[str],
+    blocked_tags: Collection[str],
     tag_cache: dict[str, Tag],
 ) -> Event:
     """Add a new canonical event for raw, then attach its tags in sorted order."""
@@ -283,6 +288,7 @@ async def _merge_report(
     raw: RawEvent,
     geocoder: Geocoder,
     geo_cache: dict[str, Coords | None],
+    now: datetime,
 ) -> None:
     """Merge a matched report into its event: backfill, then locate if still unlocated."""
     _backfill_missing(
@@ -295,7 +301,7 @@ async def _merge_report(
     )
     if event.location is None:
         # Read after the backfill: the report may have just supplied the address.
-        coords = await _locate(session, geocoder, raw, event.address or raw.address, geo_cache)
+        coords = await _locate(session, geocoder, raw, event.address or raw.address, geo_cache, now)
         if coords:
             event.location = _point(coords)
 
@@ -327,21 +333,31 @@ async def upsert_raw_events(
     raws: list[RawEvent],
     geocoder: Geocoder | None = None,
     max_miles: float = 0,
+    *,
+    blocked_tags: Collection[str] = frozenset(),
+    center: Coords | None = None,
+    now: datetime | None = None,
 ) -> dict[str, int]:
     """Insert or merge a batch of raw events.
 
     New events are geocoded from their address; when max_miles is positive, a
-    new event geocoding farther than that from the Chattanooga center is
-    dropped (merges are exempt). Returns counts of newly created vs. merged
-    (duplicate) events, plus how many were skipped as too far.
+    new event geocoding farther than that from ``center`` is dropped (merges
+    are exempt), and ``center`` is required (ValueError without it). Tags named
+    in ``blocked_tags`` are never attached to a new event. New geocode-cache
+    rows are stamped with ``now`` (default: the current UTC time, read once).
+    Returns counts of newly created vs. merged (duplicate) events, plus how
+    many were skipped as too far.
     """
+    if max_miles > 0 and center is None:
+        raise ValueError("upsert_raw_events: max_miles > 0 requires a center")
+    if now is None:
+        now = datetime.now(timezone.utc)
     geocoder = geocoder or NullGeocoder()
     created = 0
     merged = 0
     skipped_far = 0
     tag_cache: dict[str, Tag] = {}
     geo_cache: dict[str, Coords | None] = {}
-    blocked_tags = get_settings().blocked_tags
 
     for raw in raws:
         key = canonical_key(raw.title, raw.start_time)
@@ -349,16 +365,16 @@ async def upsert_raw_events(
         coords: Coords | None = None
         if event is None:
             # Tier 3 needs coordinates; locate only once tiers 1-2 miss.
-            coords = await _locate(session, geocoder, raw, raw.address, geo_cache)
+            coords = await _locate(session, geocoder, raw, raw.address, geo_cache, now)
             event = await _find_fuzzy_candidate(session, raw, coords)
         if event is None:
-            if _beyond_radius(raw, coords, max_miles):
+            if center is not None and _beyond_radius(raw, coords, max_miles, center):
                 skipped_far += 1
                 continue
             event = await _create_event(session, raw, key, coords, blocked_tags, tag_cache)
             created += 1
         else:
-            await _merge_report(session, event, raw, geocoder, geo_cache)
+            await _merge_report(session, event, raw, geocoder, geo_cache, now)
             merged += 1
         _upsert_link(event, raw)
         await session.flush()
@@ -432,7 +448,7 @@ async def _reconcile_bucket(session: AsyncSession, candidates: list[_Candidate])
     return merged
 
 
-async def reconcile_events(session: AsyncSession) -> int:
+async def reconcile_events(session: AsyncSession, *, now: datetime | None = None) -> int:
     """Merge stored upcoming events the de-duplication tiers identify as one.
 
     Two stored rows are one event when their canonical keys — recomputed from
@@ -442,12 +458,15 @@ async def reconcile_events(session: AsyncSession) -> int:
     that predate the matcher and pairs that only became mergeable later
     (e.g. a geocode retry resolved the location gate's coordinates). Within
     each UTC-day bucket events are compared pairwise; the earlier-created row
-    survives. Idempotent; returns the merge count.
+    survives. Only events starting at or after ``now`` (default: the current
+    UTC time) are considered. Idempotent; returns the merge count.
     """
+    if now is None:
+        now = datetime.now(timezone.utc)
     rows = (
         await session.execute(
             select(Event, func.ST_Y(Event.location), func.ST_X(Event.location))
-            .where(Event.starts_at >= datetime.now(timezone.utc))
+            .where(Event.starts_at >= now)
             .options(*_EVENT_OPTIONS)
             .order_by(Event.id)
         )
@@ -473,6 +492,8 @@ async def retry_failed_geocodes(
     geocoder: Geocoder,
     retry_hours: float,
     batch: int,
+    *,
+    now: datetime | None = None,
 ) -> dict[str, int]:
     """Re-attempt cached geocode failures whose last attempt is stale.
 
@@ -480,17 +501,21 @@ async def retry_failed_geocodes(
     ``retry_hours`` ago, oldest first. A success stores the coordinates and
     backfills the location of every stored event with that address; a failure
     just bumps last_attempted_at so the row waits out another age window.
-    A non-positive ``retry_hours`` disables the pass.
+    A non-positive ``retry_hours`` disables the pass. Age is measured from
+    ``now`` (default: the current UTC time, read once), and every row retried
+    in the pass is stamped with that same ``now``; ties retry in address order.
     """
     if retry_hours <= 0 or batch <= 0:
         return {"retried": 0, "resolved": 0}
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=retry_hours)
+    if now is None:
+        now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=retry_hours)
     rows = (
         await session.scalars(
             select(GeocodeCache)
             .where(GeocodeCache.latitude.is_(None), GeocodeCache.last_attempted_at < cutoff)
-            .order_by(GeocodeCache.last_attempted_at)
+            .order_by(GeocodeCache.last_attempted_at, GeocodeCache.address)
             .limit(batch)
         )
     ).all()
@@ -498,7 +523,7 @@ async def retry_failed_geocodes(
     resolved = 0
     for row in rows:
         coords = await geocoder.geocode(row.address)
-        row.last_attempted_at = datetime.now(timezone.utc)
+        row.last_attempted_at = now
         if coords is not None:
             row.latitude, row.longitude = coords
             resolved += 1
@@ -516,10 +541,15 @@ async def run_sources(
     sources: list[EventSource],
     geocoder: Geocoder | None = None,
     max_miles: float = 0,
+    *,
+    blocked_tags: Collection[str] = frozenset(),
+    center: Coords | None = None,
+    now: datetime | None = None,
 ) -> dict[str, int]:
     """Fetch every source and persist the combined result.
 
-    A failure in one source does not abort the others.
+    A failure in one source does not abort the others. ``blocked_tags``,
+    ``center`` and ``now`` are forwarded to upsert_raw_events.
     """
     raws: list[RawEvent] = []
     for source in sources:
@@ -527,4 +557,12 @@ async def run_sources(
             raws.extend(await source.fetch())
         except Exception:  # noqa: BLE001 — defensive against flaky feeds
             log.exception("event source %s failed", getattr(source, "name", source))
-    return await upsert_raw_events(session, raws, geocoder, max_miles=max_miles)
+    return await upsert_raw_events(
+        session,
+        raws,
+        geocoder,
+        max_miles=max_miles,
+        blocked_tags=blocked_tags,
+        center=center,
+        now=now,
+    )

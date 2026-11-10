@@ -46,7 +46,6 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.news.models import NewsArticle
 from app.news.textutil import title_tokens
 
@@ -234,10 +233,14 @@ def assign_clusters(
     return clusters
 
 
-async def recluster(session: AsyncSession) -> int:
-    """Assign cluster_id to all articles in the story window. Returns cluster count."""
-    now = datetime.now(timezone.utc)
-    window_days = get_settings().news_story_window_days
+async def recluster(session: AsyncSession, *, window_days: int, now: datetime | None = None) -> int:
+    """Assign cluster_id to all articles in the story window. Returns cluster count.
+
+    The window is the ``window_days`` days before ``now`` (default: the
+    current UTC time, read once).
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=window_days)
     corpus_cutoff = now - timedelta(days=max(IDF_LOOKBACK_DAYS, window_days))
     rows = (
