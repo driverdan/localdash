@@ -69,8 +69,7 @@ Options considered:
   cannot drift from the module path, and nothing needs to be maintained by hand. The hierarchy
   still allows feature-wide control (`logging.getLogger("app.events").setLevel(...)` covers every
   events module, as `localdash.events` does today) and adds per-module control. When
-  `move-timeseries-into-package` relocates `app/scheduler.py` or `unify-refresh-orchestration`
-  creates new modules, their logger names follow automatically.
+  `unify-refresh-orchestration` creates new modules, their logger names follow automatically.
 - **A consistent hand-written `localdash.<feature>.<module>` scheme.** This keeps the `localdash`
   brand in log lines. It is the same idea as `__name__` with a different root, but every new or
   moved module needs a string kept in sync by hand, and that bookkeeping is how the current names
@@ -166,9 +165,8 @@ and `code-quality-tooling`, which is about the pre-commit and lint machinery, no
 - `add-shared-http-client` (2) rewrites every event source's `fetch`, including `ical.py` and
   `meetup.py`. This change edits the line in those `fetch` bodies that calls the parser. Rebase
   onto it: keep its client code and change only the parse call.
-- `move-timeseries-into-package` (3) may move `app/scheduler.py` and `app/ingest.py`. With
-  `__name__`, the logger name follows the move. Edit whatever path the scheduler has when this
-  lands.
+- `extract-orm-base` (3, formerly `move-timeseries-into-package`) no longer moves any files, so
+  `app/scheduler.py` keeps its path and there is no overlap.
 - `unify-refresh-orchestration` (4) rewrites `app/scheduler.py`, `app/events/refresh.py` and
   `app/news/refresh.py`. Convert whatever logger lines those files have at implementation time, and
   any new modules it adds.
