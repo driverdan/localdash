@@ -45,6 +45,6 @@
 
 - [x] 5.1 `pre-commit run --all-files` passes with the new local hooks
 - [x] 5.2 Staging a file with a `timezone.utc` use aborts the commit with the rewrite applied; staging a bare `except Exception: pass` aborts with `BLE001`
-- [ ] 5.3 CI on the PR: `lint`, `pytest`, `frontend`, `docker` all run and pass
+- [x] 5.3 CI on the PR: `lint`, `pytest`, `frontend`, `docker` all run and pass
 - [x] 5.4 `openspec validate tighten-python-tooling --strict` passes
 - [x] 5.5 PR description lists the manual post-merge step: the repo owner adds `lint` to the required status checks
