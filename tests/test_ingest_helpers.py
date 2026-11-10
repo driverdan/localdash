@@ -40,6 +40,27 @@ def _poly(*rings) -> dict:
     return {"type": "Polygon", "coordinates": list(rings)}
 
 
+# Exact stored fingerprints. entities.geom_fingerprint persists these strings
+# between polls, so any change to them makes every entity look moved once.
+
+
+def test_point_fingerprint_pinned_exact_string():
+    obs = _obs(lat=35.0451234567, lon=-85.3097654321)
+    assert geom_fingerprint(obs) == "-85.309765,35.045123"
+
+
+def test_polygon_fingerprint_pinned_exact_string():
+    ring = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-85.0, 35.0]]
+    obs = _obs(geometry=_poly(ring))
+    assert geom_fingerprint(obs) == "1e3c7f63daf4a510065e511d7c370ed1ef8ca025"
+
+
+def test_multipolygon_fingerprint_pinned_exact_string():
+    ring = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-85.0, 35.0]]
+    obs = _obs(geometry={"type": "MultiPolygon", "coordinates": [[ring]]})
+    assert geom_fingerprint(obs) == "37addbf384b68e32171b98a9a9d0eb47188c1e41"
+
+
 def test_polygon_fingerprint_is_stable():
     ring = [[-85.0, 35.0], [-85.0, 35.1], [-84.9, 35.1], [-85.0, 35.0]]
     assert geom_fingerprint(_obs(geometry=_poly(ring))) == geom_fingerprint(
