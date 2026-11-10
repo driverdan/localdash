@@ -162,9 +162,9 @@ changes no schema and adds no migration.
 **Sibling proposals from the same architecture review** (suggested landing order; this change is
 12th):
 
-- `move-timeseries-into-package` (3) moves `app/models.py` and relocates `Base`. This change
-  edits `Source`, `Entity`, and `Observation` wherever they live by then; the file paths in
-  `tasks.md` are current-`main` paths.
+- `extract-orm-base` (3, formerly `move-timeseries-into-package`) relocates `Base` to
+  `app/orm.py` but no longer moves `app/models.py`. `Source`, `Entity`, and `Observation` stay in
+  `app/models.py`, so the file paths in `tasks.md` hold; only the `Base` import there changes.
 - `unify-refresh-orchestration` (4) moves `_record_run` out of `app/scheduler.py`. This change
   removes `enabled=True` from that function wherever it lives by then.
 - `inject-settings-and-clock` (6) may change `_record_run`'s signature (injected `now`). That does
