@@ -61,7 +61,11 @@ separate worker + broker (Celery/Redis): at this scale a background task is simp
 moving parts.
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
-same library FastAPI's TestClient builds on).
+same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
+`app/http.py`, and each call passes its timeout, User-Agent (`None` = httpx's default) and redirect
+policy explicitly; `tests/test_http_wire.py` pins each upstream's values. Tests fake upstreams with
+the `mock_http` fixture (`mock_http.install(handler)`; sent requests in `mock_http.requests`). Any
+outbound request a test doesn't mock is refused and fails the test, even if the code swallows it.
 
 **RSS parsing — feedparser** (plus **BeautifulSoup** for the one `kind: html` news feed and the
 events scrapers). feedparser is synchronous, so the news fetcher runs it in `asyncio.to_thread`;
@@ -397,7 +401,9 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 ### Adding a data source
 Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async `fetch()` and pure
 `normalize()`), then register it in `app/collectors/__init__.py`'s `build_collectors()`. Nothing else
-changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic.
+changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic. `fetch()`
+builds its client with `app.http.make_client` (never `httpx.AsyncClient` directly); add the source
+to `tests/test_http_wire.py`.
 
 **Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
 entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
@@ -435,7 +441,7 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
   `image_url` added in `0007`).
 
 **Feed gotchas (hard-won in ChattNews, don't regress):** requests must send the browser
-`USER_AGENT` in `registry.py` (TownNews/Local 3 429s unfamiliar UAs); Local 3 feeds are TownNews
+`BROWSER_USER_AGENT` in `app/http.py` (TownNews/Local 3 429s unfamiliar UAs); Local 3 feeds are TownNews
 search URLs (`c=local-news` / `c=local-sports*` — unfiltered mixes in national CNN wire); TFP's
 `breakingnews` feed is valid-but-empty, `local/` is the working one, and TFP politics/life include
 syndicated national content (known caveat); WDEF feeds live on `www.wdef.com` (apex 301s); a feed
