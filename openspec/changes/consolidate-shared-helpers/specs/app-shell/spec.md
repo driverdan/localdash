@@ -1,30 +1,26 @@
 ## ADDED Requirements
 
-### Requirement: Feature-agnostic shared backend helpers
+### Requirement: Single implementations of common backend helpers
 
-A backend helper that more than one feature needs SHALL be implemented once, in a module directly
-under `app/` that imports only the standard library and never imports from a feature package
-(`app.collectors`, `app.events`, `app.news`, `app.weather`, or any later feature package). A helper
-that only one feature needs SHALL live inside that feature. Features SHALL NOT import another
-feature's internals to reuse a helper. This is the backend counterpart of the `frontend/src/lib/`
-import rule.
-
-In particular, the system SHALL have exactly one implementation of each of these:
+The backend SHALL have exactly one implementation of each of the following, used by every caller
+that needs it:
 
 - normalising a `datetime` to aware UTC
-- parsing an ISO-8601 timestamp string to aware UTC, where the time zone assumed for naive values
-  is a parameter that defaults to UTC
+- parsing an ISO-8601 timestamp string to aware UTC, with the time zone assumed for naive values
+  as a parameter that defaults to UTC
 - building an EWKT point string from a latitude and longitude
 - splitting a comma-separated setting into its stripped, non-empty entries
+- matching a keyword table against text. The matcher yields the table's keys in table order,
+  keeping each key that has any of its keywords as a substring of the space-padded, lower-cased
+  text.
 
-A source-specific rule SHALL stay with the source that needs it, layered on top of the shared
-helper rather than built into it. Examples are the hc911 1900-01-01 "no value" sentinel,
-CarCruiseFinder's venue-local naive timestamps, and the tribe `Name=BaseURL` entry format.
+A rule that belongs to one particular source SHALL be layered on top of the shared helper rather
+than built into it. For example:
 
-#### Scenario: Shared modules import no feature
-
-- **WHEN** the imports of the shared backend helper modules under `app/` are inspected
-- **THEN** they resolve only to the standard library, and none resolves to a feature package
+- the hc911 1900-01-01 "no value" sentinel
+- CarCruiseFinder's venue-local naive timestamps
+- the tribe `Name=BaseURL` entry format
+- each caller's own keyword vocabulary, and whether it takes the first match or all matches
 
 #### Scenario: Naive timestamps use the caller's zone
 
@@ -45,6 +41,20 @@ CarCruiseFinder's venue-local naive timestamps, and the tribe `Name=BaseURL` ent
   iCal) is parsed after the consolidation
 - **THEN** every event and observation timestamp equals the value parsed before it, so event
   `canonical_key` values do not change
+
+#### Scenario: Keyword matching preserves news categories and event tags
+
+- **WHEN** a news article's title and summary match keywords from more than one category
+- **THEN** the classifier's keyword tier still returns the first matching category in its table
+  order
+- **AND** when an event's title and description match keywords from more than one topic, the tagger
+  still returns the set of all matching topics
+
+#### Scenario: Padded keywords match at the edges of the text
+
+- **WHEN** the keyword matcher is given a table containing the keyword `" ai "` and the text
+  `AI meetup`
+- **THEN** the key for that keyword is matched
 
 #### Scenario: Malformed tribe calendar entries are still skipped
 
