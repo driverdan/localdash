@@ -11,9 +11,7 @@ lazy on-request refresh, a scheduled background job (gated by `weather_enabled`,
 `weather_cache_minutes`) SHALL proactively refresh the cache so the payload stays current without
 client requests. It SHALL broadcast a `weather` update ping on the global live-update bus (see
 `live-updates`) when the shaped payload differs from the payload the previous scheduled refresh
-produced. A failed proactive refresh SHALL log, keep the stale payload, and broadcast nothing. The
-proactive refresh, its change detection and its ping SHALL live in the weather feature's own
-package.
+produced. A failed proactive refresh SHALL log, keep the stale payload, and broadcast nothing.
 
 #### Scenario: Requests within the TTL hit the cache
 - **WHEN** two requests arrive within `weather_cache_minutes` of a successful refresh

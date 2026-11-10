@@ -12,9 +12,9 @@ stable id:
 
 Every job SHALL run once immediately at startup and then on its interval. A job SHALL NOT run
 concurrently with itself, and missed ticks SHALL collapse into a single run rather than queue up.
-All jobs SHALL be registered with these same options, and the scheduler SHALL NOT contain any
-feature's refresh logic. It SHALL only invoke the refresh entry point that the feature's own
-package exposes.
+All jobs SHALL be registered with these same options. The scheduler SHALL NOT contain any
+refresh cycle's logic: no locks, sessions or signal decisions. It SHALL only invoke the refresh
+entry point that the scheduled and manual triggers share.
 
 #### Scenario: Enabled features each get one job
 - **WHEN** the application starts with news, events and weather enabled and four collectors

@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Manual source refresh
-The system SHALL trigger one collection cycle for a source via `POST /api/v1/timeseries/sources/{key}/refresh` and return the run result `{source, status, error, count}`. The manual endpoint and the scheduled tick SHALL run the same collection cycle, owned by the timeseries feature. That cycle collects, ingests, broadcasts a non-empty diff and records the source's last-run telemetry, so a manual refresh has the same effects as a scheduled one. Manual and scheduled collection cycles for the same source SHALL be serialized: a cycle that starts while another cycle for that source is running SHALL wait for it to finish rather than ingest concurrently. Cycles for different sources SHALL NOT block each other.
+The system SHALL trigger one collection cycle for a source via `POST /api/v1/timeseries/sources/{key}/refresh` and return the run result `{source, status, error, count}`. The manual endpoint and the scheduled tick SHALL run the same collection cycle. That cycle collects, ingests, broadcasts a non-empty diff and records the source's last-run telemetry, so a manual refresh has the same effects as a scheduled one. Manual and scheduled collection cycles for the same source SHALL be serialized: a cycle that starts while another cycle for that source is running SHALL wait for it to finish rather than ingest concurrently. Cycles for different sources SHALL NOT block each other.
 
 #### Scenario: Refreshing a known source
 - **WHEN** a client posts to `/api/v1/timeseries/sources/{key}/refresh` for a registered collector

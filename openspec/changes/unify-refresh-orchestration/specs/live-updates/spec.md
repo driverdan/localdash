@@ -3,10 +3,9 @@
 ### Requirement: Update signals are emitted at refresh choke points
 Each feature's update signal SHALL be emitted from the code path shared by its scheduled and
 manual refresh triggers, so a debug-panel or API-triggered refresh produces the same client
-updates as a scheduled one. That shared code path SHALL be the refresh entry point in the
-feature's own package. The entry point owns the cycle's serialization, its database session (if
-any) and its signal decision. The scheduler SHALL only invoke that entry point and SHALL NOT
-decide whether a signal is sent.
+updates as a scheduled one. The signal decision SHALL be made inside that shared refresh entry
+point, together with the cycle's serialization and its database session (if any). The scheduler
+SHALL only invoke the entry point and SHALL NOT decide whether a signal is sent.
 
 - **timeseries**: each collection cycle with a non-empty diff broadcasts that diff (scheduled tick and `POST /api/v1/timeseries/sources/{key}/refresh` share the same run path).
 - **news**: every completed fetch+recluster cycle broadcasts a `news` ping (reclustering makes precise change detection unreliable; the ping cost is one client refetch per cycle).
