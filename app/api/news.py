@@ -15,33 +15,34 @@ from app.db import get_session
 from app.news import refresh as news_refresh
 from app.news import stories
 from app.news.registry import CATEGORIES
+from app.news.schemas import SourcesResponse, StoriesResponse
 
 router = APIRouter()
 
 
-@router.get("/stories")
+@router.get("/stories", response_model=StoriesResponse)
 async def get_stories(
     hours: Annotated[int, Query(ge=1)] = 72,
     limit: Annotated[int | None, Query(ge=1)] = None,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-):
+) -> StoriesResponse:
     """Clustered stories in the window, plus the category slug->label map.
 
     An optional `limit` caps the count (newest activity first) so digest views
     like the home page can fetch a small slice; omitting it returns the window.
     """
     max_hours = 24 * settings.news_story_window_days
-    return {
-        "categories": CATEGORIES,
-        "stories": await stories.get_stories(session, min(hours, max_hours), limit),
-    }
+    return StoriesResponse(
+        categories=CATEGORIES,
+        stories=await stories.get_stories(session, min(hours, max_hours), limit),
+    )
 
 
-@router.get("/sources")
-async def get_sources(session: AsyncSession = Depends(get_session)):
+@router.get("/sources", response_model=SourcesResponse)
+async def get_sources(session: AsyncSession = Depends(get_session)) -> SourcesResponse:
     """One row per feed with health telemetry, for the sources footer."""
-    return {"sources": await stories.get_sources(session)}
+    return SourcesResponse(sources=await stories.get_sources(session))
 
 
 @router.post("/refresh")

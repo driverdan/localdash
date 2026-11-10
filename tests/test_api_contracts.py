@@ -812,3 +812,50 @@ EXPECTED_WEATHER = {
         "observed_at": "2026-11-06T22:00:00-05:00",
     },
 }
+
+
+# --- documentation models and OpenAPI -------------------------------------------
+# Appended after the golden tests above, which stay byte-identical.
+
+
+async def test_entities_response_matches_documentation_model(client, db_session):
+    from app.geojson import EntityFeatureCollection
+
+    await _seed_timeseries(db_session)
+    for params in ({"source": "test-golden"}, {"source": "test-golden", "active": "false"}):
+        body = (await client.get("/api/v1/timeseries/entities", params=params)).json()
+        doc = EntityFeatureCollection.model_validate(body)
+        assert len(doc.features) == 1
+        # Round-trips to the same JSON: nothing dropped, extra keys kept.
+        assert doc.model_dump(mode="json") == body
+    assert doc.features[0].properties.model_extra == {"units": ["E1", "L2"]}
+
+
+async def test_observations_response_matches_documentation_model(client, db_session):
+    from app.geojson import ObservationFeatureCollection
+
+    await _seed_timeseries(db_session)
+    r = await client.get("/api/v1/timeseries/observations", params={"source": "test-golden"})
+    body = r.json()
+    doc = ObservationFeatureCollection.model_validate(body)
+    assert len(doc.features) == 4
+    assert doc.model_dump(mode="json") == body
+
+
+def test_every_api_route_documents_a_named_200_schema():
+    schema = app.openapi()
+    checked = []
+    for path, ops in schema["paths"].items():
+        if not path.startswith("/api/v1/"):
+            continue
+        for method, op in ops.items():
+            if method != "get":  # refresh routes: typed with their result dataclasses
+                continue
+            content = op["responses"]["200"]["content"]["application/json"]["schema"]
+            if content.get("type") == "array":  # /track and /sources are JSON arrays
+                content = content["items"]
+            assert "$ref" in content, f"{method.upper()} {path}: {content}"
+            assert content["$ref"].startswith("#/components/schemas/")
+            checked.append(f"{method.upper()} {path}")
+    # Every JSON GET route (the WebSocket is not in OpenAPI).
+    assert len(checked) == 11, checked

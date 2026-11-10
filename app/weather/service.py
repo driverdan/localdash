@@ -26,6 +26,7 @@ from app.config import Settings, get_settings
 from app.http import make_client
 from app.weather.airnow import airnow_error_messages, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
+from app.weather.schemas import AirQuality, CurrentConditions, ForecastPeriod, WeatherPayload
 
 log = logging.getLogger("localdash.weather")
 
@@ -44,13 +45,13 @@ class WeatherService:
         # singleton below), so constructing it reads nothing at import time.
         self._settings = settings
         self._lock = asyncio.Lock()
-        self._payload: dict | None = None
+        self._payload: WeatherPayload | None = None
         self._fetched_at: float = 0.0
         # Per-process discovery result; None until the first successful /points hop.
         self._forecast_url: str | None = None
         self._station_urls: list[str] = []
 
-    async def get_current(self, *, force: bool = False) -> dict:
+    async def get_current(self, *, force: bool = False) -> WeatherPayload:
         """The shaped weather payload — cached, refreshed at most once per TTL.
 
         `force` skips only the TTL check (the scheduled job uses it: its ticks land
@@ -76,7 +77,7 @@ class WeatherService:
             self._fetched_at = time.monotonic()
             return payload
 
-    def _carry_forward_aqi(self, payload: dict, settings: Settings) -> dict:
+    def _carry_forward_aqi(self, payload: WeatherPayload, settings: Settings) -> WeatherPayload:
         """Preserve the last-good AQI when a refresh produced none.
 
         A partial (AirNow-only) refresh failure yields aqi=None but succeeds
@@ -85,18 +86,18 @@ class WeatherService:
         its observation is within airnow_stale_minutes; past that it drops to
         null so a dead feed does not linger indefinitely.
         """
-        if payload.get("aqi") is not None:
+        if payload.aqi is not None:
             return payload
         prior = self._payload
-        if prior is None or prior.get("aqi") is None:
+        if prior is None or prior.aqi is None:
             return payload
-        if not self._aqi_within_max_age(prior["aqi"], settings):
+        if not self._aqi_within_max_age(prior.aqi, settings):
             return payload
-        return {**payload, "aqi": prior["aqi"]}
+        return payload.model_copy(update={"aqi": prior.aqi})
 
-    def _aqi_within_max_age(self, aqi: dict, settings: Settings) -> bool:
+    def _aqi_within_max_age(self, aqi: AirQuality, settings: Settings) -> bool:
         max_age = settings.airnow_stale_minutes * 60
-        observed = aqi.get("observed_at")
+        observed = aqi.observed_at
         if observed:
             try:
                 ts = datetime.fromisoformat(observed)
@@ -120,7 +121,7 @@ class WeatherService:
             headers={"Accept": "application/geo+json"},
         )
 
-    async def _refresh(self, settings: Settings) -> dict:
+    async def _refresh(self, settings: Settings) -> WeatherPayload:
         async with self._make_client(settings) as client:
             if self._forecast_url is None or not self._station_urls:
                 await self._discover(client, settings)
@@ -133,7 +134,7 @@ class WeatherService:
         # both NWS halves empty is an error, whether or not AirNow succeeded.
         if periods is None and current is None:
             raise RuntimeError("both NWS fetches failed")
-        return {"current": current, "periods": periods or [], "aqi": aqi}
+        return WeatherPayload(current=current, periods=periods or [], aqi=aqi)
 
     async def _discover(self, client: httpx.AsyncClient, settings: Settings) -> None:
         response = await client.get(
@@ -148,7 +149,7 @@ class WeatherService:
             raise RuntimeError("NWS returned no observation stations")
         self._forecast_url, self._station_urls = forecast_url, stations
 
-    async def _fetch_periods(self, client: httpx.AsyncClient) -> list[dict] | None:
+    async def _fetch_periods(self, client: httpx.AsyncClient) -> list[ForecastPeriod] | None:
         try:
             response = await client.get(self._forecast_url)
             response.raise_for_status()
@@ -157,7 +158,7 @@ class WeatherService:
             log.warning("NWS forecast fetch failed", exc_info=True)
             return None
 
-    async def _fetch_aqi(self, client: httpx.AsyncClient, settings: Settings) -> dict | None:
+    async def _fetch_aqi(self, client: httpx.AsyncClient, settings: Settings) -> AirQuality | None:
         # The key doubles as the feature switch: empty means no request at all.
         if not settings.airnow_api_key:
             return None
@@ -197,7 +198,7 @@ class WeatherService:
             log.warning("AirNow returned no usable observations")
         return aqi
 
-    async def _fetch_current(self, client: httpx.AsyncClient) -> dict | None:
+    async def _fetch_current(self, client: httpx.AsyncClient) -> CurrentConditions | None:
         for station_url in self._station_urls:
             try:
                 response = await client.get(f"{station_url}/observations/latest")

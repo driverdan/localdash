@@ -23,8 +23,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collect import run_collector
 from app.db import get_session
-from app.geojson import entity_properties, feature_collection, feature_geom
+from app.geojson import (
+    EntityFeatureCollection,
+    ObservationFeatureCollection,
+    entity_properties,
+    feature_collection,
+    feature_geom,
+)
 from app.models import Entity, Observation, Source
+from app.timeseries_schemas import EntitySnapshot, SourceStatus, TrackPoint
 
 router = APIRouter()
 
@@ -45,7 +52,8 @@ def _bbox_filter(column, bbox: str | None):
     return func.ST_Intersects(column, func.ST_MakeEnvelope(minx, miny, maxx, maxy, 4326))
 
 
-@router.get("/entities")
+# GeoJSON routes: documented in OpenAPI, returned as built (see app/geojson.py).
+@router.get("/entities", response_model=None, responses={200: {"model": EntityFeatureCollection}})
 async def entities(
     active: bool = True,
     source: str | None = None,
@@ -120,28 +128,32 @@ async def entities(
     return feature_collection(feats)
 
 
-@router.get("/entities/{entity_id}")
-async def entity_detail(entity_id: int, session: AsyncSession = Depends(get_session)):
+@router.get("/entities/{entity_id}", response_model=EntitySnapshot)
+async def entity_detail(
+    entity_id: int, session: AsyncSession = Depends(get_session)
+) -> EntitySnapshot:
     """Entity snapshot (no track — see /entities/{id}/track)."""
     ent = (await session.execute(select(Entity).where(Entity.id == entity_id))).scalar_one_or_none()
     if ent is None:
         raise HTTPException(404, "entity not found")
 
-    return {
-        "id": ent.id,
-        "source": ent.source_key,
-        "external_id": ent.external_id,
-        "category": ent.category,
-        "label": ent.label,
-        "is_active": ent.is_active,
-        "first_seen_at": ent.first_seen_at.isoformat() if ent.first_seen_at else None,
-        "last_seen_at": ent.last_seen_at.isoformat() if ent.last_seen_at else None,
-        "latest_properties": ent.latest_properties,
-    }
+    return EntitySnapshot(
+        id=ent.id,
+        source=ent.source_key,
+        external_id=ent.external_id,
+        category=ent.category,
+        label=ent.label,
+        is_active=ent.is_active,
+        first_seen_at=ent.first_seen_at,
+        last_seen_at=ent.last_seen_at,
+        latest_properties=ent.latest_properties,
+    )
 
 
-@router.get("/entities/{entity_id}/track")
-async def entity_track(entity_id: int, session: AsyncSession = Depends(get_session)):
+@router.get("/entities/{entity_id}/track", response_model=list[TrackPoint])
+async def entity_track(
+    entity_id: int, session: AsyncSession = Depends(get_session)
+) -> list[TrackPoint]:
     """The entity's full observation history, oldest first."""
     exists = (
         await session.execute(select(Entity.id).where(Entity.id == entity_id))
@@ -170,19 +182,21 @@ async def entity_track(entity_id: int, session: AsyncSession = Depends(get_sessi
         is_point = bool(geometry) and geometry.get("type") == "Point"
         lon, lat = geometry["coordinates"] if is_point else (None, None)
         out.append(
-            {
-                "observed_at": at.isoformat(),
-                "status": status,
-                "geometry": geometry,
-                "lon": lon,
-                "lat": lat,
-                "properties": props,
-            }
+            TrackPoint(
+                observed_at=at,
+                status=status,
+                geometry=geometry,
+                lon=lon,
+                lat=lat,
+                properties=props,
+            )
         )
     return out
 
 
-@router.get("/observations")
+@router.get(
+    "/observations", response_model=None, responses={200: {"model": ObservationFeatureCollection}}
+)
 async def observations(
     source: str | None = None,
     category: str | None = None,
@@ -233,20 +247,20 @@ async def observations(
     return feature_collection(feats)
 
 
-@router.get("/sources")
-async def list_sources(session: AsyncSession = Depends(get_session)):
+@router.get("/sources", response_model=list[SourceStatus])
+async def list_sources(session: AsyncSession = Depends(get_session)) -> list[SourceStatus]:
     rows = (await session.execute(select(Source))).scalars().all()
     return [
-        {
-            "key": r.key,
-            "name": r.name,
-            "enabled": r.enabled,
-            "poll_interval_seconds": r.poll_interval_seconds,
-            "last_run_at": r.last_run_at.isoformat() if r.last_run_at else None,
-            "last_status": r.last_status,
-            "last_error": r.last_error,
-            "last_count": r.last_count,
-        }
+        SourceStatus(
+            key=r.key,
+            name=r.name,
+            enabled=r.enabled,
+            poll_interval_seconds=r.poll_interval_seconds,
+            last_run_at=r.last_run_at,
+            last_status=r.last_status,
+            last_error=r.last_error,
+            last_count=r.last_count,
+        )
         for r in rows
     ]
 

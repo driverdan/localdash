@@ -15,19 +15,19 @@ landed, read
 
 ## 1. Response models (phases 1a–1f; one commit each)
 
-- [ ] 1.1 Add `app/contracts.py` with `ApiModel` (`ConfigDict(extra="forbid")`) and `IsoDateTime` (`Annotated[datetime, PlainSerializer(lambda d: d.isoformat(), return_type=str)]`), with a module docstring stating the datetime rule and why
-- [ ] 1.2 Add `tests/test_contracts.py`: `IsoDateTime` emits `+00:00` for UTC, keeps non-UTC offsets, and keeps microseconds only when non-zero; `ApiModel` rejects unknown fields
-- [ ] 1.3 (1a, app shell) Add `AppConfig` in `app/api/root.py` and declare it on `/config`
-- [ ] 1.4 (1b, events) Add `app/events/schemas.py` with `EventLink`, `EventItem`, `Origin`, `EventsResponse` and `TagsResponse`, fields in today's key order. Replace `_serialize` with an `EventItem` constructor, set `response_model=` on `/items` and `/tags`, and drop the `-> dict` annotations
-- [ ] 1.5 (1c, news) Add `app/news/schemas.py` with `StorySource`, `Story`, `StoriesResponse`, `NewsSourceStatus` and `SourcesResponse`. Add the frozen `StoryArticle` row dataclass. Rewrite `build_stories` to take `list[StoryArticle]` and return `list[Story]`, sorting on `datetime`. `get_stories` and `get_sources` return models. Set `response_model=` on `/stories` and `/sources`
-- [ ] 1.6 (1c) Update `tests/test_news_clustering.py` (`_row` builds `StoryArticle` with `datetime` published; assertions read attributes or `model_dump(mode="json")`) and `tests/test_news_db.py` story/source assertions
-- [ ] 1.7 (1d, weather) Add `app/weather/schemas.py` with `CurrentConditions`, `ForecastPeriod`, `AirQuality` and `WeatherPayload`. Passed-through numbers (`temperature`, `precip_percent`, AQI `value`) are `int | float`; `observed_at` fields are `str | None`. Make `parse_forecast`, `parse_observation` and `parse_airnow` return models, have `WeatherService` cache a `WeatherPayload` (`_carry_forward_aqi` via `model_copy`), and set `response_model=WeatherPayload` on `/current`
-- [ ] 1.8 (1d) Update `tests/test_weather.py` for model attributes, and confirm `tests/test_live_signals.py`'s weather ping tests still pass with model equality in `run_weather_refresh`
-- [ ] 1.9 (1e, timeseries) Add `app/timeseries_schemas.py` with `EntitySnapshot`, `TrackPoint` and `SourceStatus` (keep `enabled` for now; `remove-dead-schema` owns removing it). Set response models on `/entities/{id}`, `/entities/{id}/track` and `/sources`
-- [ ] 1.10 (1f, GeoJSON) In `app/geojson.py` add documentation-only models: `EntityProperties` and `ObservationProperties` (`extra="allow"`, system keys only), plus `EntityFeature`/`EntityFeatureCollection` and `ObservationFeature`/`ObservationFeatureCollection`. Declare them on `/entities` and `/observations` via `responses={200: {"model": ...}}` with `response_model=None`, and leave the returned dicts as they are
-- [ ] 1.11 (1f) In `tests/test_api_contracts.py`, validate one `/entities` and one `/observations` response against the documentation models, so the docs cannot drift from the dicts
-- [ ] 1.12 Add an OpenAPI test: every `/api/v1` JSON route in `app.openapi()` (the WebSocket excluded) has a 200 response whose schema is a `$ref` to a named component
-- [ ] 1.13 Check that the golden tests from phase 0 pass unmodified
+- [x] 1.1 Add `app/contracts.py` with `ApiModel` (`ConfigDict(extra="forbid")`) and `IsoDateTime` (`Annotated[datetime, PlainSerializer(lambda d: d.isoformat(), return_type=str)]`), with a module docstring stating the datetime rule and why
+- [x] 1.2 Add `tests/test_contracts.py`: `IsoDateTime` emits `+00:00` for UTC, keeps non-UTC offsets, and keeps microseconds only when non-zero; `ApiModel` rejects unknown fields
+- [x] 1.3 (1a, app shell) Add `AppConfig` in `app/api/root.py` and declare it on `/config`
+- [x] 1.4 (1b, events) Add `app/events/schemas.py` with `EventLink`, `EventItem`, `Origin`, `EventsResponse` and `TagsResponse`, fields in today's key order. Replace `_serialize` with an `EventItem` constructor, set `response_model=` on `/items` and `/tags`, and drop the `-> dict` annotations
+- [x] 1.5 (1c, news) Add `app/news/schemas.py` with `StorySource`, `Story`, `StoriesResponse`, `NewsSourceStatus` and `SourcesResponse`. Add the frozen `StoryArticle` row dataclass. Rewrite `build_stories` to take `list[StoryArticle]` and return `list[Story]`, sorting on `datetime`. `get_stories` and `get_sources` return models. Set `response_model=` on `/stories` and `/sources`
+- [x] 1.6 (1c) Update `tests/test_news_clustering.py` (`_row` builds `StoryArticle` with `datetime` published; assertions read attributes or `model_dump(mode="json")`) and `tests/test_news_db.py` story/source assertions
+- [x] 1.7 (1d, weather) Add `app/weather/schemas.py` with `CurrentConditions`, `ForecastPeriod`, `AirQuality` and `WeatherPayload`. Passed-through numbers (`temperature`, `precip_percent`, AQI `value`) are `int | float`; `observed_at` fields are `str | None`. Make `parse_forecast`, `parse_observation` and `parse_airnow` return models, have `WeatherService` cache a `WeatherPayload` (`_carry_forward_aqi` via `model_copy`), and set `response_model=WeatherPayload` on `/current`
+- [x] 1.8 (1d) Update `tests/test_weather.py` for model attributes, and confirm `tests/test_live_signals.py`'s weather ping tests still pass with model equality in `run_weather_refresh`
+- [x] 1.9 (1e, timeseries) Add `app/timeseries_schemas.py` with `EntitySnapshot`, `TrackPoint` and `SourceStatus` (keep `enabled` for now; `remove-dead-schema` owns removing it). Set response models on `/entities/{id}`, `/entities/{id}/track` and `/sources`
+- [x] 1.10 (1f, GeoJSON) In `app/geojson.py` add documentation-only models: `EntityProperties` and `ObservationProperties` (`extra="allow"`, system keys only), plus `EntityFeature`/`EntityFeatureCollection` and `ObservationFeature`/`ObservationFeatureCollection`. Declare them on `/entities` and `/observations` via `responses={200: {"model": ...}}` with `response_model=None`, and leave the returned dicts as they are
+- [x] 1.11 (1f) In `tests/test_api_contracts.py`, validate one `/entities` and one `/observations` response against the documentation models, so the docs cannot drift from the dicts
+- [x] 1.12 Add an OpenAPI test: every `/api/v1` JSON route in `app.openapi()` (the WebSocket excluded) has a 200 response whose schema is a `$ref` to a named component
+- [x] 1.13 Check that the golden tests from phase 0 pass unmodified
 - [ ] 1.14 Record before/after latency for `GET /events/items?limit=2000` and `GET /news/stories` on a dev database, and note the numbers in the implementation PR
 
 ## 2. Typed refresh results
@@ -49,9 +49,9 @@ landed, read
 
 ## 4. Documentation
 
-- [ ] 4.1 `AGENTS.md` "API / frontend conventions": response models live in a schemas module beside the code that produces them (`app/<pkg>/schemas.py`, `app/timeseries_schemas.py` for the top-level timeseries code), as a layout preference consistent with the guideline from `relax-backend-feature-separation`; the shared `app/contracts.py`; the `IsoDateTime` rule (never emit `Z`); GeoJSON routes are documented, not validated, and their properties stay open; new routes must declare a response model; `/docs` now shows schemas; generating frontend types is a possible follow-up
+- [x] 4.1 `AGENTS.md` "API / frontend conventions": response models live in a schemas module beside the code that produces them (`app/<pkg>/schemas.py`, `app/timeseries_schemas.py` for the top-level timeseries code), as a layout preference consistent with the guideline from `relax-backend-feature-separation`; the shared `app/contracts.py`; the `IsoDateTime` rule (never emit `Z`); GeoJSON routes are documented, not validated, and their properties stay open; new routes must declare a response model; `/docs` now shows schemas; generating frontend types is a possible follow-up
 - [ ] 4.2 `AGENTS.md` news section: the registry is a tuple of frozen `Outlet`/`FeedSpec` dataclasses (`kind`, `use_feed_tags` as defaulted fields)
-- [ ] 4.3 `AGENTS.md` weather section: the shaping functions return models and the service caches a `WeatherPayload`
+- [x] 4.3 `AGENTS.md` weather section: the shaping functions return models and the service caches a `WeatherPayload`
 
 ## 5. Verification
 

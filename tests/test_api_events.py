@@ -51,20 +51,20 @@ async def test_default_listing_is_upcoming_in_start_order(events_db_session):
     await _seed(events_db_session)
     result = await items(session=events_db_session, settings=make_settings())
 
-    assert [i["title"] for i in result["items"]] == [
+    assert [i.title for i in result.items] == [
         "test-Near Jazz Show",
         "test-Far Rock Concert",
         "test-Unlocated Poetry Reading",
     ]
-    assert result["count"] == 3
-    assert result["origin"] == {"lat": CENTER[0], "lon": CENTER[1]}
+    assert result.count == 3
+    assert result.origin.model_dump() == {"lat": CENTER[0], "lon": CENTER[1]}
 
-    by_title = {i["title"]: i for i in result["items"]}
-    assert by_title["test-Near Jazz Show"]["distance_miles"] == 0.0
-    assert by_title["test-Far Rock Concert"]["distance_miles"] > 100
-    assert by_title["test-Unlocated Poetry Reading"]["distance_miles"] is None
-    assert by_title["test-Unlocated Poetry Reading"]["latitude"] is None
-    assert by_title["test-Near Jazz Show"]["links"] == [
+    by_title = {i.title: i for i in result.items}
+    assert by_title["test-Near Jazz Show"].distance_miles == 0.0
+    assert by_title["test-Far Rock Concert"].distance_miles > 100
+    assert by_title["test-Unlocated Poetry Reading"].distance_miles is None
+    assert by_title["test-Unlocated Poetry Reading"].latitude is None
+    assert [link.model_dump() for link in by_title["test-Near Jazz Show"].links] == [
         {"source_name": "test-api", "source_url": "http://test-api/event"}
     ]
 
@@ -83,7 +83,7 @@ async def test_default_listing_keeps_in_progress_events(events_db_session):
         FakeGeocoder({}),
     )
     result = await items(session=events_db_session, settings=make_settings())
-    assert {i["title"] for i in result["items"]} == {"test-In Progress Show"}
+    assert {i.title for i in result.items} == {"test-In Progress Show"}
 
 
 async def test_listing_serializes_image_url(events_db_session):
@@ -97,28 +97,28 @@ async def test_listing_serializes_image_url(events_db_session):
         geo,
     )
     result = await items(session=events_db_session, settings=make_settings())
-    by_title = {i["title"]: i for i in result["items"]}
-    assert by_title["test-Imaged Show"]["image_url"] == "http://img.test/show.jpg"
-    assert by_title["test-Imageless Show"]["image_url"] is None
+    by_title = {i.title: i for i in result.items}
+    assert by_title["test-Imaged Show"].image_url == "http://img.test/show.jpg"
+    assert by_title["test-Imageless Show"].image_url is None
 
 
 async def test_upcoming_false_includes_past_events(events_db_session):
     await _seed(events_db_session)
     result = await items(upcoming=False, session=events_db_session, settings=make_settings())
-    assert result["count"] == 4
-    assert result["items"][0]["title"] == "test-Past Gala Dinner"
+    assert result.count == 4
+    assert result.items[0].title == "test-Past Gala Dinner"
 
 
 async def test_distance_filter_excludes_far_and_unlocated(events_db_session):
     await _seed(events_db_session)
     result = await items(max_miles=15, session=events_db_session, settings=make_settings())
-    assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
+    assert [i.title for i in result.items] == ["test-Near Jazz Show"]
 
 
 async def test_topic_filter_matches_any_requested_tag(events_db_session):
     await _seed(events_db_session)
     result = await items(topic=["music"], session=events_db_session, settings=make_settings())
-    assert {i["title"] for i in result["items"]} == {
+    assert {i.title for i in result.items} == {
         "test-Near Jazz Show",  # "jazz" -> music
         "test-Far Rock Concert",  # "concert" -> music
     }
@@ -126,19 +126,19 @@ async def test_topic_filter_matches_any_requested_tag(events_db_session):
     result = await items(
         topic=["food"], upcoming=False, session=events_db_session, settings=make_settings()
     )
-    assert {i["title"] for i in result["items"]} == {"test-Past Gala Dinner"}  # "dinner" -> food
+    assert {i.title for i in result.items} == {"test-Past Gala Dinner"}  # "dinner" -> food
 
 
 async def test_title_search(events_db_session):
     await _seed(events_db_session)
     result = await items(search="jazz", session=events_db_session, settings=make_settings())
-    assert [i["title"] for i in result["items"]] == ["test-Near Jazz Show"]
+    assert [i.title for i in result.items] == ["test-Near Jazz Show"]
 
 
 async def test_tags_endpoint_lists_known_tags_sorted(events_db_session):
     await _seed(events_db_session)
     result = await tags(session=events_db_session)
-    assert result["tags"] == ["food", "music"]  # jazz/concert -> music, dinner -> food; sorted
+    assert result.tags == ["food", "music"]  # jazz/concert -> music, dinner -> food; sorted
 
 
 async def _seed_duplicate_pair(session):
