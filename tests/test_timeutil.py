@@ -9,7 +9,6 @@ import pytest
 
 from app.timeutil import as_utc, parse_iso_utc
 
-UTC = UTC
 EASTERN = ZoneInfo("America/New_York")
 
 
