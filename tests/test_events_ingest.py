@@ -822,3 +822,296 @@ async def test_reconcile_merges_stale_key_exact_duplicates(events_db_session):
 
     (event,) = await _events(events_db_session)
     assert len(event.links) == 2
+
+
+# --- characterization: pinned before decomposing upsert_raw_events ---
+
+
+async def test_source_listing_match_adopts_drifted_canonical_key(events_db_session):
+    from app.events.dedup import canonical_key
+
+    start = dt.datetime(2026, 12, 6, 20, 0, tzinfo=UTC)
+    await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-src",
+                title="test-Harbor Lights Festival",
+                start_time=start,
+                source_event_id="ev-9",
+            )
+        ],
+    )
+
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-src",
+                title="test-Harbor Lights Winter Festival",
+                start_time=start,
+                source_event_id="ev-9",
+            )
+        ],
+    )
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert event.canonical_key == canonical_key("test-Harbor Lights Winter Festival", start)
+
+
+async def test_drifted_key_kept_when_new_key_is_taken(events_db_session):
+    from app.events.dedup import canonical_key
+
+    start = dt.datetime(2026, 12, 6, 20, 0, tzinfo=UTC)
+    # Two separate events: subset titles but no location evidence, so no merge.
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-src",
+                title="test-Harbor Lights Festival",
+                start_time=start,
+                source_event_id="ev-9",
+            ),
+            make_raw("test-other", title="test-Harbor Lights Winter Festival", start_time=start),
+        ],
+    )
+    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+
+    # The listing is retitled to the other event's title, whose key is taken.
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-src",
+                title="test-Harbor Lights Winter Festival",
+                start_time=start,
+                source_event_id="ev-9",
+            )
+        ],
+    )
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    events = await _events(events_db_session)
+    assert len(events) == 2
+    listed = next(e for e in events if any(link.source_event_id == "ev-9" for link in e.links))
+    assert listed.canonical_key == canonical_key("test-Harbor Lights Festival", start)
+    other = next(e for e in events if e.id != listed.id)
+    assert other.canonical_key == canonical_key("test-Harbor Lights Winter Festival", start)
+
+
+async def test_relisting_refreshes_source_event_id_without_adding_a_link(events_db_session):
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", source_event_id="id-1")])
+
+    stats = await upsert_raw_events(
+        events_db_session, [make_raw("test-SourceA", source_event_id="id-2")]
+    )
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert [link.source_event_id for link in event.links] == ["id-2"]
+
+    # A re-report without an id leaves the stored id alone.
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA")])
+    (event,) = await _events(events_db_session)
+    await events_db_session.refresh(event, ["links"])
+    assert [link.source_event_id for link in event.links] == ["id-2"]
+
+
+async def test_ingest_merge_never_overwrites_stored_fields(events_db_session):
+    ends = dt.datetime(2026, 7, 1, 21, 0, tzinfo=UTC)
+    await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-SourceA",
+                description="stored description",
+                venue_name="Stored Venue",
+                address=BROAD_ST,
+                end_time=ends,
+            )
+        ],
+    )
+
+    stats = await upsert_raw_events(
+        events_db_session,
+        [
+            make_raw(
+                "test-SourceB",
+                description="other description",
+                venue_name="Other Venue",
+                address=MARKET_ST,
+                end_time=ends + dt.timedelta(hours=1),
+            )
+        ],
+    )
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    (event,) = await _events(events_db_session)
+    assert event.description == "stored description"
+    assert event.venue_name == "Stored Venue"
+    assert event.address == BROAD_ST
+    assert event.ends_at == ends
+
+
+async def test_ingest_merge_backfills_empty_description_and_end_time(events_db_session):
+    ends = dt.datetime(2026, 7, 1, 21, 0, tzinfo=UTC)
+    await upsert_raw_events(events_db_session, [make_raw("test-SourceA", description="")])
+    (event,) = await _events(events_db_session)
+    assert event.description == ""
+    assert event.ends_at is None
+
+    await upsert_raw_events(
+        events_db_session,
+        [make_raw("test-SourceB", description="filled in", end_time=ends)],
+    )
+
+    (event,) = await _events(events_db_session)
+    assert event.description == "filled in"
+    assert event.ends_at == ends
+
+
+async def test_merge_geocodes_the_stored_address_when_report_has_none(events_db_session):
+    raw = make_raw("test-SourceB")  # no address, no coordinates
+    events_db_session.add(seed_event(raw.title, raw.start_time, address=BROAD_ST))
+    await events_db_session.commit()
+
+    geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
+    stats = await upsert_raw_events(events_db_session, [raw], geo)
+
+    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert geo.calls == [BROAD_ST]
+    (event,) = await _events(events_db_session)
+    await events_db_session.refresh(event)
+    assert event.location is not None
+
+
+async def _commit_in_order(session, *events):
+    """Insert one at a time so Event.id order (the survivor rule) is explicit."""
+    for event in events:
+        session.add(event)
+        await session.commit()
+
+
+async def _lat_lon(session, event):
+    lat, lon = (
+        await session.execute(
+            select(func.ST_Y(Event.location), func.ST_X(Event.location)).where(Event.id == event.id)
+        )
+    ).one()
+    return (round(lat, 4), round(lon, 4))
+
+
+async def test_reconcile_backfills_missing_fields_and_unions_tags(events_db_session):
+    from app.events.ingest import _point, reconcile_events
+    from app.events.models import Tag
+
+    gala_start = upcoming(30, 22)
+    gala_ends = upcoming(30, 23)
+    # A bare survivor absorbs a fully populated duplicate (same recomputed key).
+    bare = seed_event("test-Backfill Gala", gala_start, url_slug="bare")
+    bare.tags = [Tag(name="test-tag-bare")]
+    full = seed_event(
+        "test-Backfill Gala",
+        gala_start,
+        venue="Loser Venue",
+        address=BROAD_ST,
+        location=_point(DOWNTOWN_CHATTANOOGA),
+        url_slug="full",
+    )
+    full.description = "loser description"
+    full.ends_at = gala_ends
+    full.image_url = IMG_A
+    full.tags = [Tag(name="test-tag-full")]
+    full.canonical_key = "stale-key-full"  # stored keys are unique; recomputed ones match
+
+    # A populated survivor keeps its own values against a differing duplicate.
+    keeper_start = upcoming(31, 22)
+    keeper_ends = upcoming(31, 23)
+    keeper = seed_event(
+        "test-Keeper Gala",
+        keeper_start,
+        venue="Keeper Venue",
+        address=MARKET_ST,
+        location=_point(DOWNTOWN_CHATTANOOGA),
+        url_slug="keeper",
+    )
+    keeper.description = "keeper description"
+    keeper.ends_at = keeper_ends
+    keeper.image_url = IMG_A
+    rival = seed_event(
+        "test-Keeper Gala",
+        keeper_start,
+        venue="Rival Venue",
+        address=BEALE_ST,
+        location=_point(MEMPHIS),
+        url_slug="rival",
+    )
+    rival.description = "rival description"
+    rival.ends_at = keeper_ends + dt.timedelta(hours=1)
+    rival.image_url = IMG_B
+    rival.canonical_key = "stale-key-rival"
+    await _commit_in_order(events_db_session, bare, full, keeper, rival)
+    bare_id, keeper_id = bare.id, keeper.id
+
+    merged = await reconcile_events(events_db_session)
+
+    assert merged == 2
+    events = {e.title: e for e in await _events(events_db_session)}
+    assert set(events) == {"test-Backfill Gala", "test-Keeper Gala"}
+
+    gala = events["test-Backfill Gala"]
+    await events_db_session.refresh(gala)
+    await events_db_session.refresh(gala, ["tags"])
+    assert gala.id == bare_id
+    assert gala.description == "loser description"
+    assert gala.venue_name == "Loser Venue"
+    assert gala.address == BROAD_ST
+    assert gala.ends_at == gala_ends
+    assert gala.image_url == IMG_A
+    assert await _lat_lon(events_db_session, gala) == DOWNTOWN_CHATTANOOGA
+    assert {tag.name for tag in gala.tags} == {"test-tag-bare", "test-tag-full"}
+
+    kept = events["test-Keeper Gala"]
+    await events_db_session.refresh(kept)
+    assert kept.id == keeper_id
+    assert kept.description == "keeper description"
+    assert kept.venue_name == "Keeper Venue"
+    assert kept.address == MARKET_ST
+    assert kept.ends_at == keeper_ends
+    assert kept.image_url == IMG_A
+    assert await _lat_lon(events_db_session, kept) == DOWNTOWN_CHATTANOOGA
+
+
+async def test_reconcile_survivor_chains_through_inherited_coordinates(events_db_session):
+    # The survivor has no location evidence of its own. It merges the second
+    # row on key equality, inherits that row's coordinates, and only then
+    # passes the fuzzy location gate against the third row.
+    from app.events.ingest import _point, reconcile_events
+
+    start = upcoming(30, 22)
+    first = seed_event("test-Valley Cruise In", start, url_slug="first")
+    second = seed_event(
+        "test-Valley Cruise In", start, location=_point(DOWNTOWN_CHATTANOOGA), url_slug="second"
+    )
+    third = seed_event(
+        "test-Valley Sonic Cruise In",
+        start,
+        location=_point((35.0457, -85.3098)),
+        url_slug="third",
+    )
+    second.canonical_key = "stale-key-second"  # stored keys are unique; recomputed ones match
+    await _commit_in_order(events_db_session, first, second, third)
+    first_id = first.id
+
+    merged = await reconcile_events(events_db_session)
+
+    assert merged == 2
+    (event,) = await _events(events_db_session)
+    assert event.id == first_id
+    assert event.title == "test-Valley Sonic Cruise In"
+    assert {link.source_url for link in event.links} == {
+        "http://test-seed/event/first",
+        "http://test-seed/event/second",
+        "http://test-seed/event/third",
+    }

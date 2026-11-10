@@ -1,25 +1,25 @@
 ## 1. Characterization tests (on unmodified `main` code)
 
-- [ ] 1.1 In `tests/test_events_ingest.py`, add a test that a retitled re-report matched on the
+- [x] 1.1 In `tests/test_events_ingest.py`, add a test that a retitled re-report matched on the
   source-listing tier adopts the new `canonical_key`, and a companion test that the stored key is
   kept when another event already holds the new key (no new event, no error)
-- [ ] 1.2 Add a test that re-reporting the same `(source_name, source_url)` with a new
+- [x] 1.2 Add a test that re-reporting the same `(source_name, source_url)` with a new
   `source_event_id` updates the existing link without adding one, and that a re-report without
   an id leaves the stored id unchanged
-- [ ] 1.3 Add a test that an ingest merge never overwrites a stored description, venue name,
+- [x] 1.3 Add a test that an ingest merge never overwrites a stored description, venue name,
   address or end time, and that an empty-string stored description is backfilled
-- [ ] 1.4 Add a test that a merge into a stored event with an address but no location, from a
+- [x] 1.4 Add a test that a merge into a stored event with an address but no location, from a
   report with neither address nor coordinates, geocodes the stored address (assert
   `FakeGeocoder.calls`)
-- [ ] 1.5 Add a reconciliation test (dates via `upcoming()`) that the survivor gains the
+- [x] 1.5 Add a reconciliation test (dates via `upcoming()`) that the survivor gains the
   loser's missing description, venue name, address, end time, image URL and location, keeps the
   ones it already had, and ends with the union of both rows' tags (covers the new "Ingest and
   reconciliation backfill the same fields" scenario together with 1.3 and the existing image
   tests)
-- [ ] 1.6 Add a three-row same-day reconciliation test where the survivor matches the third row
+- [x] 1.6 Add a three-row same-day reconciliation test where the survivor matches the third row
   only through state gained from the second (inherited coordinates or adopted longer title),
   asserting one row remains with all three links
-- [ ] 1.7 Run `pytest tests/test_events_ingest.py` against the unmodified code and confirm the
+- [x] 1.7 Run `pytest tests/test_events_ingest.py` against the unmodified code and confirm the
   new tests pass. Commit them on their own, before any refactor commit
 
 ## 2. Shared helpers
