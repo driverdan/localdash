@@ -849,13 +849,11 @@ def test_every_api_route_documents_a_named_200_schema():
         if not path.startswith("/api/v1/"):
             continue
         for method, op in ops.items():
-            if method != "get":  # refresh routes: typed with their result dataclasses
-                continue
             content = op["responses"]["200"]["content"]["application/json"]["schema"]
             if content.get("type") == "array":  # /track and /sources are JSON arrays
                 content = content["items"]
             assert "$ref" in content, f"{method.upper()} {path}: {content}"
             assert content["$ref"].startswith("#/components/schemas/")
             checked.append(f"{method.upper()} {path}")
-    # Every JSON GET route (the WebSocket is not in OpenAPI).
-    assert len(checked) == 11, checked
+    # Every JSON route, refresh routes included (the WebSocket is not in OpenAPI).
+    assert len(checked) == 14, checked

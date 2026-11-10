@@ -32,12 +32,12 @@ landed, read
 
 ## 2. Typed refresh results
 
-- [ ] 2.1 In `app/events/schemas.py` add frozen dataclasses `UpsertStats`, `GeocodeRetryStats` and `EventsRefreshResult`, the last with a `changed_visible_data` property. Return them from `upsert_raw_events`/`run_sources` (or the functions `decompose-events-upsert` split them into) and from `retry_failed_geocodes`. Build `EventsRefreshResult` in `app/events/refresh.py` and drop `|=` and the string-key reads
-- [ ] 2.2 Set `response_model=EventsRefreshResult` on `POST /events/refresh`
-- [ ] 2.3 In `app/news/schemas.py` add `NewsRefreshResult(sources: dict[str, str], clusters: int)`, return it from `app/news/refresh.py:refresh`, and declare it on `POST /news/refresh`. Annotate `fetch_all` as `-> dict[str, str]`
-- [ ] 2.4 In `app/timeseries_schemas.py` add `CollectorRun(source, status: Literal["ok", "error"], error, count)`, return it from `run_collector`, and declare it on `POST /timeseries/sources/{key}/refresh`
-- [ ] 2.5 If `unify-refresh-orchestration` introduced a shared refresh-result type, use it instead of 2.1–2.4's per-feature names, keeping the JSON fields
-- [ ] 2.6 Update `tests/test_events_ingest.py`, `tests/test_events_cityspark.py`, `tests/test_api_events.py` and `tests/test_live_signals.py` from `stats["x"]`/`result["x"]` to attribute access, and confirm the refresh golden tests from 0.3 pass unmodified
+- [x] 2.1 In `app/events/schemas.py` add frozen dataclasses `UpsertStats`, `GeocodeRetryStats` and `EventsRefreshResult`, the last with a `changed_visible_data` property. Return them from `upsert_raw_events`/`run_sources` (or the functions `decompose-events-upsert` split them into) and from `retry_failed_geocodes`. Build `EventsRefreshResult` in `app/events/refresh.py` and drop `|=` and the string-key reads
+- [x] 2.2 Set `response_model=EventsRefreshResult` on `POST /events/refresh`
+- [x] 2.3 In `app/news/schemas.py` add `NewsRefreshResult(sources: dict[str, str], clusters: int)`, return it from `app/news/refresh.py:refresh`, and declare it on `POST /news/refresh`. Annotate `fetch_all` as `-> dict[str, str]`
+- [x] 2.4 In `app/timeseries_schemas.py` add `CollectorRun(source, status: Literal["ok", "error"], error, count)`, return it from `run_collector`, and declare it on `POST /timeseries/sources/{key}/refresh`
+- [x] 2.5 If `unify-refresh-orchestration` introduced a shared refresh-result type, use it instead of 2.1–2.4's per-feature names, keeping the JSON fields
+- [x] 2.6 Update `tests/test_events_ingest.py`, `tests/test_events_cityspark.py`, `tests/test_api_events.py` and `tests/test_live_signals.py` from `stats["x"]`/`result["x"]` to attribute access, and confirm the refresh golden tests from 0.3 pass unmodified
 
 ## 3. News registry dataclasses
 

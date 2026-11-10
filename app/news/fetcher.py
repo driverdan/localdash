@@ -287,9 +287,9 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) ->
     return added, f"ok ({len(parsed.entries)} entries, {added} changed)"
 
 
-async def fetch_all(session: AsyncSession) -> dict:
+async def fetch_all(session: AsyncSession) -> dict[str, str]:
     """Fetch every feed of every enabled source. Returns {feed label: status}."""
-    results = {}
+    results: dict[str, str] = {}
     feeds = (
         await session.execute(
             select(NewsFeed, NewsSource.slug)

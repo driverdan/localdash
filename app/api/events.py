@@ -19,7 +19,14 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.events import refresh as events_refresh
 from app.events.models import Event, Tag
-from app.events.schemas import EventItem, EventLink, EventsResponse, Origin, TagsResponse
+from app.events.schemas import (
+    EventItem,
+    EventLink,
+    EventsRefreshResult,
+    EventsResponse,
+    Origin,
+    TagsResponse,
+)
 
 router = APIRouter()
 
@@ -102,7 +109,7 @@ async def tags(session: AsyncSession = Depends(get_session)) -> TagsResponse:
     return TagsResponse(tags=list(names))
 
 
-@router.post("/refresh")
-async def refresh() -> dict:
+@router.post("/refresh", response_model=EventsRefreshResult)
+async def refresh() -> EventsRefreshResult:
     """Fetch all configured sources and upsert on demand."""
     return await events_refresh.refresh()

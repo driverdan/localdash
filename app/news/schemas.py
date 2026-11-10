@@ -1,4 +1,4 @@
-"""Response models and typed rows for the news API (/api/v1/news).
+"""Response models, typed rows and the refresh result for the news API (/api/v1/news).
 
 Fields are declared in the order the JSON has always carried them; see
 app/contracts.py for the shared base model and the datetime rule.
@@ -72,3 +72,11 @@ class NewsSourceStatus(ApiModel):
 
 class SourcesResponse(ApiModel):
     sources: list[NewsSourceStatus]
+
+
+@dataclass(frozen=True, slots=True)
+class NewsRefreshResult:
+    """One news refresh cycle; the body of POST /api/v1/news/refresh."""
+
+    sources: dict[str, str]  # feed label ("<slug>/<category>") -> fetch status
+    clusters: int

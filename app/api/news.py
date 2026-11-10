@@ -15,7 +15,7 @@ from app.db import get_session
 from app.news import refresh as news_refresh
 from app.news import stories
 from app.news.registry import CATEGORIES
-from app.news.schemas import SourcesResponse, StoriesResponse
+from app.news.schemas import NewsRefreshResult, SourcesResponse, StoriesResponse
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ async def get_sources(session: AsyncSession = Depends(get_session)) -> SourcesRe
     return SourcesResponse(sources=await stories.get_sources(session))
 
 
-@router.post("/refresh")
-async def refresh():
+@router.post("/refresh", response_model=NewsRefreshResult)
+async def refresh() -> NewsRefreshResult:
     """Fetch all feeds and recluster on demand."""
     return await news_refresh.refresh()

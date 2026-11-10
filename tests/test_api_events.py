@@ -11,6 +11,7 @@ import datetime as dt
 
 from app.api.events import items, refresh, tags
 from app.events.ingest import upsert_raw_events
+from app.events.schemas import EventsRefreshResult, UpsertStats
 from app.events.sources.base import RawEvent
 from tests.conftest import make_settings
 from tests.fakes import FakeGeocoder
@@ -183,14 +184,9 @@ async def test_refresh_endpoint_reports_counts(events_db_session, monkeypatch):
     monkeypatch.setattr("app.events.refresh.build_sources", lambda settings: [])
     await _seed_duplicate_pair(events_db_session)
     result = await refresh()
-    assert result["reconciled"] == 1
-    assert {k: result[k] for k in ("created", "merged", "skipped_far", "retried", "resolved")} == {
-        "created": 0,
-        "merged": 0,
-        "skipped_far": 0,
-        "retried": 0,
-        "resolved": 0,
-    }
+    assert result == EventsRefreshResult(
+        created=0, merged=0, skipped_far=0, retried=0, resolved=0, reconciled=1
+    )
 
 
 async def test_refresh_forwards_configured_blocklist_and_center(events_db_session, monkeypatch):
@@ -212,7 +208,7 @@ async def test_refresh_forwards_configured_blocklist_and_center(events_db_sessio
 
     async def fake_run_sources(session, sources, geocoder=None, max_miles=0, **kwargs):
         captured.update(kwargs, max_miles=max_miles)
-        return {"created": 0, "merged": 0, "skipped_far": 0}
+        return UpsertStats(created=0, merged=0, skipped_far=0)
 
     monkeypatch.setattr(events_refresh, "run_sources", fake_run_sources)
     await events_refresh.refresh()

@@ -31,7 +31,7 @@ from app.geojson import (
     feature_geom,
 )
 from app.models import Entity, Observation, Source
-from app.timeseries_schemas import EntitySnapshot, SourceStatus, TrackPoint
+from app.timeseries_schemas import CollectorRun, EntitySnapshot, SourceStatus, TrackPoint
 
 router = APIRouter()
 
@@ -265,8 +265,8 @@ async def list_sources(session: AsyncSession = Depends(get_session)) -> list[Sou
     ]
 
 
-@router.post("/sources/{key}/refresh")
-async def refresh(key: str, request: Request):
+@router.post("/sources/{key}/refresh", response_model=CollectorRun)
+async def refresh(key: str, request: Request) -> CollectorRun:
     """Manually trigger one collection cycle (handy for testing)."""
     collectors = request.app.state.collectors
     collector = collectors.get(key)

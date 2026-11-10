@@ -20,7 +20,9 @@ import app.events.refresh as events_refresh_mod
 import app.news.refresh as news_refresh_mod
 import app.weather.refresh as weather_refresh_mod
 from app.diff import Diff
+from app.events.schemas import GeocodeRetryStats, UpsertStats
 from app.redaction import REDACTED
+from app.timeseries_schemas import CollectorRun
 
 
 class FakeManager:
@@ -94,10 +96,10 @@ async def test_news_refresh_failure_does_not_ping(monkeypatch, fake_manager):
 
 def _patch_events_cycle(monkeypatch, fake_manager, run_stats, retry_stats, reconciled):
     async def fake_run_sources(session, sources, geocoder, max_miles, **kwargs):
-        return dict(run_stats)
+        return run_stats
 
     async def fake_retry(session, geocoder, retry_hours, batch):
-        return dict(retry_stats)
+        return retry_stats
 
     async def fake_reconcile(session):
         return reconciled
@@ -115,8 +117,8 @@ async def test_events_refresh_pings_when_data_changed(monkeypatch, fake_manager)
     _patch_events_cycle(
         monkeypatch,
         fake_manager,
-        run_stats={"created": 1, "merged": 0, "skipped_far": 0},
-        retry_stats={"retried": 0, "resolved": 0},
+        run_stats=UpsertStats(created=1, merged=0, skipped_far=0),
+        retry_stats=GeocodeRetryStats(retried=0, resolved=0),
         reconciled=0,
     )
 
@@ -129,8 +131,8 @@ async def test_events_refresh_unchanged_cycle_is_silent(monkeypatch, fake_manage
     _patch_events_cycle(
         monkeypatch,
         fake_manager,
-        run_stats={"created": 0, "merged": 0, "skipped_far": 2},
-        retry_stats={"retried": 3, "resolved": 0},
+        run_stats=UpsertStats(created=0, merged=0, skipped_far=2),
+        retry_stats=GeocodeRetryStats(retried=3, resolved=0),
         reconciled=0,
     )
 
@@ -254,7 +256,7 @@ async def test_collector_non_empty_diff_is_broadcast_once(monkeypatch, fake_mana
     result = await collect_mod.run_collector(FakeCollector("hc911", _Recorder()))
 
     assert fake_manager.broadcasts == [diff.to_message()]
-    assert result == {"source": "hc911", "status": "ok", "error": None, "count": 0}
+    assert result == CollectorRun(source="hc911", status="ok", error=None, count=0)
     assert records == [("hc911", "ok", None, 0)]
 
 
@@ -277,10 +279,10 @@ async def test_collector_failure_records_redacted_error(monkeypatch, fake_manage
 
     result = await collect_mod.run_collector(FailingCollector("hc911", _Recorder()))
 
-    error = result["error"]
+    error = result.error
     assert "hunter2" not in error
     assert REDACTED in error
-    assert result == {"source": "hc911", "status": "error", "error": error, "count": 0}
+    assert result == CollectorRun(source="hc911", status="error", error=error, count=0)
     assert records == [("hc911", "error", error, 0)]
     assert fake_manager.broadcasts == []
 
@@ -294,7 +296,7 @@ async def test_same_source_collector_runs_are_serialized(monkeypatch, fake_manag
         collect_mod.run_collector(scheduled), collect_mod.run_collector(manual)
     )
 
-    assert [r["status"] for r in results] == ["ok", "ok"]
+    assert [r.status for r in results] == ["ok", "ok"]
     assert rec.events == ["start:hc911", "end:hc911", "start:hc911", "end:hc911"]
 
 

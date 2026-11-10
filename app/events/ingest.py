@@ -25,6 +25,7 @@ from app.events.dedup import MatchSide, canonical_key, events_match
 from app.events.dedup import haversine_miles as _haversine_miles
 from app.events.geocoding import Coords, Geocoder, NullGeocoder
 from app.events.models import Event, EventLink, GeocodeCache, Tag
+from app.events.schemas import GeocodeRetryStats, UpsertStats
 from app.events.sources.base import EventSource, RawEvent
 from app.events.tagging import tag_event
 from app.geo import ewkt_point
@@ -328,7 +329,7 @@ async def upsert_raw_events(
     blocked_tags: Collection[str] = frozenset(),
     center: Coords | None = None,
     now: datetime | None = None,
-) -> dict[str, int]:
+) -> UpsertStats:
     """Insert or merge a batch of raw events.
 
     New events are geocoded from their address; when max_miles is positive, a
@@ -371,7 +372,7 @@ async def upsert_raw_events(
         await session.flush()
 
     await session.commit()
-    return {"created": created, "merged": merged, "skipped_far": skipped_far}
+    return UpsertStats(created=created, merged=merged, skipped_far=skipped_far)
 
 
 def _merge_pair(survivor: Event, loser: Event) -> None:
@@ -485,7 +486,7 @@ async def retry_failed_geocodes(
     batch: int,
     *,
     now: datetime | None = None,
-) -> dict[str, int]:
+) -> GeocodeRetryStats:
     """Re-attempt cached geocode failures whose last attempt is stale.
 
     Takes up to ``batch`` coordinate-less cache rows last attempted more than
@@ -497,7 +498,7 @@ async def retry_failed_geocodes(
     in the pass is stamped with that same ``now``; ties retry in address order.
     """
     if retry_hours <= 0 or batch <= 0:
-        return {"retried": 0, "resolved": 0}
+        return GeocodeRetryStats(retried=0, resolved=0)
 
     if now is None:
         now = datetime.now(timezone.utc)
@@ -524,7 +525,7 @@ async def retry_failed_geocodes(
                 .values(location=ewkt_point(*coords))
             )
     await session.commit()
-    return {"retried": len(rows), "resolved": resolved}
+    return GeocodeRetryStats(retried=len(rows), resolved=resolved)
 
 
 async def run_sources(
@@ -536,7 +537,7 @@ async def run_sources(
     blocked_tags: Collection[str] = frozenset(),
     center: Coords | None = None,
     now: datetime | None = None,
-) -> dict[str, int]:
+) -> UpsertStats:
     """Fetch every source and persist the combined result.
 
     A failure in one source does not abort the others. ``blocked_tags``,

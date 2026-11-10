@@ -341,7 +341,7 @@ async def test_failing_cityspark_source_does_not_abort_the_refresh_cycle(
         events_db_session, [make_source(), FakeSource([make_raw("test-fake")])]
     )
 
-    assert stats["created"] == 1
+    assert stats.created == 1
 
 
 # The page-cap guard must actually be finite.

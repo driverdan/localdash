@@ -1,4 +1,4 @@
-"""Response models for the timeseries API (/api/v1/timeseries).
+"""Response models and the collector run result for the timeseries API (/api/v1/timeseries).
 
 The timeseries code sits at the top level of app/ (ingest.py, geojson.py,
 collect.py, api/timeseries.py), so its models live here rather than in a
@@ -13,7 +13,8 @@ open objects: they carry arbitrary source fields.
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from app.contracts import ApiModel, IsoDateTime
 
@@ -56,3 +57,14 @@ class SourceStatus(ApiModel):
     last_status: str | None
     last_error: str | None
     last_count: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class CollectorRun:
+    """One collection cycle (app/collect.py:run_collector); the body of
+    POST /api/v1/timeseries/sources/{key}/refresh."""
+
+    source: str
+    status: Literal["ok", "error"]
+    error: str | None
+    count: int
