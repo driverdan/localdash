@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, tzinfo
+from datetime import UTC, datetime, tzinfo
 
 
-def as_utc(value: datetime, naive_tz: tzinfo = timezone.utc) -> datetime:
+def as_utc(value: datetime, naive_tz: tzinfo = UTC) -> datetime:
     """Return ``value`` as an aware UTC datetime.
 
     A naive ``value`` is read as a wall-clock time in ``naive_tz`` (UTC by
@@ -13,10 +13,10 @@ def as_utc(value: datetime, naive_tz: tzinfo = timezone.utc) -> datetime:
     """
     if value.tzinfo is None:
         value = value.replace(tzinfo=naive_tz)
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
-def parse_iso_utc(value: object, naive_tz: tzinfo = timezone.utc) -> datetime | None:
+def parse_iso_utc(value: object, naive_tz: tzinfo = UTC) -> datetime | None:
     """Parse an ISO-8601 string into an aware UTC datetime.
 
     Returns None for a falsy or non-string ``value`` and for a string that is

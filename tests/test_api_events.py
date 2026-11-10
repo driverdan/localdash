@@ -16,7 +16,7 @@ from app.events.sources.base import RawEvent
 from tests.conftest import make_settings
 from tests.fakes import FakeGeocoder
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 CENTER = (35.0456, -85.3097)  # geocode target = the default origin -> 0 miles
 NASHVILLE = (36.1627, -86.7816)  # ~110 miles away
 

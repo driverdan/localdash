@@ -212,7 +212,7 @@ class CitySparkSource(EventSource):
         }
 
     async def fetch(self) -> list[RawEvent]:
-        start = dt.datetime.now(dt.timezone.utc)
+        start = dt.datetime.now(dt.UTC)
         end = start + dt.timedelta(days=self.lookahead_days)
         async with make_client(
             timeout=self.timeout, user_agent=None, follow_redirects=False

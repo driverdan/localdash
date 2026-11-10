@@ -22,7 +22,8 @@ from __future__ import annotations
 import html as html_lib
 import json
 import logging
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 

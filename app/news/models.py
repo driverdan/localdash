@@ -35,7 +35,7 @@ class NewsSource(Base):
     homepage: Mapped[str] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    feeds: Mapped[list["NewsFeed"]] = relationship(back_populates="source")
+    feeds: Mapped[list[NewsFeed]] = relationship(back_populates="source")
 
 
 class NewsFeed(Base):
@@ -53,7 +53,7 @@ class NewsFeed(Base):
     last_fetch: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    source: Mapped["NewsSource"] = relationship(back_populates="feeds")
+    source: Mapped[NewsSource] = relationship(back_populates="feeds")
 
 
 class NewsArticle(Base):

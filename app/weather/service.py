@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -106,7 +106,7 @@ class WeatherService:
             # tz-aware observation time is the real bound; a naive one (unknown
             # AirNow zone) is display-only, so fall through to the fetch-age bound.
             if ts is not None and ts.tzinfo is not None:
-                age = (datetime.now(timezone.utc) - ts).total_seconds()
+                age = (datetime.now(UTC) - ts).total_seconds()
                 return age <= max_age
         # No usable observation time: bound by how long the prior payload (which
         # carried this AQI) has been cached. _fetched_at still holds its time here.

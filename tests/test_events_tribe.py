@@ -19,7 +19,7 @@ from app.events.sources import build_sources
 from app.events.sources.tribe import MAX_PAGES, PAGE_SIZE, TribeEventsSource, parse_page
 
 FIXTURE = Path(__file__).parent / "fixtures" / "tribe" / "events_page.json"
-UTC = dt.timezone.utc
+UTC = dt.UTC
 SOURCE_NAME = "Chattanooga Public Library"
 
 

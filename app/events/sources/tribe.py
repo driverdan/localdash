@@ -112,7 +112,7 @@ class TribeEventsSource(EventSource):
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        today = dt.datetime.now(dt.timezone.utc).date()
+        today = dt.datetime.now(dt.UTC).date()
         params = {
             "start_date": today.isoformat(),
             "end_date": (today + dt.timedelta(days=self.lookahead_days)).isoformat(),

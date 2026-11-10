@@ -19,7 +19,7 @@ from app.events.sources.chattzoo import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "chattzoo"
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 # The fixtures were captured in July 2026; tests pin "now" so year resolution
 # is deterministic rather than drifting with the wall clock.

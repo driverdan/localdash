@@ -6,7 +6,7 @@ against the PostGIS location (geography casts, so units are meters).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -84,9 +84,7 @@ async def items(
         .limit(limit)
     )
     if upcoming:
-        stmt = stmt.where(
-            func.coalesce(Event.ends_at, Event.starts_at) >= datetime.now(timezone.utc)
-        )
+        stmt = stmt.where(func.coalesce(Event.ends_at, Event.starts_at) >= datetime.now(UTC))
     if search:
         stmt = stmt.where(Event.title.ilike(f"%{search}%"))
     if topic:

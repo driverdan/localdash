@@ -128,7 +128,7 @@ class NominatimGeocoder(Geocoder):
                 )
                 resp.raise_for_status()
                 results = resp.json()
-            except Exception:  # noqa: BLE001 — network/service failures resolve to None
+            except Exception:
                 log.exception("geocoding failed for %r", query)
                 return None
             if not results:

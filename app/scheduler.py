@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -77,7 +77,7 @@ async def _run_job(spec: JobSpec) -> None:
     """Run one job's cycle; a failure only logs (the next tick retries)."""
     try:
         await spec.func(*spec.args)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("refresh job %s failed", spec.id)
 
 
@@ -94,7 +94,7 @@ def build_scheduler(specs: list[JobSpec]) -> AsyncIOScheduler:
             args=[spec],
             id=spec.id,
             name=spec.id,  # APScheduler logs the name; otherwise every job reads "_run_job"
-            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
+            next_run_time=datetime.now(UTC),  # run once immediately on startup
             max_instances=1,
             coalesce=True,
         )

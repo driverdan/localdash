@@ -56,7 +56,7 @@ def _to_aware_utc(value) -> dt.datetime | None:
     if isinstance(value, dt.datetime):
         return as_utc(value)
     if isinstance(value, dt.date):
-        return dt.datetime(value.year, value.month, value.day, tzinfo=dt.timezone.utc)
+        return dt.datetime(value.year, value.month, value.day, tzinfo=dt.UTC)
     return None
 
 

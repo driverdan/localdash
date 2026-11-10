@@ -14,7 +14,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -343,7 +343,7 @@ async def upsert_raw_events(
     if max_miles > 0 and center is None:
         raise ValueError("upsert_raw_events: max_miles > 0 requires a center")
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(dt.UTC)
     geocoder = geocoder or NullGeocoder()
     created = 0
     merged = 0
@@ -454,7 +454,7 @@ async def reconcile_events(session: AsyncSession, *, now: datetime | None = None
     UTC time) are considered. Idempotent; returns the merge count.
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(dt.UTC)
     rows = (
         await session.execute(
             select(Event, func.ST_Y(Event.location), func.ST_X(Event.location))
@@ -501,7 +501,7 @@ async def retry_failed_geocodes(
         return GeocodeRetryStats(retried=0, resolved=0)
 
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(dt.UTC)
     cutoff = now - timedelta(hours=retry_hours)
     rows = (
         await session.scalars(
@@ -547,7 +547,7 @@ async def run_sources(
     for source in sources:
         try:
             raws.extend(await source.fetch())
-        except Exception:  # noqa: BLE001 — defensive against flaky feeds
+        except Exception:
             log.exception("event source %s failed", getattr(source, "name", source))
     return await upsert_raw_events(
         session,

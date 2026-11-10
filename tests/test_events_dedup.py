@@ -15,7 +15,7 @@ from app.events.dedup import (
     titles_match,
 )
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def test_normalize_strips_punctuation_and_case():

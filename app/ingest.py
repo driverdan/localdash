@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -125,7 +125,7 @@ async def ingest(
 ) -> Diff:
     """Apply one collector snapshot; ``now`` (default: current UTC time) stamps the changes."""
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     diff = Diff(source_key=source_key)
 
     incoming_ids = [o.external_id for o in observations]

@@ -8,7 +8,7 @@ FeatureCollections. Live diffs are broadcast on the global /api/v1/ws bus
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import (
@@ -83,9 +83,7 @@ async def entities(
     )
 
     cutoff = (
-        datetime.now(timezone.utc) - timedelta(minutes=closed_within)
-        if closed_within is not None
-        else None
+        datetime.now(UTC) - timedelta(minutes=closed_within) if closed_within is not None else None
     )
     if active:
         if cutoff is not None:

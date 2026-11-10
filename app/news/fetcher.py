@@ -22,7 +22,7 @@ import asyncio
 import calendar
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urljoin
 
 import feedparser
@@ -46,8 +46,8 @@ def _entry_published(entry) -> datetime:
         parsed = getattr(entry, attr, None)
         if parsed:
             ts = calendar.timegm(parsed)
-            return datetime.fromtimestamp(ts, tz=timezone.utc)
-    return datetime.now(timezone.utc)
+            return datetime.fromtimestamp(ts, tz=UTC)
+    return datetime.now(UTC)
 
 
 def _entry_raw_content(entry) -> str:
@@ -104,10 +104,10 @@ def _row_published(row) -> datetime:
     node = row.select_one(".views-field-created time[datetime]")
     if node:
         try:
-            return datetime.fromisoformat(node["datetime"]).astimezone(timezone.utc)
+            return datetime.fromisoformat(node["datetime"]).astimezone(UTC)
         except ValueError, KeyError:
             pass
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_html_listing(html: str, base_url: str) -> list[dict]:
@@ -224,7 +224,7 @@ async def _fetch_html_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, 
     if not partial:
         return 0, "error (no entries)"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = [
         _article_row(
             feed,
@@ -258,7 +258,7 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) ->
             detail = f"{detail}: {parsed.bozo_exception}"
         return 0, f"error ({detail})"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = []
     for entry in parsed.entries:
         url = getattr(entry, "link", "") or ""
@@ -308,7 +308,7 @@ async def fetch_all(session: AsyncSession) -> dict[str, str]:
         await session.execute(
             update(NewsFeed)
             .where(NewsFeed.id == feed.id)
-            .values(last_fetch=datetime.now(timezone.utc), last_status=status)
+            .values(last_fetch=datetime.now(UTC), last_status=status)
         )
         await session.commit()
         results[label] = status

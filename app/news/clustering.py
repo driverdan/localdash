@@ -41,7 +41,7 @@ import math
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -240,7 +240,7 @@ async def recluster(session: AsyncSession, *, window_days: int, now: datetime | 
     current UTC time, read once).
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     cutoff = now - timedelta(days=window_days)
     corpus_cutoff = now - timedelta(days=max(IDF_LOOKBACK_DAYS, window_days))
     rows = (

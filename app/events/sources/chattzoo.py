@@ -148,7 +148,7 @@ def parse_occurrence(text: str, now: dt.datetime) -> tuple[dt.datetime, dt.datet
         end += dt.timedelta(days=1)
     if end < now:  # already over — in-progress events are kept
         return None
-    return start.astimezone(dt.timezone.utc), end.astimezone(dt.timezone.utc)
+    return start.astimezone(dt.UTC), end.astimezone(dt.UTC)
 
 
 def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[ListingEntry]:
@@ -242,7 +242,7 @@ def parse_detail(
 
 def _now() -> dt.datetime:
     """Wall clock, isolated so fetch tests can pin it the way parse tests do."""
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
 class ChattZooSource(EventSource):
