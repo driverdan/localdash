@@ -18,15 +18,6 @@ from pydantic import ConfigDict
 from app.contracts import ApiModel, IsoDateTime
 
 
-def feature(
-    lon: float | None, lat: float | None, properties: dict[str, Any], fid: Any = None
-) -> dict:
-    geometry = None
-    if lon is not None and lat is not None:
-        geometry = {"type": "Point", "coordinates": [lon, lat]}
-    return feature_geom(geometry, properties, fid=fid)
-
-
 def feature_geom(
     geometry: dict[str, Any] | None, properties: dict[str, Any], fid: Any = None
 ) -> dict:

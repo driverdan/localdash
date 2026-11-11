@@ -27,8 +27,7 @@ from sqlalchemy import func, or_, select
 
 from app.collectors.base import NormalizedObservation
 from app.diff import Diff
-from app.geo import ewkt_point
-from app.geojson import entity_properties, feature, feature_geom
+from app.geojson import entity_properties, feature_geom
 from app.models import Entity, Observation
 
 # Coordinate rounding (6 decimals ≈ 0.1 m) applied to geometry fingerprints, so a
@@ -64,33 +63,31 @@ def _round_coords(coords: Any) -> Any:
 def geom_fingerprint(obs: NormalizedObservation) -> str | None:
     """Stable fingerprint of an observation's geometry for change detection.
 
-    Point form (`lon,lat` at 6 decimals) preserves the prior ~0.1 m threshold;
-    polygon/other geometry hashes its coordinate-rounded GeoJSON so a reshape is
-    detected while sub-0.1 m noise is not.
+    Reads `obs.resolved_geometry`. A 2D `Point` is `lon,lat` at 6 decimals, which
+    preserves the prior ~0.1 m threshold; any other geometry (including a 3D
+    point) hashes its coordinate-rounded GeoJSON so a reshape is detected while
+    sub-0.1 m noise is not. Both forms are persisted in
+    `entities.geom_fingerprint` and must stay byte-identical, or every stored
+    entity looks moved on the next poll.
     """
-    if obs.geometry is not None:
-        canonical = {
-            "type": obs.geometry.get("type"),
-            "coordinates": _round_coords(obs.geometry.get("coordinates")),
-        }
-        blob = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha1(blob.encode()).hexdigest()
-    if obs.lat is not None and obs.lon is not None:
-        return f"{obs.lon:.6f},{obs.lat:.6f}"
-    return None
+    g = obs.resolved_geometry
+    if g is None:
+        return None
+    coords = g.get("coordinates")
+    if g.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) == 2:
+        lon, lat = coords
+        return f"{float(lon):.6f},{float(lat):.6f}"
+    canonical = {"type": g.get("type"), "coordinates": _round_coords(coords)}
+    blob = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(blob.encode()).hexdigest()
 
 
 def _geom_value(obs: NormalizedObservation):
-    """SQL/EWKT geometry value for `obs`, or None when it has no geometry.
-
-    Explicit GeoJSON geometry (polygon sources) is built with ST_GeomFromGeoJSON;
-    point sources keep the fast EWKT-string path (wrapped by GeoAlchemy2).
-    """
-    if obs.geometry is not None:
-        return func.ST_SetSRID(func.ST_GeomFromGeoJSON(json.dumps(obs.geometry)), 4326)
-    if obs.lat is not None and obs.lon is not None:
-        return ewkt_point(obs.lat, obs.lon)
-    return None
+    """SQL geometry value for `obs`'s resolved geometry, or None when it has none."""
+    g = obs.resolved_geometry
+    if g is None:
+        return None
+    return func.ST_SetSRID(func.ST_GeomFromGeoJSON(json.dumps(g)), 4326)
 
 
 def _latest_properties(obs: NormalizedObservation) -> dict:
@@ -116,9 +113,7 @@ def _entity_feature(entity: Entity, obs: NormalizedObservation) -> dict:
         active=True,
         status=obs.status,
     )
-    if obs.geometry is not None:
-        return feature_geom(obs.geometry, props, fid=entity.id)
-    return feature(obs.lon, obs.lat, props, fid=entity.id)
+    return feature_geom(obs.resolved_geometry, props, fid=entity.id)
 
 
 async def ingest(

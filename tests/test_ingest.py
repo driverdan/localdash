@@ -7,6 +7,8 @@ conftest.py); those tests fail if the server in DATABASE_URL is unreachable.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import func, select
 
 from app.collectors.base import NormalizedObservation
@@ -192,6 +194,59 @@ async def test_ingest_polygon_geometry(db_session):
     diff = await ingest(db_session, "test", [_poly_obs("a1", "Planned Work", ring=bigger)])
     assert len(diff.updated) == 1
     assert await _count(db_session, Observation, "test") == 2
+
+
+async def test_ingest_point_stores_point_geometry(db_session):
+    # A lat/lon observation stores the same 2D point, on the entity and the
+    # observation, with the "lon,lat" 6-decimal fingerprint.
+    await ingest(db_session, "test", [_obs("p1", "Queued", lat=35.0451, lon=-85.3097)])
+
+    ent = await _entity(db_session, "p1")
+    assert ent.geom_fingerprint == "-85.309700,35.045100"
+    entity_wkt = (
+        await db_session.execute(
+            select(func.ST_AsText(Entity.last_geom)).where(Entity.id == ent.id)
+        )
+    ).scalar_one()
+    obs_wkt = (
+        await db_session.execute(
+            select(func.ST_AsText(Observation.geom)).where(Observation.entity_id == ent.id)
+        )
+    ).scalar_one()
+    srid = (
+        await db_session.execute(select(func.ST_SRID(Entity.last_geom)).where(Entity.id == ent.id))
+    ).scalar_one()
+    assert entity_wkt == "POINT(-85.3097 35.0451)"
+    assert obs_wkt == "POINT(-85.3097 35.0451)"
+    assert srid == 4326
+
+
+async def test_fingerprint_stored_before_deploy_stays_valid(db_session):
+    # An active point entity written by the previous code (EWKT geometry and the
+    # "lon,lat" fingerprint) is re-observed at the same position and status:
+    # no new observation and nothing in the diff's updated list.
+    now = datetime(2026, 11, 1, 12, 0, tzinfo=timezone.utc)
+    db_session.add(
+        Entity(
+            source_key="test",
+            external_id="old1",
+            category="police",
+            label="Test",
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            last_geom="SRID=4326;POINT(-85.31 35.04)",
+            geom_fingerprint="-85.310000,35.040000",
+            latest_properties={"status": "Queued"},
+        )
+    )
+    await db_session.commit()
+
+    diff = await ingest(db_session, "test", [_obs("old1", "Queued", lat=35.04, lon=-85.31)])
+
+    assert diff.updated == []
+    assert diff.new == []
+    assert await _count(db_session, Observation) == 0
 
 
 async def _count(session, model, source_key: str = "test") -> int:
