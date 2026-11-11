@@ -17,7 +17,7 @@ from app.news.fetcher import fetch_all
 from app.news.schemas import NewsRefreshResult
 from app.ws import manager
 
-log = logging.getLogger("localdash.news")
+log = logging.getLogger(__name__)
 
 _refresh_lock = asyncio.Lock()
 

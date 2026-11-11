@@ -418,6 +418,10 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
   **async** form.
 - **`observations` is a TimescaleDB hypertable** on `observed_at`; its primary key is
   `(entity_id, observed_at)` because Timescale requires the partition column in the PK.
+- **Loggers are named by module path.** A module that logs defines
+  `log = logging.getLogger(__name__)`, so logger names are module paths (`app.events.sources.tribe`,
+  `app.scheduler`) and appear in every log line through `main.py`'s `basicConfig` format. Do not
+  hand-write `localdash.*` names, and do not add a logger to a module that does not log.
 
 ### Source-agnostic data model (`models.py`)
 - `sources` — one row per registered source + last-run telemetry (written by `app/collect.py`'s `_record_run`).
@@ -503,7 +507,9 @@ collectors/ingest.
   settings), `MeetupSource`, `ICalSource` (one per configured calendar URL), and
   `TribeEventsSource` (The Events Calendar REST API on WordPress sites, one per
   `events_tribe_calendars` `Name=BaseURL` entry — by default the Chattanooga Public Library).
-  Each yields normalized event records.
+  Each yields normalized event records. A source keeps its pure parsing in module-level functions
+  (`parse_page`, `parse_payload`, `parse_calendar`, `parse_listing`) that take what they need as
+  arguments; `fetch()` calls them and tests import them directly.
 - A source supplies what it knows and the pipeline derives the rest: `RawEvent` may carry
   `latitude`/`longitude` and `tags`; ingest geocodes only events without coordinates and
   keyword-tags only events without supplied tags (supplied tag names are lowercased so they merge

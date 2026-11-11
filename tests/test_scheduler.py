@@ -109,10 +109,10 @@ async def test_run_job_logs_failure_and_returns(caplog):
 
     spec = JobSpec(id="news_refresh", func=boom, interval_seconds=60)
 
-    with caplog.at_level(logging.ERROR, logger="localdash.scheduler"):
+    with caplog.at_level(logging.ERROR, logger="app.scheduler"):
         await _run_job(spec)
 
-    [record] = [r for r in caplog.records if r.name == "localdash.scheduler"]
+    [record] = [r for r in caplog.records if r.name == "app.scheduler"]
     assert record.levelno == logging.ERROR
     assert record.getMessage() == "refresh job news_refresh failed"
     assert "upstream down" in caplog.text  # traceback is logged too

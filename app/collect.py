@@ -24,7 +24,7 @@ from app.redaction import redact
 from app.timeseries_schemas import CollectorRun
 from app.ws import manager
 
-log = logging.getLogger("localdash.collect")
+log = logging.getLogger(__name__)
 
 # Per-source collection locks, created lazily (see run_collector).
 _source_locks: dict[str, asyncio.Lock] = {}

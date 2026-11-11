@@ -73,6 +73,18 @@ def test_live_ws_is_global_not_feature_scoped():
     assert not connected
 
 
+def test_live_ws_close_removes_client_from_broadcast_set(monkeypatch):
+    from app.ws import manager
+
+    # A fresh set, so clients left by other tests cannot affect this one.
+    monkeypatch.setattr(manager, "_clients", set())
+    tc = TestClient(app)  # no `with`: skips the lifespan
+    with tc.websocket_connect("/api/v1/ws"):
+        assert len(manager._clients) == 1
+    # Leaving the block closes the socket and waits for the handler to return.
+    assert manager._clients == set()
+
+
 async def test_config_returns_tile_fields(client):
     r = await client.get("/api/v1/config")
     assert r.status_code == 200

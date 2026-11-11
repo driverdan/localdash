@@ -38,7 +38,7 @@ from app.news.registry import feed_kind, uses_feed_tags
 from app.redaction import redact
 from app.text import strip_html, truncate_sentences
 
-log = logging.getLogger("localdash.news.fetcher")
+log = logging.getLogger(__name__)
 
 
 def _entry_published(entry) -> datetime:

@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 
 from app.config import Settings, split_csv
-from app.events import MEETUP_RADIUS_MILES
 from app.events.sources.base import EventSource
 from app.events.sources.carcruisefinder import CarCruiseFinderSource
 from app.events.sources.chattzoo import ChattZooSource
@@ -29,7 +28,7 @@ from app.events.sources.ical import ICalSource
 from app.events.sources.meetup import MeetupSource
 from app.events.sources.tribe import TribeEventsSource
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 
 def build_sources(settings: Settings) -> list[EventSource]:
@@ -73,7 +72,6 @@ def build_sources(settings: Settings) -> list[EventSource]:
                 token=settings.events_meetup_token,
                 lat=settings.center_lat,
                 lon=settings.center_lon,
-                radius_miles=MEETUP_RADIUS_MILES,
                 query=settings.events_meetup_query,
             )
         )

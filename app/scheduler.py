@@ -25,7 +25,7 @@ from app.events.refresh import refresh as events_refresh
 from app.news.refresh import refresh as news_refresh
 from app.weather.refresh import refresh as weather_refresh
 
-log = logging.getLogger("localdash.scheduler")
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)

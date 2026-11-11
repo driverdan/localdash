@@ -32,7 +32,7 @@ from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import BROWSER_USER_AGENT, make_client
 from app.timeutil import parse_iso_utc
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 LISTING_URL = "https://carcruisefinder.com/car-shows/tag/chattanooga-tn/"
 SOURCE_NAME = "CarCruiseFinder"

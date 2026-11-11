@@ -12,6 +12,3 @@ from __future__ import annotations
 
 # The distance origin for the API and the Meetup search filter comes from the
 # shared app-level center settings (get_settings().center in app/config.py).
-
-# Meetup keywordSearch radius; not config — matches the PoC default.
-MEETUP_RADIUS_MILES = 50

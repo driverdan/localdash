@@ -9,7 +9,7 @@ import pytest
 from app.config import Settings
 from app.events.sources import build_sources
 from app.events.sources.ical import ICalSource
-from app.events.sources.meetup import MeetupSource
+from app.events.sources.meetup import ENDPOINT, MeetupSource, parse_payload
 
 UTC = dt.timezone.utc
 
@@ -53,7 +53,7 @@ def _source() -> MeetupSource:
 
 
 def test_parse_extracts_event_fields():
-    events = _source().parse(SAMPLE_PAYLOAD)
+    events = parse_payload(SAMPLE_PAYLOAD, "Meetup", ENDPOINT)
     assert len(events) == 1
 
     event = events[0]
@@ -71,8 +71,8 @@ def test_parse_extracts_event_fields():
 
 
 def test_parse_handles_empty_or_malformed_payload():
-    assert _source().parse({}) == []
-    assert _source().parse({"data": {"keywordSearch": {"edges": []}}}) == []
+    assert parse_payload({}, "Meetup", ENDPOINT) == []
+    assert parse_payload({"data": {"keywordSearch": {"edges": []}}}, "Meetup", ENDPOINT) == []
 
 
 def test_missing_photo_yields_no_image():
@@ -94,7 +94,7 @@ def test_missing_photo_yields_no_image():
             }
         }
     }
-    (event,) = _source().parse(payload)
+    (event,) = parse_payload(payload, "Meetup", ENDPOINT)
     assert event.image_url is None
 
 
@@ -114,7 +114,8 @@ def test_build_sources_includes_meetup_only_when_token_set():
     assert not any(isinstance(s, MeetupSource) for s in build_sources(_settings()))
 
     sources = build_sources(_settings(events_meetup_token="a-token"))
-    assert any(isinstance(s, MeetupSource) for s in sources)
+    [meetup] = [s for s in sources if isinstance(s, MeetupSource)]
+    assert meetup.radius_miles == 50
 
 
 def test_build_sources_creates_one_ical_source_per_url():

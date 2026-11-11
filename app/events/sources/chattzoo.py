@@ -49,7 +49,7 @@ from bs4 import BeautifulSoup
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 LISTING_URL = "https://chattzoo.org/events/zooevents"
 SOURCE_NAME = "Chattanooga Zoo"

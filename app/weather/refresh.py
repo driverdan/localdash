@@ -22,7 +22,7 @@ from app.weather.schemas import WeatherPayload
 from app.weather.service import service
 from app.ws import manager
 
-log = logging.getLogger("localdash.weather")
+log = logging.getLogger(__name__)
 
 # Last payload a scheduled refresh produced; pings fire only when it changes.
 _last_payload: WeatherPayload | None = None

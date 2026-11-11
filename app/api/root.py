@@ -6,7 +6,9 @@ namespaces; only cross-feature endpoints belong here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+import contextlib
+
+from fastapi import APIRouter, Depends, WebSocket
 
 from app.config import Settings, get_settings
 from app.contracts import ApiModel
@@ -33,10 +35,11 @@ async def ws_live(ws: WebSocket):
     """The global live-update bus: all features' diffs and pings, one socket."""
     await manager.connect(ws)
     try:
-        while True:
-            # We don't expect client messages; this keeps the socket open.
-            await ws.receive_text()
-    except WebSocketDisconnect:
-        await manager.disconnect(ws)
-    except Exception:  # noqa: BLE001
+        # A client close (WebSocketDisconnect) or a broken socket ends the session;
+        # neither is an error worth surfacing.
+        with contextlib.suppress(Exception):
+            while True:
+                # We don't expect client messages; this keeps the socket open.
+                await ws.receive_text()
+    finally:
         await manager.disconnect(ws)

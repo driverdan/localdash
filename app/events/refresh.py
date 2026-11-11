@@ -21,7 +21,7 @@ from app.events.schemas import EventsRefreshResult
 from app.events.sources import build_sources
 from app.ws import manager
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 _refresh_lock = asyncio.Lock()
 

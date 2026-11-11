@@ -31,7 +31,7 @@ from app.events.tagging import tag_event
 from app.geo import ewkt_point
 from app.timeutil import as_utc
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 # Candidate window for the fuzzy tier, matching dedup's start-delta gate.
 _FUZZY_WINDOW = timedelta(hours=2)

@@ -20,7 +20,7 @@ import httpx
 
 from app.http import make_client
 
-log = logging.getLogger("localdash.events")
+log = logging.getLogger(__name__)
 
 Coords = tuple[float, float]
 

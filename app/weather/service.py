@@ -28,7 +28,7 @@ from app.weather.airnow import airnow_error_messages, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 from app.weather.schemas import AirQuality, CurrentConditions, ForecastPeriod, WeatherPayload
 
-log = logging.getLogger("localdash.weather")
+log = logging.getLogger(__name__)
 
 POINTS_URL = "https://api.weather.gov/points/{lat},{lon}"
 # AirNow's current-observations-by-lat/lon-or-ZIP service (the replacement for
