@@ -15,6 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.config import get_settings
 from app.redaction import install as install_log_redaction
 from app.weather.airnow import aqi_category, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
@@ -183,8 +184,10 @@ class FakeNWS:
         return WeatherService(make_settings(airnow_api_key=self.airnow_api_key))
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        # NWS requires an identifying UA: the default names LocalDash.
+        assert request.headers["User-Agent"] == get_settings().user_agent
+        assert "LocalDash/" in request.headers["User-Agent"]
         self.calls.append(str(request.url))
-        assert request.headers["User-Agent"] == "LocalDash/0.1"  # NWS-required UA
         url = str(request.url.copy_with(query=None))
         if url in self.failing or url not in self.routes:
             return httpx.Response(500)

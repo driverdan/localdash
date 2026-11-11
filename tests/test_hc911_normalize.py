@@ -80,7 +80,6 @@ class _DummySettings:
     hc911_auth_token = "t"
     hc911_origin = "o"
     hc911_poll_interval = 60
-    user_agent = "test"
 
 
 # --- fetch() (through the mock_http fixture) ---
