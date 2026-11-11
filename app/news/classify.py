@@ -7,7 +7,7 @@ first match wins, and always yields one of registry.CATEGORIES:
   1. a mapped feed ``<category>`` tag (the WordPress outlets emit per-item
      tags; only a curated, high-confidence subset maps into our vocabulary —
      everything else is ignored, and a source registered with
-     ``use_feed_tags: False`` skips this tier entirely because its tags are
+     ``use_feed_tags=False`` skips this tier entirely because its tags are
      boilerplate — the fetcher passes it an empty tag list);
   2. a keyword match on the title + summary (topic->keywords, matched with
      app.text.keyword_matches, which the events tagger app/events/tagging.py

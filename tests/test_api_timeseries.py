@@ -75,8 +75,8 @@ async def test_entities_inactive_only(db_session):
 async def test_snapshot_has_no_track(db_session):
     await _seed(db_session)
     d = await entity_detail(await _entity_id(db_session, "1"), session=db_session)
-    assert "track" not in d
-    assert d["external_id"] == "1" and d["is_active"] is True
+    assert "track" not in d.model_dump()
+    assert d.external_id == "1" and d.is_active is True
 
 
 async def test_entity_serves_normalized_status(db_session):
@@ -90,17 +90,17 @@ async def test_entity_serves_normalized_status(db_session):
     assert by_ext["2"]["status"] == "Enroute"
 
     d1 = await entity_detail(await _entity_id(db_session, "1"), session=db_session)
-    assert d1["latest_properties"]["status"] == "Queued"
+    assert d1.latest_properties["status"] == "Queued"
     d2 = await entity_detail(await _entity_id(db_session, "2"), session=db_session)
-    assert d2["latest_properties"]["status"] == "Enroute"
+    assert d2.latest_properties["status"] == "Enroute"
 
 
 async def test_track_ordered_oldest_first(db_session):
     await ingest(db_session, "test", [_obs("1", "Queued")])
     await ingest(db_session, "test", [_obs("1", "Enroute")])
     track = await entity_track(await _entity_id(db_session, "1"), session=db_session)
-    assert [t["status"] for t in track] == ["Queued", "Enroute"]
-    times = [t["observed_at"] for t in track]
+    assert [t.status for t in track] == ["Queued", "Enroute"]
+    times = [t.observed_at for t in track]
     assert times == sorted(times)
 
 
@@ -127,9 +127,9 @@ async def test_polygon_entity_round_trips_as_polygon(db_session):
         )
     ).scalar_one()
     track = await entity_track(eid, session=db_session)
-    assert track[0]["geometry"]["type"] == "Polygon"
+    assert track[0].geometry["type"] == "Polygon"
     # point convenience scalars are null for polygon geometry
-    assert track[0]["lon"] is None and track[0]["lat"] is None
+    assert track[0].lon is None and track[0].lat is None
 
 
 async def test_unknown_entity_404s(db_session):

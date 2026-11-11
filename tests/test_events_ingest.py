@@ -18,6 +18,7 @@ from app.events.ingest import (
     upsert_raw_events,
 )
 from app.events.models import Event, EventLink, GeocodeCache
+from app.events.schemas import GeocodeRetryStats, UpsertStats
 from app.events.sources.base import RawEvent
 from tests.conftest import make_settings
 from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
@@ -67,7 +68,7 @@ async def test_duplicate_across_sources_merges_into_one_event(events_db_session)
         events_db_session, [make_raw("test-SourceA"), make_raw("test-SourceB")]
     )
 
-    assert stats == {"created": 1, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=1, merged=1, skipped_far=0)
     events = await _events(events_db_session)
     assert len(events) == 1
     assert {link.source_name for link in events[0].links} == {"test-SourceA", "test-SourceB"}
@@ -118,7 +119,7 @@ async def test_run_sources_persists_and_tolerates_failures(events_db_session):
     stats = await run_sources(
         events_db_session, [FakeSource([make_raw("test-fake")]), BrokenSource()]
     )
-    assert stats["created"] == 1
+    assert stats.created == 1
     assert len(await _events(events_db_session)) == 1
 
 
@@ -223,7 +224,7 @@ async def test_far_new_event_is_dropped_and_counted(events_db_session):
         center=CENTER,
     )
 
-    assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
+    assert stats == UpsertStats(created=0, merged=0, skipped_far=1)
     assert await _events(events_db_session) == []
     links = (
         await events_db_session.scalars(
@@ -243,7 +244,7 @@ async def test_nearby_new_event_passes_the_filter(events_db_session):
         center=CENTER,
     )
 
-    assert stats == {"created": 1, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=1, merged=0, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert event.location is not None
 
@@ -261,7 +262,7 @@ async def test_unlocated_events_are_kept_when_filter_is_on(events_db_session):
         center=CENTER,
     )
 
-    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=2, merged=0, skipped_far=0)
     events = await _events(events_db_session)
     assert len(events) == 2
     assert all(e.location is None for e in events)
@@ -273,7 +274,7 @@ async def test_zero_max_miles_disables_the_filter(events_db_session):
         events_db_session, [make_raw("test-SourceA", address=BEALE_ST)], geo, max_miles=0
     )
 
-    assert stats == {"created": 1, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=1, merged=0, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert event.location is not None
 
@@ -296,7 +297,7 @@ async def test_merge_path_is_exempt_from_the_filter(events_db_session):
         center=CENTER,
     )
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert {link.source_name for link in event.links} == {"test-SourceA", "test-SourceB"}
 
@@ -349,7 +350,7 @@ async def test_supplied_coordinates_feed_the_distance_filter(events_db_session):
         center=CENTER,
     )
 
-    assert stats == {"created": 0, "merged": 0, "skipped_far": 1}
+    assert stats == UpsertStats(created=0, merged=0, skipped_far=1)
 
 
 async def test_supplied_coordinates_backfill_a_merged_events_location(events_db_session):
@@ -370,7 +371,7 @@ async def test_supplied_coordinates_backfill_a_merged_events_location(events_db_
         geo,
     )
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     assert geo.calls == []
     (event,) = await _events(events_db_session)
     await events_db_session.refresh(event)
@@ -546,7 +547,7 @@ async def test_stale_failure_retried_and_events_backfilled(events_db_session):
     retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
 
-    assert stats == {"retried": 1, "resolved": 1}
+    assert stats == GeocodeRetryStats(retried=1, resolved=1)
     row = await _cache_row(events_db_session, BROAD_ST)
     assert (row.latitude, row.longitude) == DOWNTOWN_CHATTANOOGA
     (event,) = await _events(events_db_session)
@@ -565,7 +566,7 @@ async def test_success_rows_are_never_requeried(events_db_session):
     retry_geo = FakeGeocoder({MARKET_ST: MEMPHIS})
     stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
 
-    assert stats == {"retried": 0, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=0, resolved=0)
     assert retry_geo.calls == []
     row = await _cache_row(events_db_session, MARKET_ST)
     assert (row.latitude, row.longitude) == DOWNTOWN_CHATTANOOGA
@@ -579,7 +580,7 @@ async def test_fresh_failure_waits_out_the_age_window(events_db_session):
     retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=25)
 
-    assert stats == {"retried": 0, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=0, resolved=0)
     assert retry_geo.calls == []
 
 
@@ -592,14 +593,14 @@ async def test_failed_retry_bumps_last_attempt(events_db_session):
 
     still_failing = FakeGeocoder({})
     stats = await retry_failed_geocodes(events_db_session, still_failing, retry_hours=24, batch=25)
-    assert stats == {"retried": 1, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=1, resolved=0)
     after = await _cache_row(events_db_session, BROAD_ST)
     assert after.latitude is None
     assert after.last_attempted_at > before
 
     # Now inside the age window: not retried again.
     stats = await retry_failed_geocodes(events_db_session, still_failing, retry_hours=24, batch=25)
-    assert stats == {"retried": 0, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=0, resolved=0)
     assert still_failing.calls == [BROAD_ST]
 
 
@@ -617,7 +618,7 @@ async def test_batch_cap_takes_oldest_first(events_db_session):
     retry_geo = FakeGeocoder({})
     stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=24, batch=2)
 
-    assert stats == {"retried": 2, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=2, resolved=0)
     assert retry_geo.calls == [addresses[2], addresses[1]]
 
 
@@ -630,7 +631,7 @@ async def test_non_positive_retry_hours_disables_the_pass(events_db_session):
     retry_geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     stats = await retry_failed_geocodes(events_db_session, retry_geo, retry_hours=0, batch=25)
 
-    assert stats == {"retried": 0, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=0, resolved=0)
     assert retry_geo.calls == []
 
 
@@ -642,12 +643,12 @@ async def test_retry_age_window_follows_injected_now(events_db_session):
 
     early = stamp + dt.timedelta(hours=23)
     stats = await retry_failed_geocodes(events_db_session, geo, retry_hours=24, batch=25, now=early)
-    assert stats == {"retried": 0, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=0, resolved=0)
     assert (await _cache_row(events_db_session, BROAD_ST)).last_attempted_at == stamp
 
     late = stamp + dt.timedelta(hours=25)
     stats = await retry_failed_geocodes(events_db_session, geo, retry_hours=24, batch=25, now=late)
-    assert stats == {"retried": 1, "resolved": 0}
+    assert stats == GeocodeRetryStats(retried=1, resolved=0)
     assert geo.calls == [BROAD_ST]
     assert (await _cache_row(events_db_session, BROAD_ST)).last_attempted_at == late
 
@@ -680,7 +681,7 @@ def sonic_raws():
 async def test_within_source_duplicate_listings_merge(events_db_session):
     stats = await upsert_raw_events(events_db_session, sonic_raws())
 
-    assert stats == {"created": 1, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=1, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert len(event.links) == 2
     assert {link.source_url for link in event.links} == {
@@ -693,7 +694,7 @@ async def test_merged_listings_reingest_idempotently(events_db_session):
     await upsert_raw_events(events_db_session, sonic_raws())
     stats = await upsert_raw_events(events_db_session, sonic_raws())
 
-    assert stats == {"created": 0, "merged": 2, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=2, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert len(event.links) == 2
 
@@ -704,7 +705,7 @@ async def test_fuzzy_match_requires_location_agreement(events_db_session):
     bare = [replace(r, venue_name=None) for r in sonic_raws()]
     stats = await upsert_raw_events(events_db_session, bare)
 
-    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=2, merged=0, skipped_far=0)
 
 
 async def test_fuzzy_match_rejects_far_apart_coordinates(events_db_session):
@@ -721,7 +722,7 @@ async def test_fuzzy_match_rejects_far_apart_coordinates(events_db_session):
         geo,
     )
 
-    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=2, merged=0, skipped_far=0)
 
 
 async def test_recurring_listing_id_does_not_collapse_series(events_db_session):
@@ -741,7 +742,7 @@ async def test_recurring_listing_id_does_not_collapse_series(events_db_session):
     )
     stats = await upsert_raw_events(events_db_session, [day1, day2])
 
-    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=2, merged=0, skipped_far=0)
     events = await _events(events_db_session)
     assert len(events) == 2
 
@@ -763,7 +764,7 @@ async def test_source_listing_match_survives_retitle(events_db_session):
     )
     stats = await upsert_raw_events(events_db_session, [retitled])
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     # The retitled listing carries a new URL: both listing URLs remain.
     assert {link.source_event_id for link in event.links} == {"ev-9"}
@@ -915,7 +916,7 @@ async def test_source_listing_match_adopts_drifted_canonical_key(events_db_sessi
         ],
     )
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert event.canonical_key == canonical_key("test-Harbor Lights Winter Festival", start)
 
@@ -937,7 +938,7 @@ async def test_drifted_key_kept_when_new_key_is_taken(events_db_session):
             make_raw("test-other", title="test-Harbor Lights Winter Festival", start_time=start),
         ],
     )
-    assert stats == {"created": 2, "merged": 0, "skipped_far": 0}
+    assert stats == UpsertStats(created=2, merged=0, skipped_far=0)
 
     # The listing is retitled to the other event's title, whose key is taken.
     stats = await upsert_raw_events(
@@ -952,7 +953,7 @@ async def test_drifted_key_kept_when_new_key_is_taken(events_db_session):
         ],
     )
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     events = await _events(events_db_session)
     assert len(events) == 2
     listed = next(e for e in events if any(link.source_event_id == "ev-9" for link in e.links))
@@ -967,7 +968,7 @@ async def test_relisting_refreshes_source_event_id_without_adding_a_link(events_
     stats = await upsert_raw_events(
         events_db_session, [make_raw("test-SourceA", source_event_id="id-2")]
     )
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert [link.source_event_id for link in event.links] == ["id-2"]
 
@@ -1006,7 +1007,7 @@ async def test_ingest_merge_never_overwrites_stored_fields(events_db_session):
         ],
     )
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     (event,) = await _events(events_db_session)
     assert event.description == "stored description"
     assert event.venue_name == "Stored Venue"
@@ -1039,7 +1040,7 @@ async def test_merge_geocodes_the_stored_address_when_report_has_none(events_db_
     geo = FakeGeocoder({BROAD_ST: DOWNTOWN_CHATTANOOGA})
     stats = await upsert_raw_events(events_db_session, [raw], geo)
 
-    assert stats == {"created": 0, "merged": 1, "skipped_far": 0}
+    assert stats == UpsertStats(created=0, merged=1, skipped_far=0)
     assert geo.calls == [BROAD_ST]
     (event,) = await _events(events_db_session)
     await events_db_session.refresh(event)

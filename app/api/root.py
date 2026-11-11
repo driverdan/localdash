@@ -9,15 +9,23 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from app.config import Settings, get_settings
+from app.contracts import ApiModel
 from app.ws import manager
 
 router = APIRouter()
 
 
-@router.get("/config")
-async def config(settings: Settings = Depends(get_settings)):
+class AppConfig(ApiModel):
+    """Frontend bootstrap config."""
+
+    tile_url: str
+    tile_attribution: str
+
+
+@router.get("/config", response_model=AppConfig)
+async def config(settings: Settings = Depends(get_settings)) -> AppConfig:
     """Frontend bootstrap config (map tiles, etc.)."""
-    return {"tile_url": settings.tile_url, "tile_attribution": settings.tile_attribution}
+    return AppConfig(tile_url=settings.tile_url, tile_attribution=settings.tile_attribution)
 
 
 @router.websocket("/ws")

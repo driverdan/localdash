@@ -6,6 +6,8 @@ JSON payload, so the whole module is testable offline against fixtures.
 
 from __future__ import annotations
 
+from app.weather.schemas import CurrentConditions, ForecastPeriod
+
 # Points on a 16-wind compass rose, clockwise from north (22.5° apart).
 _COMPASS = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -35,26 +37,26 @@ def parse_stations(payload: dict, limit: int) -> list[str]:
     return [feature["id"] for feature in payload.get("features", [])[:limit]]
 
 
-def parse_forecast(payload: dict, count: int = 2) -> list[dict]:
+def parse_forecast(payload: dict, count: int = 2) -> list[ForecastPeriod]:
     """Forecast payload -> the first `count` periods, names passed through verbatim.
 
     NWS renames the leading period through the day ("Today" -> "This
     Afternoon" -> "Tonight"), so the name is data, never synthesized.
     """
     return [
-        {
-            "name": period["name"],
-            "temperature": period["temperature"],
-            "temperature_unit": period["temperatureUnit"],
-            "precip_percent": _quantity(period, "probabilityOfPrecipitation"),
-            "short_forecast": period["shortForecast"],
-            "detailed_forecast": period["detailedForecast"],
-        }
+        ForecastPeriod(
+            name=period["name"],
+            temperature=period["temperature"],
+            temperature_unit=period["temperatureUnit"],
+            precip_percent=_quantity(period, "probabilityOfPrecipitation"),
+            short_forecast=period["shortForecast"],
+            detailed_forecast=period["detailedForecast"],
+        )
         for period in payload["properties"]["periods"][:count]
     ]
 
 
-def parse_observation(payload: dict) -> dict | None:
+def parse_observation(payload: dict) -> CurrentConditions | None:
     """Latest-observation payload -> current conditions, or None if unusable.
 
     NWS observations report °C (and km/h wind); the response speaks °F/mph.
@@ -67,12 +69,12 @@ def parse_observation(payload: dict) -> dict | None:
         return None
     wind_kmh = _quantity(properties, "windSpeed")
     humidity = _quantity(properties, "relativeHumidity")
-    return {
-        "temperature_f": round(temp_c * 9 / 5 + 32),
-        "description": properties.get("textDescription") or "",
-        "icon": properties.get("icon"),
-        "wind_mph": round(wind_kmh * 0.621371) if wind_kmh is not None else None,
-        "wind_direction": _compass(_quantity(properties, "windDirection")),
-        "humidity_percent": round(humidity) if humidity is not None else None,
-        "observed_at": properties.get("timestamp"),
-    }
+    return CurrentConditions(
+        temperature_f=round(temp_c * 9 / 5 + 32),
+        description=properties.get("textDescription") or "",
+        icon=properties.get("icon"),
+        wind_mph=round(wind_kmh * 0.621371) if wind_kmh is not None else None,
+        wind_direction=_compass(_quantity(properties, "windDirection")),
+        humidity_percent=round(humidity) if humidity is not None else None,
+        observed_at=properties.get("timestamp"),
+    )

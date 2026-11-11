@@ -9,6 +9,7 @@ from itertools import combinations
 from pathlib import Path
 
 from app.news.clustering import ClusterArticle, assign_clusters
+from app.news.schemas import StoryArticle
 from app.news.stories import build_stories
 from app.news.textutil import title_tokens
 from app.text import strip_html, truncate_sentences
@@ -229,18 +230,18 @@ def test_fixture_precision_and_recall():
 
 
 def _row(aid, cluster_id, slug, category="news", title=None, summary="", published="", image=None):
-    return {
-        "id": aid,
-        "cluster_id": cluster_id,
-        "url": f"https://example.com/{aid}",
-        "title": title or f"Article {aid}",
-        "summary": summary,
-        "category": category,
-        "published": published,
-        "image_url": image,
-        "source_name": slug.title(),
-        "source_slug": slug,
-    }
+    return StoryArticle(
+        id=aid,
+        cluster_id=cluster_id,
+        url=f"https://example.com/{aid}",
+        title=title or f"Article {aid}",
+        summary=summary,
+        category=category,
+        published=datetime.fromisoformat(published),
+        image_url=image,
+        source_name=slug.title(),
+        source_slug=slug,
+    )
 
 
 def test_build_stories_aggregates_cluster():
@@ -265,14 +266,15 @@ def test_build_stories_aggregates_cluster():
         _row(3, 1, "alpha", "politics", published="2026-07-10T12:00:00+00:00"),
     ]
     (story,) = build_stories(rows)
-    assert story["title"] == "First report"  # earliest member
-    assert story["summary"] == "A much longer summary with detail."  # wordiest
-    assert story["category"] == "politics"  # 2:1 majority
-    assert story["article_count"] == 3
-    assert story["source_count"] == 2  # one link per outlet
-    assert [s["slug"] for s in story["sources"]] == ["alpha", "beta"]
-    assert story["first_published"] == "2026-07-10T10:00:00+00:00"
-    assert story["latest_published"] == "2026-07-10T12:00:00+00:00"
+    assert story.title == "First report"  # earliest member
+    assert story.summary == "A much longer summary with detail."  # wordiest
+    assert story.category == "politics"  # 2:1 majority
+    assert story.article_count == 3
+    assert story.source_count == 2  # one link per outlet
+    assert [s.slug for s in story.sources] == ["alpha", "beta"]
+    wire = story.model_dump(mode="json")
+    assert wire["first_published"] == "2026-07-10T10:00:00+00:00"
+    assert wire["latest_published"] == "2026-07-10T12:00:00+00:00"
 
 
 def test_build_stories_borrows_earliest_member_image():
@@ -295,7 +297,7 @@ def test_build_stories_borrows_earliest_member_image():
         ),
     ]
     (story,) = build_stories(rows)
-    assert story["image_url"] == "https://example.com/first.jpg"  # earliest with an image
+    assert story.image_url == "https://example.com/first.jpg"  # earliest with an image
 
 
 def test_build_stories_no_member_image_is_none():
@@ -304,7 +306,7 @@ def test_build_stories_no_member_image_is_none():
         _row(2, 1, "beta", published="2026-07-10T11:00:00+00:00"),
     ]
     (story,) = build_stories(rows)
-    assert story["image_url"] is None
+    assert story.image_url is None
 
 
 def test_build_stories_specific_beats_news_on_tie():
@@ -313,7 +315,7 @@ def test_build_stories_specific_beats_news_on_tie():
         _row(2, 1, "beta", "sports", published="2026-07-10T11:00:00+00:00"),
     ]
     (story,) = build_stories(rows)
-    assert story["category"] == "sports"
+    assert story.category == "sports"
 
 
 def test_build_stories_sorted_by_latest_activity():
@@ -322,7 +324,7 @@ def test_build_stories_sorted_by_latest_activity():
         _row(2, 2, "beta", published="2026-07-10T11:00:00+00:00"),
     ]
     stories = build_stories(rows)
-    assert [s["id"] for s in stories] == [2, 1]
+    assert [s.id for s in stories] == [2, 1]
 
 
 def test_truncate_sentences_cuts_at_boundary():

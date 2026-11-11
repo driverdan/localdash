@@ -17,34 +17,31 @@ from app.api.news import get_sources as api_get_sources
 from app.api.news import get_stories as api_get_stories
 from app.news.fetcher import upsert_articles
 from app.news.models import NewsArticle, NewsFeed, NewsSource
+from app.news.registry import FeedSpec, Outlet
 from app.news.stories import get_stories
 from tests.conftest import make_settings
 
-TEST_SOURCES_V1 = [
-    {
-        "slug": "test-outlet",
-        "name": "Test Outlet",
-        "homepage": "https://test.example.com",
-        "enabled": True,
-        "feeds": [
-            {"category": "sports", "url": "https://test.example.com/sports/feed"},
-            {"category": "news", "url": "https://test.example.com/news/feed"},
-        ],
-    },
-]
+TEST_SOURCES_V1 = (
+    Outlet(
+        slug="test-outlet",
+        name="Test Outlet",
+        homepage="https://test.example.com",
+        feeds=(
+            FeedSpec(category="sports", url="https://test.example.com/sports/feed"),
+            FeedSpec(category="news", url="https://test.example.com/news/feed"),
+        ),
+    ),
+)
 
 # v2: renamed, sports feed removed.
-TEST_SOURCES_V2 = [
-    {
-        "slug": "test-outlet",
-        "name": "Test Outlet Renamed",
-        "homepage": "https://test.example.com",
-        "enabled": True,
-        "feeds": [
-            {"category": "news", "url": "https://test.example.com/news/feed"},
-        ],
-    },
-]
+TEST_SOURCES_V2 = (
+    Outlet(
+        slug="test-outlet",
+        name="Test Outlet Renamed",
+        homepage="https://test.example.com",
+        feeds=(FeedSpec(category="news", url="https://test.example.com/news/feed"),),
+    ),
+)
 
 
 def _use_sources(monkeypatch, test_sources):
@@ -87,13 +84,12 @@ async def test_registry_sync_upserts_and_deletes(news_db_session, monkeypatch):
     assert name == "Test Outlet Renamed"
 
 
-TEST_SOURCE_GONE = {
-    "slug": "test-gone",
-    "name": "Test Gone",
-    "homepage": "https://gone.example.com",
-    "enabled": True,
-    "feeds": [{"category": "news", "url": "https://gone.example.com/feed"}],
-}
+TEST_SOURCE_GONE = Outlet(
+    slug="test-gone",
+    name="Test Gone",
+    homepage="https://gone.example.com",
+    feeds=(FeedSpec(category="news", url="https://gone.example.com/feed"),),
+)
 
 
 async def _slugs(session):
@@ -101,7 +97,7 @@ async def _slugs(session):
 
 
 async def test_registry_sync_deletes_sources_removed_from_registry(news_db_session, monkeypatch):
-    _use_sources(monkeypatch, TEST_SOURCES_V1 + [TEST_SOURCE_GONE])
+    _use_sources(monkeypatch, (*TEST_SOURCES_V1, TEST_SOURCE_GONE))
     await registry.sync_registry(news_db_session)
     gone_id = (
         await news_db_session.execute(select(NewsSource.id).where(NewsSource.slug == "test-gone"))
@@ -197,21 +193,21 @@ async def test_stories_and_sources_api_round_trip(news_db_session, monkeypatch):
     await news_db_session.commit()
 
     payload = await api_get_stories(hours=1, session=news_db_session, settings=make_settings())
-    assert payload["categories"]["sports"] == "Sports"
-    (story,) = payload["stories"]
-    assert story["id"] == arts[0].id
-    assert story["title"] == "Test story headline"
-    assert story["category"] == "sports"
-    assert story["article_count"] == 2 and story["source_count"] == 1
+    assert payload.categories["sports"] == "Sports"
+    (story,) = payload.stories
+    assert story.id == arts[0].id
+    assert story.title == "Test story headline"
+    assert story.category == "sports"
+    assert story.article_count == 2 and story.source_count == 1
 
-    sources = (await api_get_sources(session=news_db_session))["sources"]
+    sources = (await api_get_sources(session=news_db_session)).sources
     # Per-source total: every feed row of the outlet reports its 2 stored
     # articles, even the "news" feed whose section none of them were filed under.
-    assert [(r["slug"], r["category"], r["article_count"]) for r in sources] == [
+    assert [(r.slug, r.category, r.article_count) for r in sources] == [
         ("test-outlet", "sports", 2),
         ("test-outlet", "news", 2),
     ]
-    assert sources[0]["last_status"] is None  # never fetched in this test
+    assert sources[0].last_status is None  # never fetched in this test
 
 
 async def _seed_singleton_stories(session, monkeypatch, count: int) -> list[int]:
@@ -252,15 +248,15 @@ async def test_stories_limit_returns_newest_slice(news_db_session, monkeypatch):
         hours=24, limit=5, session=news_db_session, settings=make_settings()
     )
     # Exactly the 5 newest, still sorted latest-activity first, with the label map.
-    assert [s["id"] for s in payload["stories"]] == ids_newest_first[:5]
-    assert payload["categories"]["news"] == "News"
+    assert [s.id for s in payload.stories] == ids_newest_first[:5]
+    assert payload.categories["news"] == "News"
 
 
 async def test_stories_omitted_limit_returns_full_window(news_db_session, monkeypatch):
     ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=8)
 
     payload = await api_get_stories(hours=24, session=news_db_session, settings=make_settings())
-    ids = [s["id"] for s in payload["stories"]]
+    ids = [s.id for s in payload.stories]
     assert ids == ids_newest_first  # all 8, newest-first, nothing dropped
 
 
@@ -269,7 +265,7 @@ async def test_get_stories_cutoff_follows_injected_now(news_db_session, monkeypa
     now = datetime.now(timezone.utc)
 
     stories = await get_stories(news_db_session, hours=24, now=now)
-    assert [s["id"] for s in stories] == ids_newest_first
+    assert [s.id for s in stories] == ids_newest_first
 
     # Two days later the same 24-hour window has moved past every article.
     assert await get_stories(news_db_session, hours=24, now=now + timedelta(days=2)) == []
@@ -395,7 +391,7 @@ async def test_capped_article_sorts_by_fetch_time(news_db_session, monkeypatch):
     await news_db_session.commit()
 
     payload = await api_get_stories(hours=24, session=news_db_session, settings=make_settings())
-    assert [s["title"] for s in payload["stories"]] == [
+    assert [s.title for s in payload.stories] == [
         "test-cap fresh story",
         "test-cap pinned schedule",
     ]

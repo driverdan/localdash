@@ -7,6 +7,9 @@ sources/feeds are added, disabled, or retired.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Literal
+
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,160 +33,186 @@ CATEGORIES = {
 # registered category below as the fallback. List specific sections before the general news feed so
 # that fallback prefers the specific category when an article appears in both.
 # A source whose tags are boilerplate rather than per-article signal opts out
-# of the tag tier with "use_feed_tags": False (default True).
-SOURCES = [
-    {
-        "slug": "chattanoogan",
-        "name": "Chattanoogan.com",
-        "homepage": "https://www.chattanoogan.com",
-        "enabled": True,
-        "feeds": [
-            {"category": "sports", "url": "https://www.chattanoogan.com/Sports/feed"},
-            {"category": "opinion", "url": "https://www.chattanoogan.com/Opinion/feed"},
-            {"category": "news", "url": "https://www.chattanoogan.com/Breaking-News/feed"},
-        ],
-    },
-    {
-        "slug": "timesfreepress",
-        "name": "Chattanooga Times Free Press",
-        "homepage": "https://www.timesfreepress.com",
+# of the tag tier with use_feed_tags=False (default True).
+
+
+@dataclass(frozen=True, slots=True)
+class FeedSpec:
+    """One feed of an outlet: its section category and how it is read."""
+
+    category: str
+    url: str
+    # "rss": parsed by feedparser; "html": a server-rendered listing page scraped
+    # by fetcher.parse_html_listing.
+    kind: Literal["rss", "html"] = "rss"
+
+
+@dataclass(frozen=True, slots=True)
+class Outlet:
+    """One news source and its feeds, in fallback order."""
+
+    slug: str
+    name: str
+    homepage: str
+    feeds: tuple[FeedSpec, ...]
+    enabled: bool = True
+    # False when the outlet's per-item <category> tags are boilerplate, not
+    # per-article signal, so classify() skips the tag tier for it.
+    use_feed_tags: bool = True
+
+
+SOURCES: tuple[Outlet, ...] = (
+    Outlet(
+        slug="chattanoogan",
+        name="Chattanoogan.com",
+        homepage="https://www.chattanoogan.com",
+        enabled=True,
+        feeds=(
+            FeedSpec(category="sports", url="https://www.chattanoogan.com/Sports/feed"),
+            FeedSpec(category="opinion", url="https://www.chattanoogan.com/Opinion/feed"),
+            FeedSpec(category="news", url="https://www.chattanoogan.com/Breaking-News/feed"),
+        ),
+    ),
+    Outlet(
+        slug="timesfreepress",
+        name="Chattanooga Times Free Press",
+        homepage="https://www.timesfreepress.com",
         # The breakingnews feed is usually valid-but-empty; local/ is the one
         # that works. politics/life include syndicated national content —
         # known caveat, not a bug.
-        "enabled": True,
-        "feeds": [
-            {"category": "sports", "url": "https://www.timesfreepress.com/rss/headlines/sports/"},
-            {
-                "category": "business",
-                "url": "https://www.timesfreepress.com/rss/headlines/business/",
-            },
-            {
-                "category": "politics",
-                "url": "https://www.timesfreepress.com/rss/headlines/politics/",
-            },
-            {"category": "opinion", "url": "https://www.timesfreepress.com/rss/headlines/opinion/"},
-            {"category": "life", "url": "https://www.timesfreepress.com/rss/headlines/life/"},
-            {"category": "news", "url": "https://www.timesfreepress.com/rss/headlines/local/"},
-        ],
-    },
-    {
-        "slug": "wdef",
-        "name": "WDEF News 12",
-        "homepage": "https://wdef.com",
+        enabled=True,
+        feeds=(
+            FeedSpec(category="sports", url="https://www.timesfreepress.com/rss/headlines/sports/"),
+            FeedSpec(
+                category="business",
+                url="https://www.timesfreepress.com/rss/headlines/business/",
+            ),
+            FeedSpec(
+                category="politics",
+                url="https://www.timesfreepress.com/rss/headlines/politics/",
+            ),
+            FeedSpec(
+                category="opinion", url="https://www.timesfreepress.com/rss/headlines/opinion/"
+            ),
+            FeedSpec(category="life", url="https://www.timesfreepress.com/rss/headlines/life/"),
+            FeedSpec(category="news", url="https://www.timesfreepress.com/rss/headlines/local/"),
+        ),
+    ),
+    Outlet(
+        slug="wdef",
+        name="WDEF News 12",
+        homepage="https://wdef.com",
         # Category feeds live on www.wdef.com (the apex domain 301s).
-        "enabled": True,
-        "feeds": [
-            {"category": "sports", "url": "https://www.wdef.com/category/sports/feed/"},
-            {"category": "news", "url": "https://www.wdef.com/category/news/feed/"},
-        ],
-    },
-    {
-        "slug": "local3",
-        "name": "Local 3 News (WRCB)",
-        "homepage": "https://www.local3news.com",
+        enabled=True,
+        feeds=(
+            FeedSpec(category="sports", url="https://www.wdef.com/category/sports/feed/"),
+            FeedSpec(category="news", url="https://www.wdef.com/category/news/feed/"),
+        ),
+    ),
+    Outlet(
+        slug="local3",
+        name="Local 3 News (WRCB)",
+        homepage="https://www.local3news.com",
         # TownNews search feeds; c= matches their site sections. Unfiltered
         # results mix in national CNN wire stories.
-        "enabled": True,
-        "feeds": [
-            {
-                "category": "sports",
-                "url": (
+        enabled=True,
+        feeds=(
+            FeedSpec(
+                category="sports",
+                url=(
                     "https://www.local3news.com/search/?f=rss&t=article"
                     "&c=local-sports*&l=25&s=start_time&sd=desc"
                 ),
-            },
-            {
-                "category": "news",
-                "url": (
+            ),
+            FeedSpec(
+                category="news",
+                url=(
                     "https://www.local3news.com/search/?f=rss&t=article"
                     "&c=local-news&l=25&s=start_time&sd=desc"
                 ),
-            },
-        ],
-    },
-    {
-        "slug": "chattnewschronicle",
-        "name": "Chattanooga News Chronicle",
-        "homepage": "https://www.chattnewschronicle.com",
+            ),
+        ),
+    ),
+    Outlet(
+        slug="chattnewschronicle",
+        name="Chattanooga News Chronicle",
+        homepage="https://www.chattnewschronicle.com",
         # WordPress site. Only the primary feed is actively updated; the
         # per-category feeds are dormant, so all articles land under "news".
-        "enabled": True,
-        "feeds": [
-            {"category": "news", "url": "https://www.chattnewschronicle.com/feed/"},
-        ],
-    },
-    {
-        "slug": "chattanoogapulse",
-        "name": "The Pulse",
-        "homepage": "https://www.chattanoogapulse.com",
+        enabled=True,
+        feeds=(FeedSpec(category="news", url="https://www.chattnewschronicle.com/feed/"),),
+    ),
+    Outlet(
+        slug="chattanoogapulse",
+        name="The Pulse",
+        homepage="https://www.chattanoogapulse.com",
         # Chattanooga's arts & entertainment weekly, on Metro Publisher. Only a
         # single global feed is exposed (the ?section= param is ignored), and
         # items carry no <category> tags, so all articles land under "life".
-        "enabled": True,
-        "feeds": [
-            {"category": "life", "url": "https://www.chattanoogapulse.com/api/rss/content.rss"},
-        ],
-    },
-    {
-        "slug": "chattlibrary",
-        "name": "Chattanooga Public Library",
-        "homepage": "https://chattlibrary.org",
+        enabled=True,
+        feeds=(
+            FeedSpec(category="life", url="https://www.chattanoogapulse.com/api/rss/content.rss"),
+        ),
+    ),
+    Outlet(
+        slug="chattlibrary",
+        name="Chattanooga Public Library",
+        homepage="https://chattlibrary.org",
         # WordPress site. The News category feed is scoped to announcements;
         # the site-wide /feed/ is identical today but unscoped, and /news/feed/
         # is an empty WP page feed. Announcement/press-release content, so it
         # registers under "life" like The Pulse. Every post carries the same
         # News + Featured tags — pure boilerplate that would misfile everything
-        # under "news" via the tag tier, hence use_feed_tags: False.
-        "enabled": True,
-        "use_feed_tags": False,
-        "feeds": [
-            {"category": "life", "url": "https://chattlibrary.org/category/news/feed/"},
-        ],
-    },
-    {
-        "slug": "chattgov",
-        "name": "City of Chattanooga",
-        "homepage": "https://chattanooga.gov",
+        # under "news" via the tag tier, hence use_feed_tags=False.
+        enabled=True,
+        use_feed_tags=False,
+        feeds=(FeedSpec(category="life", url="https://chattlibrary.org/category/news/feed/"),),
+    ),
+    Outlet(
+        slug="chattgov",
+        name="City of Chattanooga",
+        homepage="https://chattanooga.gov",
         # The city's official Latest News page has no usable RSS feed: the only
         # site RSS (/rss.xml) is the Drupal frontpage feed (calendar events,
         # zero news) and JSON:API is disabled. So this one feed is kind "html":
         # a server-rendered Drupal View scraped from its listing markup rather
         # than parsed by feedparser (see fetcher.parse_html_listing).
-        "enabled": True,
-        "feeds": [
-            {
-                "category": "news",
-                "kind": "html",
-                "url": "https://chattanooga.gov/stay-informed/latest-news",
-            },
-        ],
-    },
-    {
-        "slug": "wtvc",
-        "name": "NewsChannel 9 (WTVC)",
-        "homepage": "https://newschannel9.com",
+        enabled=True,
+        feeds=(
+            FeedSpec(
+                category="news",
+                kind="html",
+                url="https://chattanooga.gov/stay-informed/latest-news",
+            ),
+        ),
+    ),
+    Outlet(
+        slug="wtvc",
+        name="NewsChannel 9 (WTVC)",
+        homepage="https://newschannel9.com",
         # Sinclair site: section feeds follow /<section-path>.rss but are not
         # advertised in the HTML. /sports.rss mixes in offbeat items that would
         # fall back to "sports", and /news.rss is a stale grab bag of videos and
         # camera pages, so only the local feed is used; keyword classification
         # pulls the high school sports out of it. Every item is tagged
-        # "article" (a content type, not a topic), hence use_feed_tags: False.
+        # "article" (a content type, not a topic), hence use_feed_tags=False.
         # foxchattanooga.com is the same WTVC newsroom (~90% identical items) —
         # do NOT add it as a second outlet or every story double-counts.
         # "Local" also carries Sinclair sister-station and wire stories — known
         # caveat, not a bug.
-        "enabled": True,
-        "use_feed_tags": False,
-        "feeds": [
-            {"category": "news", "url": "https://newschannel9.com/news/local.rss"},
-        ],
-    },
-]
+        enabled=True,
+        use_feed_tags=False,
+        feeds=(FeedSpec(category="news", url="https://newschannel9.com/news/local.rss"),),
+    ),
+)
 
 
 def uses_feed_tags(slug: str) -> bool:
     """Whether a source's per-item feed tags may drive categorization."""
-    return next((s.get("use_feed_tags", True) for s in SOURCES if s["slug"] == slug), True)
+    # Both lookups scan SOURCES on every call rather than caching an index, so
+    # tests that monkeypatch registry.SOURCES see their outlets. With ~10
+    # outlets and ~20 feeds a scan costs nothing.
+    return next((s.use_feed_tags for s in SOURCES if s.slug == slug), True)
 
 
 def feed_kind(url: str) -> str:
@@ -193,9 +222,9 @@ def feed_kind(url: str) -> str:
     mirroring uses_feed_tags(). Any URL not registered as html falls back to rss.
     """
     for src in SOURCES:
-        for feed in src["feeds"]:
-            if feed["url"] == url:
-                return feed.get("kind", "rss")
+        for feed in src.feeds:
+            if feed.url == url:
+                return feed.kind
     return "rss"
 
 
@@ -203,10 +232,10 @@ async def sync_registry(session: AsyncSession) -> None:
     """Upsert SOURCES into the DB; delete sources and feeds removed from the registry."""
     for src in SOURCES:
         stmt = pg_insert(NewsSource).values(
-            slug=src["slug"],
-            name=src["name"],
-            homepage=src["homepage"],
-            enabled=src["enabled"],
+            slug=src.slug,
+            name=src.name,
+            homepage=src.homepage,
+            enabled=src.enabled,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[NewsSource.slug],
@@ -218,14 +247,14 @@ async def sync_registry(session: AsyncSession) -> None:
         )
         await session.execute(stmt)
         source_id = (
-            await session.execute(select(NewsSource.id).where(NewsSource.slug == src["slug"]))
+            await session.execute(select(NewsSource.id).where(NewsSource.slug == src.slug))
         ).scalar_one()
 
-        for position, feed in enumerate(src["feeds"]):
+        for position, feed in enumerate(src.feeds):
             fstmt = pg_insert(NewsFeed).values(
                 source_id=source_id,
-                url=feed["url"],
-                category=feed["category"],
+                url=feed.url,
+                category=feed.category,
                 position=position,
             )
             fstmt = fstmt.on_conflict_do_update(
@@ -239,13 +268,13 @@ async def sync_registry(session: AsyncSession) -> None:
             await session.execute(fstmt)
 
         # Drop feeds removed from the registry so they stop being fetched.
-        urls = [f["url"] for f in src["feeds"]]
+        urls = [f.url for f in src.feeds]
         await session.execute(
             delete(NewsFeed).where(NewsFeed.source_id == source_id, NewsFeed.url.notin_(urls))
         )
 
     # Drop whole outlets removed from the registry; their feeds and articles go
     # with them via ON DELETE CASCADE, so they stop being fetched and listed.
-    slugs = [src["slug"] for src in SOURCES]
+    slugs = [src.slug for src in SOURCES]
     await session.execute(delete(NewsSource).where(NewsSource.slug.notin_(slugs)))
     await session.commit()

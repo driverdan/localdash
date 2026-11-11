@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from app.weather.schemas import AirQuality
+
 # AirNow's localTimeZone is a standard-time US abbreviation returned year-round
 # (e.g. "EST" even during daylight saving), so map the ones it emits to fixed
 # UTC offsets. Daylight variants are included defensively though AirNow does not
@@ -111,7 +113,7 @@ def _aqi_value(entry: object) -> float | None:
     return value
 
 
-def parse_airnow(payload: object) -> dict | None:
+def parse_airnow(payload: object) -> AirQuality | None:
     """Current-observations payload -> overall AQI, or None if unusable.
 
     AirNow reports one entry per pollutant (OZONE, PM2.5, PM10, ...); the
@@ -133,10 +135,10 @@ def parse_airnow(payload: object) -> dict | None:
             best, best_value = entry, value
     if best is None or best_value is None:
         return None
-    return {
-        "value": best_value,
-        "category": aqi_category(best_value),
-        "category_name": best.get("aqiCategoryName"),
-        "pollutant": best.get("parameterName"),
-        "observed_at": _observed_at(best),
-    }
+    return AirQuality(
+        value=best_value,
+        category=aqi_category(best_value),
+        category_name=best.get("aqiCategoryName"),
+        pollutant=best.get("parameterName"),
+        observed_at=_observed_at(best),
+    )

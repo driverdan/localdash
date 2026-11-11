@@ -451,9 +451,11 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
 
 - `registry.py` — nine outlets + their feeds as **code-as-config**: synced into the DB at startup
   (upsert; feeds *and whole outlets* removed from the registry are deleted, articles cascading).
-  Each feed has a section category and a `kind` (`rss` by default; `html` = a server-rendered
-  listing page to scrape, used by the City of Chattanooga). A source registered with
-  `use_feed_tags: False` declares its `<category>` tags meaningless. Specific sections are listed
+  `SOURCES` is a tuple of frozen `Outlet` dataclasses, each holding a tuple of frozen `FeedSpec`s;
+  fields with defaults (`Outlet.enabled`, `Outlet.use_feed_tags`, `FeedSpec.kind`) replace
+  optional dict keys. Each feed has a section category and a `kind` (`rss` by default; `html` = a
+  server-rendered listing page to scrape, used by the City of Chattanooga). A source registered
+  with `use_feed_tags=False` declares its `<category>` tags meaningless. Specific sections are listed
   before the general news feed so the section fallback prefers the specific category.
 - `classify.py` — **per-article content categorization**, first match wins: a mapped feed
   `<category>` tag → a keyword match on title + summary → the feed's section as last resort. The
@@ -540,8 +542,9 @@ which calls `get_current(force=True)` (bypassing the TTL check) so the cache sta
 page loads, and pings `weather` on the live bus when the payload differs from the one the previous
 scheduled refresh produced; requests otherwise refresh lazily once the TTL expires.
 `app/weather/nws.py` and `app/weather/airnow.py` hold pure payload-shaping functions
-(offline-testable against `tests/fixtures/nws/` and `tests/fixtures/airnow/`);
-`app/weather/service.py` fetches and caches; `app/api/weather.py`
+(offline-testable against `tests/fixtures/nws/` and `tests/fixtures/airnow/`) that return the
+models in `app/weather/schemas.py` (`ForecastPeriod`, `CurrentConditions`, `AirQuality`);
+`app/weather/service.py` fetches and caches a `WeatherPayload` model; `app/api/weather.py`
 serves `GET /api/v1/weather/current` (registration gated by `weather_enabled`). The location is
 the shared `center_lat`/`center_lon` from `config.py`.
 
@@ -602,8 +605,24 @@ not a list of forbidden imports.
   is always mounted, `news_enabled` only gates its scheduler job; the weather router is mounted only
   when `weather_enabled`). `main.py` mounts `static/` at `/` last so `/api` always wins (with an SPA
   fallback: extension-less non-`/api` misses serve `index.html`).
+- **Every JSON route declares a response model** (`response_model=`), so `/openapi.json` and
+  `/docs` show a named schema for each; a new route must declare one too. Handlers build model
+  instances, not dicts. As a layout preference (packages are not boundaries, see above), the models
+  live in a schemas module beside the code that produces them: `app/<pkg>/schemas.py` for news,
+  events and weather, and `app/timeseries_schemas.py` for the timeseries code at the top of
+  `app/`. `app/contracts.py` holds the shared pieces: `ApiModel` (the base, `extra="forbid"`) and
+  `IsoDateTime`. **Every datetime the API produces is `IsoDateTime`**, which serialises with
+  `datetime.isoformat()` (`+00:00`), never Pydantic's default `Z`. Numbers passed through from
+  upstream are `int | float` so an integer stays an integer, and fields are declared in the
+  JSON's key order. `tests/test_api_contracts.py` pins every route's exact bytes; a response
+  model must not change them. Generating the frontend types from the OpenAPI document is a
+  possible follow-up; today `frontend/src/features/*/types.ts` are hand-written.
 - All geographic responses are **GeoJSON FeatureCollections** (`geojson.py`). `bbox` params are
-  `minLon,minLat,maxLon,maxLat`.
+  `minLon,minLat,maxLon,maxLat`. The GeoJSON routes (`/timeseries/entities`, `/observations`) are
+  **documented, not validated**: they declare their models in `responses=` with
+  `response_model=None` and return the dicts `geojson.py` builds, because they can hold tens of
+  thousands of features. Their feature `properties` stay open: the models name the keys the system
+  adds and allow any source-specific key.
 - Timeseries routes are resource-shaped: `GET /api/v1/timeseries/entities` (filters: `active`
   [default true], `source`, `category`, `bbox`, `closed_within` minutes), `/entities/{id}` (snapshot
   only), `/entities/{id}/track` (history), `/observations` (`limit` 1–50000, default 5000),

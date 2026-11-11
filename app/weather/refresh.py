@@ -18,13 +18,14 @@ from __future__ import annotations
 
 import logging
 
+from app.weather.schemas import WeatherPayload
 from app.weather.service import service
 from app.ws import manager
 
 log = logging.getLogger("localdash.weather")
 
 # Last payload a scheduled refresh produced; pings fire only when it changes.
-_last_payload: dict | None = None
+_last_payload: WeatherPayload | None = None
 
 
 async def refresh() -> None:

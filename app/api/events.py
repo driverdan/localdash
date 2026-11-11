@@ -19,33 +19,44 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.events import refresh as events_refresh
 from app.events.models import Event, Tag
+from app.events.schemas import (
+    EventItem,
+    EventLink,
+    EventsRefreshResult,
+    EventsResponse,
+    Origin,
+    TagsResponse,
+)
 
 router = APIRouter()
 
 METERS_PER_MILE = 1609.344
 
 
-def _serialize(event: Event, lat: float | None, lon: float | None, meters: float | None) -> dict:
-    return {
-        "id": event.id,
-        "title": event.title,
-        "description": event.description,
-        "starts_at": event.starts_at.isoformat(),
-        "ends_at": event.ends_at.isoformat() if event.ends_at else None,
-        "venue_name": event.venue_name,
-        "address": event.address,
-        "image_url": event.image_url,
-        "latitude": lat,
-        "longitude": lon,
-        "tags": sorted(tag.name for tag in event.tags),
-        "links": [
-            {"source_name": link.source_name, "source_url": link.source_url} for link in event.links
+def _event_item(
+    event: Event, lat: float | None, lon: float | None, meters: float | None
+) -> EventItem:
+    return EventItem(
+        id=event.id,
+        title=event.title,
+        description=event.description,
+        starts_at=event.starts_at,
+        ends_at=event.ends_at,
+        venue_name=event.venue_name,
+        address=event.address,
+        image_url=event.image_url,
+        latitude=lat,
+        longitude=lon,
+        tags=sorted(tag.name for tag in event.tags),
+        links=[
+            EventLink(source_name=link.source_name, source_url=link.source_url)
+            for link in event.links
         ],
-        "distance_miles": round(meters / METERS_PER_MILE, 1) if meters is not None else None,
-    }
+        distance_miles=round(meters / METERS_PER_MILE, 1) if meters is not None else None,
+    )
 
 
-@router.get("/items")
+@router.get("/items", response_model=EventsResponse)
 async def items(
     topic: Annotated[
         list[str] | None, Query(description="Filter by one or more topic tags")
@@ -60,7 +71,7 @@ async def items(
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-) -> dict:
+) -> EventsResponse:
     center = (lat, lon) if lat is not None and lon is not None else settings.center
     origin = cast(func.ST_SetSRID(func.ST_MakePoint(center[1], center[0]), 4326), Geography)
     location = cast(Event.location, Geography)
@@ -85,20 +96,20 @@ async def items(
         stmt = stmt.where(func.ST_DWithin(location, origin, max_miles * METERS_PER_MILE))
 
     rows = (await session.execute(stmt)).all()
-    return {
-        "count": len(rows),
-        "origin": {"lat": center[0], "lon": center[1]},
-        "items": [_serialize(event, y, x, m) for event, y, x, m in rows],
-    }
+    return EventsResponse(
+        count=len(rows),
+        origin=Origin(lat=center[0], lon=center[1]),
+        items=[_event_item(event, y, x, m) for event, y, x, m in rows],
+    )
 
 
-@router.get("/tags")
-async def tags(session: AsyncSession = Depends(get_session)) -> dict:
+@router.get("/tags", response_model=TagsResponse)
+async def tags(session: AsyncSession = Depends(get_session)) -> TagsResponse:
     names = (await session.scalars(select(Tag.name).order_by(Tag.name))).all()
-    return {"tags": list(names)}
+    return TagsResponse(tags=list(names))
 
 
-@router.post("/refresh")
-async def refresh() -> dict:
+@router.post("/refresh", response_model=EventsRefreshResult)
+async def refresh() -> EventsRefreshResult:
     """Fetch all configured sources and upsert on demand."""
     return await events_refresh.refresh()

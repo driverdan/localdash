@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Literal
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -20,6 +21,7 @@ from app.db import SessionLocal
 from app.ingest import ingest
 from app.models import Source
 from app.redaction import redact
+from app.timeseries_schemas import CollectorRun
 from app.ws import manager
 
 log = logging.getLogger("localdash.collect")
@@ -36,7 +38,7 @@ def _source_lock(source_key: str) -> asyncio.Lock:
     return lock
 
 
-async def run_collector(collector: BaseCollector) -> dict:
+async def run_collector(collector: BaseCollector) -> CollectorRun:
     """Run one collection cycle; persist telemetry; broadcast diff.
 
     Cycles for the same source are serialized: APScheduler's max_instances only
@@ -44,7 +46,9 @@ async def run_collector(collector: BaseCollector) -> dict:
     run a second concurrent ingest() over the same entities.
     """
     async with _source_lock(collector.source_key):
-        status, error, count = "ok", None, 0
+        status: Literal["ok", "error"] = "ok"
+        error: str | None = None
+        count = 0
         try:
             observations = await collector.collect()
             count = len(observations)
@@ -58,7 +62,7 @@ async def run_collector(collector: BaseCollector) -> dict:
             log.exception("collector %s failed", collector.source_key)
 
         await _record_run(collector, status, error, count)
-    return {"source": collector.source_key, "status": status, "error": error, "count": count}
+    return CollectorRun(source=collector.source_key, status=status, error=error, count=count)
 
 
 async def _record_run(collector: BaseCollector, status: str, error: str | None, count: int) -> None:
