@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.config import get_settings
 from app.db import SessionLocal
 from app.news.clustering import recluster
 from app.news.fetcher import fetch_all
@@ -22,10 +23,11 @@ _refresh_lock = asyncio.Lock()
 
 async def refresh() -> dict:
     """Fetch all feeds and recluster; safe to call concurrently."""
+    window_days = get_settings().news_story_window_days
     async with _refresh_lock:
         async with SessionLocal() as session:
             results = await fetch_all(session)
-            cluster_count = await recluster(session)
+            cluster_count = await recluster(session, window_days=window_days)
         log.info("news refresh done: %d clusters", cluster_count)
         # Reclustering makes precise change detection unreliable, so every
         # completed cycle pings; a failed cycle raises before reaching this.

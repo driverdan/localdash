@@ -20,6 +20,7 @@ from app.redaction import install as install_log_redaction
 from app.weather.airnow import aqi_category, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 from app.weather.service import AIRNOW_URL, STATION_LIMIT, WeatherService
+from tests.conftest import make_settings
 from tests.mock_http import MockHTTP
 
 FIXTURES = Path(__file__).parent / "fixtures" / "nws"
@@ -32,21 +33,6 @@ def _load(name: str) -> dict:
 
 def _load_airnow(name: str):
     return json.loads((AIRNOW_FIXTURES / f"{name}.json").read_text())
-
-
-@pytest.fixture(autouse=True)
-def _pin_airnow_key(monkeypatch):
-    """Pin AIRNOW_API_KEY empty so a developer .env key can't leak AirNow
-    fetches into the NWS tests; AQI tests opt in via _set_airnow_key."""
-    monkeypatch.setenv("AIRNOW_API_KEY", "")
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
-def _set_airnow_key(monkeypatch, key: str = "test-key") -> None:
-    monkeypatch.setenv("AIRNOW_API_KEY", key)
-    get_settings.cache_clear()
 
 
 # --- pure shaping ---
@@ -175,10 +161,15 @@ class FakeNWS:
     Also stands in for airnowapi.org (same client, same transport). Routes are
     keyed query-free — AirNow's params vary per request — while the call log
     keeps full URLs so tests can assert on query contents.
+
+    The service gets its own settings with ``airnow_api_key`` (empty by
+    default, so a developer .env key can't leak AirNow fetches into the NWS
+    tests); AQI tests pass a key.
     """
 
-    def __init__(self, mock_http: MockHTTP) -> None:
+    def __init__(self, mock_http: MockHTTP, airnow_api_key: str = "") -> None:
         self.mock_http = mock_http
+        self.airnow_api_key = airnow_api_key
         self.routes = {
             POINTS: _load("points"),
             STATIONS: _load("stations"),
@@ -190,7 +181,7 @@ class FakeNWS:
 
     def service(self) -> WeatherService:
         self.mock_http.install(self.handle)
-        return WeatherService()
+        return WeatherService(make_settings(airnow_api_key=self.airnow_api_key))
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         # NWS requires an identifying UA: the default names LocalDash.
@@ -299,9 +290,8 @@ def _airnow_calls(nws: FakeNWS) -> list[str]:
     return [call for call in nws.calls if call.startswith(AIRNOW_URL)]
 
 
-async def test_refresh_includes_aqi_when_configured(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_refresh_includes_aqi_when_configured(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     payload = await nws.service().get_current()
     assert payload["aqi"]["value"] == 62 and payload["aqi"]["category"] == 2
@@ -309,9 +299,8 @@ async def test_refresh_includes_aqi_when_configured(monkeypatch, mock_http):
     assert "API_KEY=test-key" in _airnow_calls(nws)[0]  # key travels as a param
 
 
-async def test_airnow_request_targets_current_observations_endpoint(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_airnow_request_targets_current_observations_endpoint(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     await nws.service().get_current()
     assert AIRNOW_URL == "https://www.airnowapi.org/aq/observation/current/ziplatlong/"
@@ -322,9 +311,8 @@ async def test_airnow_request_targets_current_observations_endpoint(monkeypatch,
     assert "distance" not in params  # the service ignores it (fixed 50-mile lookup)
 
 
-async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, caplog, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_airnow_no_observations_envelope_yields_null_aqi(caplog, mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _load_airnow("no_observations")  # HTTP 200 envelope
     caplog.set_level(logging.WARNING)
     payload = await nws.service().get_current()
@@ -333,9 +321,8 @@ async def test_airnow_no_observations_envelope_yields_null_aqi(monkeypatch, capl
     assert "No observations were found for all monitors within 50 miles" in caplog.text
 
 
-async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_airnow_no_observations_envelope_carries_forward_prior_aqi(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _airnow_at(0)
     svc = nws.service()
     good_aqi = (await svc.get_current())["aqi"]
@@ -351,9 +338,10 @@ async def test_empty_key_makes_no_airnow_request(mock_http):
     assert _airnow_calls(nws) == []
 
 
-async def test_airnow_failure_leaves_weather_intact(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)  # no AirNow route -> 500, the error-status path
+async def test_airnow_failure_leaves_weather_intact(mock_http):
+    nws = FakeNWS(
+        mock_http, airnow_api_key="test-key"
+    )  # no AirNow route -> 500, the error-status path
     payload = await nws.service().get_current()
     assert payload["aqi"] is None
     assert payload["current"]["temperature_f"] == 89
@@ -374,14 +362,13 @@ RETIRED = (
         (500, None),  # no body: the status alone is logged
     ],
 )
-async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status, body, mock_http):
+async def test_airnow_failure_log_does_not_leak_key(caplog, status, body, mock_http):
     """The failing AirNow URL carries API_KEY; neither httpx's request log nor
     the failure warning may contain it, and the warning carries the status and
     AirNow's own error message."""
     install_log_redaction()
     key = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789"
-    _set_airnow_key(monkeypatch, key)
-    nws = FakeNWS(mock_http)
+    nws = FakeNWS(mock_http, airnow_api_key=key)
     svc = nws.service()
     handle = nws.handle
 
@@ -404,9 +391,8 @@ async def test_airnow_failure_log_does_not_leak_key(monkeypatch, caplog, status,
     assert "API_KEY=[REDACTED]" in caplog.text
 
 
-async def test_airnow_success_does_not_rescue_cold_failure(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_airnow_success_does_not_rescue_cold_failure(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _load_airnow("current")
     nws.failing.update({FORECAST, OBS_KCHA})
     with pytest.raises(RuntimeError):
@@ -432,9 +418,8 @@ def _airnow_at(minutes_ago: int) -> list:
     return entries
 
 
-async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_last_good_aqi_carried_forward_on_airnow_failure(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _airnow_at(0)  # fresh, well within the max age
     svc = nws.service()
     first = await svc.get_current()
@@ -448,9 +433,8 @@ async def test_last_good_aqi_carried_forward_on_airnow_failure(monkeypatch, mock
     assert second["current"]["temperature_f"] == 89  # NWS half fresh
 
 
-async def test_stale_aqi_dropped_past_max_age(monkeypatch, mock_http):
-    _set_airnow_key(monkeypatch)
-    nws = FakeNWS(mock_http)
+async def test_stale_aqi_dropped_past_max_age(mock_http):
+    nws = FakeNWS(mock_http, airnow_api_key="test-key")
     nws.routes[AIRNOW_URL] = _airnow_at(240)  # older than airnow_stale_minutes (120)
     svc = nws.service()
     first = await svc.get_current()

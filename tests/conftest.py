@@ -46,6 +46,16 @@ import app.http  # noqa: E402
 from tests.mock_http import MockHTTP  # noqa: E402
 
 
+def make_settings(**overrides) -> Settings:
+    """An isolated Settings: defaults plus ``overrides``, ignoring ``.env``.
+
+    Pass this (or plain values) into the code under test instead of mutating
+    the cached get_settings() instance or the environment. DATABASE_URL still
+    comes from the environment set above, so it names the temporary database.
+    """
+    return Settings(_env_file=None, **overrides)
+
+
 # --- Outbound HTTP: default-deny + shared mock ---------------------------------
 @pytest.fixture(autouse=True)
 def _outbound_http(monkeypatch) -> Iterator[MockHTTP]:

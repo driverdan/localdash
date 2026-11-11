@@ -15,7 +15,7 @@ from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.events import refresh as events_refresh
 from app.events.models import Event, Tag
@@ -59,8 +59,9 @@ async def items(
     search: Annotated[str | None, Query(description="Case-insensitive title search")] = None,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
-    center = (lat, lon) if lat is not None and lon is not None else get_settings().center
+    center = (lat, lon) if lat is not None and lon is not None else settings.center
     origin = cast(func.ST_SetSRID(func.ST_MakePoint(center[1], center[0]), 4326), Geography)
     location = cast(Event.location, Geography)
     meters = func.ST_Distance(location, origin)

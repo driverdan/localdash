@@ -120,8 +120,16 @@ def _entity_feature(entity: Entity, obs: NormalizedObservation) -> dict:
     return feature(obs.lon, obs.lat, props, fid=entity.id)
 
 
-async def ingest(session, source_key: str, observations: list[NormalizedObservation]) -> Diff:
-    now = datetime.now(timezone.utc)
+async def ingest(
+    session,
+    source_key: str,
+    observations: list[NormalizedObservation],
+    *,
+    now: datetime | None = None,
+) -> Diff:
+    """Apply one collector snapshot; ``now`` (default: current UTC time) stamps the changes."""
+    if now is None:
+        now = datetime.now(timezone.utc)
     diff = Diff(source_key=source_key)
 
     incoming_ids = [o.external_id for o in observations]

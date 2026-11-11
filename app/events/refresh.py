@@ -40,7 +40,12 @@ async def refresh() -> dict:
             SessionLocal() as session,
         ):
             stats = await run_sources(
-                session, sources, geocoder, max_miles=settings.events_ingest_max_miles
+                session,
+                sources,
+                geocoder,
+                max_miles=settings.events_ingest_max_miles,
+                blocked_tags=settings.blocked_tags,
+                center=settings.center,
             )
             stats |= await retry_failed_geocodes(
                 session,

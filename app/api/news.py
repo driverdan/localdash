@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.news import refresh as news_refresh
 from app.news import stories
@@ -24,13 +24,14 @@ async def get_stories(
     hours: Annotated[int, Query(ge=1)] = 72,
     limit: Annotated[int | None, Query(ge=1)] = None,
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
     """Clustered stories in the window, plus the category slug->label map.
 
     An optional `limit` caps the count (newest activity first) so digest views
     like the home page can fetch a small slice; omitting it returns the window.
     """
-    max_hours = 24 * get_settings().news_story_window_days
+    max_hours = 24 * settings.news_story_window_days
     return {
         "categories": CATEGORIES,
         "stories": await stories.get_stories(session, min(hours, max_hours), limit),

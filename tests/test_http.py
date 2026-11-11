@@ -12,6 +12,7 @@ import app.config
 import app.http
 from app.config import Settings, get_settings
 from app.http import BROWSER_USER_AGENT, DEFAULT_USER_AGENT, make_client
+from tests.conftest import make_settings
 
 APP_DIR = Path(__file__).parent.parent / "app"
 HTTP_MODULE = APP_DIR / "http.py"
@@ -49,7 +50,7 @@ def test_user_agent_setting_is_env_overridable(monkeypatch):
 
 async def test_default_user_agent_is_read_when_the_client_is_built(mock_http, monkeypatch):
     # Not captured at import: a different Settings at build time is honoured.
-    settings = Settings(_env_file=None, user_agent="Configured/2.0")
+    settings = make_settings(user_agent="Configured/2.0")
     monkeypatch.setattr(app.config, "get_settings", lambda: settings)
     mock_http.install(_ok)
     async with make_client(timeout=5, follow_redirects=False) as client:
