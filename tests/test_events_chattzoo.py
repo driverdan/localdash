@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.config import get_settings
 from app.events.sources.chattzoo import (
     LISTING_URL,
     SOURCE_NAME,
@@ -240,12 +241,12 @@ async def test_fetch_walks_listing_then_detail_pages(monkeypatch, mock_http):
 
     def handler(request: httpx.Request) -> httpx.Response:
         requested.append(str(request.url))
-        assert request.headers["User-Agent"] == "TestAgent/1.0"
+        assert request.headers["User-Agent"] == get_settings().user_agent
         if request.url.path.endswith("zooevents"):
             return httpx.Response(200, text=load("listing.html"))
         return httpx.Response(200, text=load("detail_single.html"))
 
-    source = ChattZooSource(user_agent="TestAgent/1.0")
+    source = ChattZooSource()
     _pin_clock(monkeypatch)
     mock_http.install(handler)
     events = await source.fetch()
@@ -261,7 +262,7 @@ async def test_failed_listing_fetch_raises_for_run_sources_to_isolate(monkeypatc
     _pin_clock(monkeypatch)
     mock_http.install(lambda request: httpx.Response(503))
     with pytest.raises(httpx.HTTPStatusError):
-        await ChattZooSource(user_agent="TestAgent/1.0").fetch()
+        await ChattZooSource().fetch()
 
 
 @pytest.mark.asyncio
@@ -275,7 +276,7 @@ async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch, mo
 
     _pin_clock(monkeypatch)
     mock_http.install(handler)
-    events = await ChattZooSource(user_agent="TestAgent/1.0").fetch()
+    events = await ChattZooSource().fetch()
 
     # Three surviving detail pages, each yielding the single-date fixture.
     assert len(events) == 3
