@@ -70,8 +70,13 @@ the code it runs, then add one `JobSpec` in `job_specs()`. Nothing else in the s
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
 same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
-`app/http.py`, and each call passes its timeout, User-Agent (`None` = httpx's default) and redirect
-policy explicitly; `tests/test_http_wire.py` pins each upstream's values. Tests fake upstreams with
+`app/http.py`, and each call passes its timeout and redirect policy explicitly. The User-Agent
+defaults to the `user_agent` setting, whose default `DEFAULT_USER_AGENT` is the browser UA with
+` LocalDash/0.1` appended (a real browser string that still identifies us); pass `user_agent=` only to override it with a UA the upstream
+requires (today: `BROWSER_USER_AGENT` for CarCruiseFinder and the news HTML scrape, the geocoder's
+own setting for Nominatim; `tests/test_http.py` enforces that list). No request sends httpx's
+default `python-httpx/…` or an empty UA, and a blank override raises. `tests/test_http_wire.py`
+pins each upstream's values. Tests fake upstreams with
 the `mock_http` fixture (`mock_http.install(handler)`; sent requests in `mock_http.requests`). Any
 outbound request a test doesn't mock is refused and fails the test, even if the code swallows it.
 
@@ -328,8 +333,9 @@ configuration by passing values (`blocked_tags=`, `center=`, `window_days=`) or 
 with `make_settings(**overrides)` from `conftest.py` (defaults plus overrides, ignoring `.env`);
 never mutate the cached `get_settings()` instance or set environment variables and clear its cache.
 The exceptions are tests whose code under test is itself a composition root that reads
-`get_settings()`: refresh-cycle tests patch `app.<feature>.refresh.get_settings`, and the
-log-redaction tests set the environment.
+`get_settings()`: refresh-cycle tests patch `app.<feature>.refresh.get_settings`, tests of
+`make_client`'s default User-Agent patch `app.config.get_settings` (it is imported at call time),
+and the log-redaction tests set the environment.
 
 **CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
 path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
@@ -465,6 +471,11 @@ entity as `latest_properties["status"]`, which change detection, `GET /entities`
 panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
 in the payload, so if the upstream `status` means something else and must be kept, rename it.
 
+**Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
+entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
+panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
+in the payload, so if the upstream `status` means something else and must be kept, rename it.
+
 ### The news feature (`app/news/`, ported from ChattNews)
 Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `news_refresh_minutes`
 (default 15) and by `POST /api/v1/news/refresh`; the two paths are serialized by an asyncio lock in
@@ -581,7 +592,7 @@ requests coalesce behind an asyncio lock; a failed refresh serves the previous p
 failure 502s (the home strip degrades to a one-line notice without touching the other widgets).
 
 **NWS gotchas (don't regress):** requests must send an identifying `User-Agent` (the global
-`user_agent` setting); observations are °C / km/h and are converted to °F / mph; stations
+`user_agent` setting, whose default ends in `LocalDash/0.1`); observations are °C / km/h and are converted to °F / mph; stations
 sometimes report a **null temperature** — fall back to the next station, never render an empty
 reading; the leading forecast period is **renamed through the day** ("Today" → "This Afternoon" →
 "Tonight"), so period names are passed through verbatim and never hardcoded; station observations
@@ -683,5 +694,5 @@ by the events distance origin, the CitySpark/Meetup source defaults, and the wea
 There is no `.env` by default; the code runs on the defaults in
 `config.py`. `get_settings()` is read only at composition roots (the refresh cycles, the app
 lifespan and `main.py`, which hand the settings to the scheduler's `job_specs`, `db.py`, the
-redaction filter, router `Depends(get_settings)`, and `WeatherService`'s fallback when built
-without settings); pipeline functions receive the values they use as arguments. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
+redaction filter, router `Depends(get_settings)`, `WeatherService`'s fallback when built
+without settings, and `make_client`'s default User-Agent in `app/http.py`); pipeline functions receive the values they use as arguments. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.

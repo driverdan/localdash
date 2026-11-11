@@ -149,9 +149,7 @@ class MeetupSource(EventSource):
             },
             "first": self.first,
         }
-        async with make_client(
-            timeout=self.timeout, user_agent=None, follow_redirects=False
-        ) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=False) as client:
             resp = await client.post(
                 self.endpoint,
                 json={"query": QUERY, "variables": variables},
