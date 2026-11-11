@@ -58,7 +58,15 @@ DB sessions), Pydantic integration, and first-class WebSocket support fit that m
 the FastAPI event loop — one job per geo collector plus one job each for news, events, and weather
 refresh. Deliberately avoids a
 separate worker + broker (Celery/Redis): at this scale a background task is simpler and has no extra
-moving parts.
+moving parts. `app/scheduler.py` only composes jobs: `job_specs()` builds a list of `JobSpec`s,
+`build_scheduler()` registers the enabled ones in one loop with the shared options (immediate first
+run, `max_instances=1`, `coalesce=True`), and `_run_job()` is the one error-logging wrapper
+(`refresh job <id> failed`). Each refresh cycle (its lock, session and signal) lives beside the code
+it drives, and the manual refresh endpoints call the same entry points: `app/news/refresh.py`,
+`app/events/refresh.py`, `app/weather/refresh.py` and `app/collect.py` (timeseries).
+
+**Adding a scheduled job.** Write the cycle (its lock, session and signal) somewhere cohesive with
+the code it runs, then add one `JobSpec` in `job_specs()`. Nothing else in the scheduler changes.
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
 same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
@@ -299,7 +307,7 @@ server named by `DATABASE_URL`, migrates it with `alembic upgrade head` (in a su
 every table before each DB-backed test, and drops it when the run ends. Databases left behind by
 killed runs are dropped by a later run once they are over an hour old. `conftest.py` overrides
 `DATABASE_URL` before any `app.*` import, so app code that opens its own sessions (the global
-`SessionLocal` in `refresh()` and the scheduler) uses the temporary database too. Keep that override
+`SessionLocal` in `refresh()` and `run_collector()`) uses the temporary database too. Keep that override
 first in `conftest.py`. Every truncate and drop refuses to run on a database whose name doesn't start
 with `localdash_test`. Bring up `docker compose up -d db` first; the role in `DATABASE_URL` needs
 `CREATE DATABASE` and the right to create the PostGIS and TimescaleDB extensions (the compose
@@ -362,9 +370,11 @@ TimescaleDB features that don't autogenerate, so migrations are hand-written **r
 ### The central idea: snapshot → time-series
 The upstream 911 endpoint (`hc911server.com/api/calls`) returns only a **snapshot of currently-active
 calls**, not history. LocalDash *constructs* the time-series itself. Understanding this requires reading
-`collectors/`, `ingest.py`, and `scheduler.py` together:
+`collectors/`, `ingest.py`, `collect.py`, and `scheduler.py` together:
 
-1. **`scheduler.py`** polls each source on an interval (APScheduler, started in `main.py`'s lifespan).
+1. **`collect.py`** runs one collection cycle per source (`run_collector`, serialized by a
+   per-source lock); `scheduler.py` calls it on each source's interval (APScheduler, started in
+   `main.py`'s lifespan), and the manual refresh endpoint calls it too.
 2. **`collectors/`** fetch + normalize one source's payload into source-agnostic
    `NormalizedObservation`s. `ingest.py` never knows about source specifics.
 3. **`ingest.py`** reconciles each batch against stored state:
@@ -379,7 +389,7 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
      observation. A successful fetch that normalizes to nothing therefore closes every active
      entity of that source — only a raised fetch error leaves them alone.
    - returns a `Diff` (`new`/`updated`/`closed`, defined in `app/diff.py`).
-4. The scheduler broadcasts that `Diff` over the **global `/api/v1/ws` WebSocket bus** (`ws.py`,
+4. **`collect.py`** broadcasts a non-empty `Diff` over the **global `/api/v1/ws` WebSocket bus** (`ws.py`,
    endpoint in `app/api/root.py`) as a `{topic: "timeseries", type: "diff"}` message; the frontend
    applies it incrementally. The same bus carries payload-free `{topic, type: "updated"}` pings for
    news/events/weather, which the frontend answers by refetching over REST.
@@ -396,7 +406,7 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
   `(entity_id, observed_at)` because Timescale requires the partition column in the PK.
 
 ### Source-agnostic data model (`models.py`)
-- `sources` — one row per registered source + last-run telemetry (written by `scheduler._record_run`).
+- `sources` — one row per registered source + last-run telemetry (written by `app/collect.py`'s `_record_run`).
 - `entities` — one tracked thing per source; latest snapshot, `is_active`, `last_geom`,
   `geom_fingerprint` (change detection), `latest_properties`. Unique on `(source_key, external_id)`.
 - `observations` — the hypertable; PostGIS `geom` (any geometry — points for 911/TDOT/EPB, polygons
@@ -509,9 +519,10 @@ ingest never sees the hierarchy. A source erroring must never abort the refresh 
 
 ### The weather feature (`app/weather/`)
 Pipeline: **discover → fetch → cache → serve** — no DB tables, no migration. A `weather_refresh`
-scheduler job runs every `weather_cache_minutes` and calls `get_current(force=True)` (bypassing the
-TTL check) so the cache stays current without page loads, pinging `weather` on the live bus when
-the payload changes; requests otherwise refresh lazily once the TTL expires.
+scheduler job runs every `weather_cache_minutes` and calls `app/weather/refresh.py`'s `refresh()`,
+which calls `get_current(force=True)` (bypassing the TTL check) so the cache stays current without
+page loads, and pings `weather` on the live bus when the payload differs from the one the previous
+scheduled refresh produced; requests otherwise refresh lazily once the TTL expires.
 `app/weather/nws.py` and `app/weather/airnow.py` hold pure payload-shaping functions
 (offline-testable against `tests/fixtures/nws/` and `tests/fixtures/airnow/`);
 `app/weather/service.py` fetches and caches; `app/api/weather.py`

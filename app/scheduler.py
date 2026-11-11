@@ -1,175 +1,101 @@
-"""Background polling: one APScheduler job per enabled collector.
+"""Background refresh scheduling: composes jobs, contains no cycle logic.
 
-Each tick runs fetch -> normalize -> ingest -> broadcast, and records last-run
-telemetry on the source row. Also used by the manual /refresh endpoint.
+`job_specs()` lists every scheduled job (one per collector, plus news, events
+and weather); `build_scheduler()` registers the enabled ones in one loop with
+the shared options; `_run_job()` is the one error-logging wrapper around every
+job. Each refresh cycle (its lock, session and signal) lives beside the code it
+drives: app/collect.py, app/news/refresh.py, app/events/refresh.py and
+app/weather/refresh.py. The scheduled and manual triggers call the same entry
+points.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.collectors import build_collectors
+from app.collect import run_collector
 from app.collectors.base import BaseCollector
-from app.config import get_settings
-from app.db import SessionLocal
+from app.config import Settings
 from app.events.refresh import refresh as events_refresh
-from app.ingest import ingest
-from app.models import Source
 from app.news.refresh import refresh as news_refresh
-from app.redaction import redact
-from app.weather.service import service as weather_service
-from app.ws import manager
+from app.weather.refresh import refresh as weather_refresh
 
 log = logging.getLogger("localdash.scheduler")
 
-# Per-source collection locks, created lazily (see run_collector).
-_source_locks: dict[str, asyncio.Lock] = {}
 
-# Last payload the weather job saw; pings fire only when it changes.
-_last_weather_payload: dict | None = None
+@dataclass(frozen=True)
+class JobSpec:
+    """One scheduled job: what to call, with what, how often, and whether at all."""
 
-
-async def run_news_refresh() -> None:
-    """One news fetch+recluster cycle; failures only log (next tick retries)."""
-    try:
-        await news_refresh()
-    except Exception:  # noqa: BLE001
-        log.exception("news refresh failed")
+    id: str
+    func: Callable[..., Awaitable[object]]
+    interval_seconds: int
+    enabled: bool = True
+    args: tuple = ()
 
 
-async def run_events_refresh() -> None:
-    """One events fetch+upsert cycle; failures only log (next tick retries)."""
-    try:
-        await events_refresh()
-    except Exception:  # noqa: BLE001
-        log.exception("events refresh failed")
-
-
-async def run_weather_refresh() -> None:
-    """Proactive weather cache refresh; ping clients when conditions changed.
-
-    The cache is otherwise lazy (refreshed on request), so without this job a
-    client waiting for a ping before refetching would never hear anything.
-    """
-    global _last_weather_payload
-    try:
-        payload = await weather_service.get_current(force=True)
-    except Exception:  # noqa: BLE001
-        log.exception("weather refresh failed")
-        return
-    if payload != _last_weather_payload:
-        _last_weather_payload = payload
-        await manager.ping("weather")
-
-
-def _source_lock(source_key: str) -> asyncio.Lock:
-    """Per-source lock serializing scheduled and manual cycles of one collector."""
-    lock = _source_locks.get(source_key)
-    if lock is None:
-        lock = _source_locks[source_key] = asyncio.Lock()
-    return lock
-
-
-async def run_collector(collector: BaseCollector) -> dict:
-    """Run one collection cycle; persist telemetry; broadcast diff.
-
-    Cycles for the same source are serialized: APScheduler's max_instances only
-    covers scheduled ticks, so a manual /refresh during a tick would otherwise
-    run a second concurrent ingest() over the same entities.
-    """
-    async with _source_lock(collector.source_key):
-        status, error, count = "ok", None, 0
-        try:
-            observations = await collector.collect()
-            count = len(observations)
-            async with SessionLocal() as session:
-                diff = await ingest(session, collector.source_key, observations)
-            if not diff.is_empty:
-                await manager.broadcast(diff.to_message())
-        except Exception as exc:  # noqa: BLE001
-            # Persisted to sources.last_error and served by /sources: mask credentials.
-            status, error = "error", redact(str(exc))
-            log.exception("collector %s failed", collector.source_key)
-
-        await _record_run(collector, status, error, count)
-    return {"source": collector.source_key, "status": status, "error": error, "count": count}
-
-
-async def _record_run(collector: BaseCollector, status: str, error: str | None, count: int) -> None:
-    async with SessionLocal() as session:
-        stmt = pg_insert(Source).values(
-            key=collector.source_key,
-            name=collector.name,
-            enabled=True,
-            poll_interval_seconds=collector.poll_interval,
-            last_run_at=datetime.now(timezone.utc),
-            last_status=status,
-            last_error=error,
-            last_count=count,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[Source.key],
-            set_={
-                "name": collector.name,
-                "poll_interval_seconds": collector.poll_interval,
-                "last_run_at": stmt.excluded.last_run_at,
-                "last_status": status,
-                "last_error": error,
-                "last_count": count,
-            },
-        )
-        await session.execute(stmt)
-        await session.commit()
-
-
-def build_scheduler() -> tuple[AsyncIOScheduler, dict[str, BaseCollector]]:
-    settings = get_settings()
-    collectors = {c.source_key: c for c in build_collectors(settings)}
-    scheduler = AsyncIOScheduler(timezone="UTC")
-    for collector in collectors.values():
-        scheduler.add_job(
-            run_collector,
-            "interval",
-            seconds=collector.poll_interval,
-            args=[collector],
+def job_specs(settings: Settings, collectors: Mapping[str, BaseCollector]) -> list[JobSpec]:
+    """Every scheduled job, disabled ones included (enabled=False). Pure."""
+    specs = [
+        JobSpec(
             id=collector.source_key,
-            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
-            max_instances=1,
-            coalesce=True,
+            func=run_collector,
+            interval_seconds=collector.poll_interval,
+            args=(collector,),
         )
-    if settings.news_enabled:
-        scheduler.add_job(
-            run_news_refresh,
-            "interval",
-            minutes=settings.news_refresh_minutes,
+        for collector in collectors.values()
+    ]
+    specs += [
+        JobSpec(
             id="news_refresh",
-            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
-            max_instances=1,
-            coalesce=True,
-        )
-    if settings.events_enabled:
-        scheduler.add_job(
-            run_events_refresh,
-            "interval",
-            minutes=settings.events_refresh_minutes,
+            func=news_refresh,
+            interval_seconds=settings.news_refresh_minutes * 60,
+            enabled=settings.news_enabled,
+        ),
+        JobSpec(
             id="events_refresh",
-            next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
-            max_instances=1,
-            coalesce=True,
-        )
-    if settings.weather_enabled:
-        scheduler.add_job(
-            run_weather_refresh,
-            "interval",
-            minutes=settings.weather_cache_minutes,
+            func=events_refresh,
+            interval_seconds=settings.events_refresh_minutes * 60,
+            enabled=settings.events_enabled,
+        ),
+        JobSpec(
             id="weather_refresh",
+            func=weather_refresh,
+            interval_seconds=settings.weather_cache_minutes * 60,
+            enabled=settings.weather_enabled,
+        ),
+    ]
+    return specs
+
+
+async def _run_job(spec: JobSpec) -> None:
+    """Run one job's cycle; a failure only logs (the next tick retries)."""
+    try:
+        await spec.func(*spec.args)
+    except Exception:  # noqa: BLE001
+        log.exception("refresh job %s failed", spec.id)
+
+
+def build_scheduler(specs: list[JobSpec]) -> AsyncIOScheduler:
+    """Register every enabled spec with the shared options; not started."""
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    for spec in specs:
+        if not spec.enabled:
+            continue
+        scheduler.add_job(
+            _run_job,
+            "interval",
+            seconds=spec.interval_seconds,
+            args=[spec],
+            id=spec.id,
+            name=spec.id,  # APScheduler logs the name; otherwise every job reads "_run_job"
             next_run_time=datetime.now(timezone.utc),  # run once immediately on startup
             max_instances=1,
             coalesce=True,
         )
-    return scheduler, collectors
+    return scheduler

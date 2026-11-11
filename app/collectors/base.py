@@ -1,7 +1,7 @@
 """Collector framework — the extensibility seam.
 
 A collector knows how to fetch one source's raw payload and normalize it into a
-list of `NormalizedObservation`. The ingestion service and scheduler treat every
+list of `NormalizedObservation`. The ingestion service and app/collect.py treat every
 source uniformly through this interface, so adding APRS/weather/etc. means writing
 one subclass and registering it (see app/collectors/__init__.py).
 """

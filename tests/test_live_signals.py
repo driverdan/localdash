@@ -2,8 +2,11 @@
 
 The refresh choke points own the pings, so these monkeypatch each module's
 collaborators and assert on a fake manager — covering: news pings every
-completed cycle, events pings only when data changed, weather pings only when
-the shaped payload changed.
+completed cycle, events pings only when data changed, weather
+(app/weather/refresh.py) pings only when the shaped payload differs from the one
+the previous scheduled refresh produced, and the timeseries cycle
+(app/collect.py) broadcasts only non-empty diffs, records telemetry and
+serializes per source.
 """
 
 from __future__ import annotations
@@ -12,18 +15,24 @@ import asyncio
 
 import pytest
 
+import app.collect as collect_mod
 import app.events.refresh as events_refresh_mod
 import app.news.refresh as news_refresh_mod
-import app.scheduler as scheduler_mod
+import app.weather.refresh as weather_refresh_mod
 from app.diff import Diff
+from app.redaction import REDACTED
 
 
 class FakeManager:
     def __init__(self):
         self.pings: list[str] = []
+        self.broadcasts: list[dict] = []
 
     async def ping(self, topic: str):
         self.pings.append(topic)
+
+    async def broadcast(self, message: dict):
+        self.broadcasts.append(message)
 
 
 class FakeSessionLocal:
@@ -143,6 +152,12 @@ class FakeWeatherService:
         return result
 
 
+def _patch_weather_cycle(monkeypatch, fake_manager, svc):
+    monkeypatch.setattr(weather_refresh_mod, "service", svc)
+    monkeypatch.setattr(weather_refresh_mod, "manager", fake_manager)
+    monkeypatch.setattr(weather_refresh_mod, "_last_payload", None)
+
+
 async def test_weather_job_pings_only_on_payload_change(monkeypatch, fake_manager):
     svc = FakeWeatherService(
         [
@@ -151,27 +166,46 @@ async def test_weather_job_pings_only_on_payload_change(monkeypatch, fake_manage
             {"current": {"temp": 75}},  # changed
         ]
     )
-    monkeypatch.setattr(scheduler_mod, "weather_service", svc)
-    monkeypatch.setattr(scheduler_mod, "manager", fake_manager)
-    monkeypatch.setattr(scheduler_mod, "_last_weather_payload", None)
+    _patch_weather_cycle(monkeypatch, fake_manager, svc)
 
-    await scheduler_mod.run_weather_refresh()
-    await scheduler_mod.run_weather_refresh()
-    await scheduler_mod.run_weather_refresh()
+    await weather_refresh_mod.refresh()
+    await weather_refresh_mod.refresh()
+    await weather_refresh_mod.refresh()
 
     assert fake_manager.pings == ["weather", "weather"]
     assert svc.forced == [True, True, True]  # every tick bypasses the TTL
 
 
 async def test_weather_job_failure_is_silent(monkeypatch, fake_manager):
-    svc = FakeWeatherService([RuntimeError("NWS down")])
-    monkeypatch.setattr(scheduler_mod, "weather_service", svc)
-    monkeypatch.setattr(scheduler_mod, "manager", fake_manager)
-    monkeypatch.setattr(scheduler_mod, "_last_weather_payload", None)
+    svc = FakeWeatherService([{"current": {"temp": 70}}, RuntimeError("NWS down")])
+    _patch_weather_cycle(monkeypatch, fake_manager, svc)
+    await weather_refresh_mod.refresh()
+    fake_manager.pings.clear()
 
-    await scheduler_mod.run_weather_refresh()
+    # Failures propagate so the scheduler's shared wrapper logs them.
+    with pytest.raises(RuntimeError):
+        await weather_refresh_mod.refresh()
 
     assert fake_manager.pings == []
+    assert weather_refresh_mod._last_payload == {"current": {"temp": 70}}
+
+
+async def test_weather_change_from_request_refresh_still_pings(monkeypatch, fake_manager):
+    svc = FakeWeatherService(
+        [
+            {"current": {"temp": 70}},  # scheduled refresh
+            {"current": {"temp": 75}},  # request-driven lazy refresh (no ping)
+            {"current": {"temp": 75}},  # next scheduled refresh: same as the cache
+        ]
+    )
+    _patch_weather_cycle(monkeypatch, fake_manager, svc)
+
+    await weather_refresh_mod.refresh()
+    assert await svc.get_current() == {"current": {"temp": 75}}
+    await weather_refresh_mod.refresh()
+
+    # The comparison is against the previous scheduled payload, not the cache.
+    assert fake_manager.pings == ["weather", "weather"]
 
 
 class _Recorder:
@@ -195,18 +229,60 @@ class FakeCollector:
         return []
 
 
-def _patch_collector_cycle(monkeypatch, fake_manager):
+def _patch_collector_cycle(monkeypatch, fake_manager, diff_for=None):
+    """Patch app.collect's collaborators; returns the list of _record_run calls."""
+    records: list[tuple] = []
+
     async def fake_ingest(session, source_key, observations):
-        return Diff(source_key=source_key)
+        return diff_for(source_key) if diff_for else Diff(source_key=source_key)
 
-    async def fake_record(*args, **kwargs):
-        return None
+    async def fake_record(collector, status, error, count):
+        records.append((collector.source_key, status, error, count))
 
-    monkeypatch.setattr(scheduler_mod, "SessionLocal", FakeSessionLocal)
-    monkeypatch.setattr(scheduler_mod, "ingest", fake_ingest)
-    monkeypatch.setattr(scheduler_mod, "_record_run", fake_record)
-    monkeypatch.setattr(scheduler_mod, "manager", fake_manager)
-    monkeypatch.setattr(scheduler_mod, "_source_locks", {})
+    monkeypatch.setattr(collect_mod, "SessionLocal", FakeSessionLocal)
+    monkeypatch.setattr(collect_mod, "ingest", fake_ingest)
+    monkeypatch.setattr(collect_mod, "_record_run", fake_record)
+    monkeypatch.setattr(collect_mod, "manager", fake_manager)
+    monkeypatch.setattr(collect_mod, "_source_locks", {})
+    return records
+
+
+async def test_collector_non_empty_diff_is_broadcast_once(monkeypatch, fake_manager):
+    diff = Diff(source_key="hc911", closed=[7])
+    records = _patch_collector_cycle(monkeypatch, fake_manager, diff_for=lambda key: diff)
+
+    result = await collect_mod.run_collector(FakeCollector("hc911", _Recorder()))
+
+    assert fake_manager.broadcasts == [diff.to_message()]
+    assert result == {"source": "hc911", "status": "ok", "error": None, "count": 0}
+    assert records == [("hc911", "ok", None, 0)]
+
+
+async def test_collector_empty_diff_broadcasts_nothing(monkeypatch, fake_manager):
+    records = _patch_collector_cycle(monkeypatch, fake_manager)
+
+    await collect_mod.run_collector(FakeCollector("hc911", _Recorder()))
+
+    assert fake_manager.broadcasts == []
+    assert records == [("hc911", "ok", None, 0)]
+
+
+class FailingCollector(FakeCollector):
+    async def collect(self):
+        raise RuntimeError("GET https://example.test/feed?api_key=hunter2 failed")
+
+
+async def test_collector_failure_records_redacted_error(monkeypatch, fake_manager):
+    records = _patch_collector_cycle(monkeypatch, fake_manager)
+
+    result = await collect_mod.run_collector(FailingCollector("hc911", _Recorder()))
+
+    error = result["error"]
+    assert "hunter2" not in error
+    assert REDACTED in error
+    assert result == {"source": "hc911", "status": "error", "error": error, "count": 0}
+    assert records == [("hc911", "error", error, 0)]
+    assert fake_manager.broadcasts == []
 
 
 async def test_same_source_collector_runs_are_serialized(monkeypatch, fake_manager):
@@ -215,7 +291,7 @@ async def test_same_source_collector_runs_are_serialized(monkeypatch, fake_manag
     scheduled, manual = FakeCollector("hc911", rec), FakeCollector("hc911", rec)
 
     results = await asyncio.gather(
-        scheduler_mod.run_collector(scheduled), scheduler_mod.run_collector(manual)
+        collect_mod.run_collector(scheduled), collect_mod.run_collector(manual)
     )
 
     assert [r["status"] for r in results] == ["ok", "ok"]
@@ -227,8 +303,8 @@ async def test_different_sources_run_concurrently(monkeypatch, fake_manager):
     rec = _Recorder()
 
     await asyncio.gather(
-        scheduler_mod.run_collector(FakeCollector("hc911", rec)),
-        scheduler_mod.run_collector(FakeCollector("epb", rec)),
+        collect_mod.run_collector(FakeCollector("hc911", rec)),
+        collect_mod.run_collector(FakeCollector("epb", rec)),
     )
 
     assert rec.events[:2] == ["start:hc911", "start:epb"]
