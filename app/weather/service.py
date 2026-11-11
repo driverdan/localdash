@@ -111,17 +111,17 @@ class WeatherService:
         # carried this AQI) has been cached. _fetched_at still holds its time here.
         return time.monotonic() - self._fetched_at <= max_age
 
-    def _make_client(self, settings: Settings) -> httpx.AsyncClient:
-        # NWS asks for an identifying User-Agent; geo+json is its native shape.
+    def _make_client(self) -> httpx.AsyncClient:
+        # NWS asks for an identifying User-Agent (make_client sends the app's
+        # `user_agent` setting by default); geo+json is its native shape.
         return make_client(
             timeout=10.0,
-            user_agent=settings.user_agent,
             follow_redirects=True,
             headers={"Accept": "application/geo+json"},
         )
 
     async def _refresh(self, settings: Settings) -> dict:
-        async with self._make_client(settings) as client:
+        async with self._make_client() as client:
             if self._forecast_url is None or not self._station_urls:
                 await self._discover(client, settings)
             periods, current, aqi = await asyncio.gather(
