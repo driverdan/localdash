@@ -11,6 +11,7 @@ from pathlib import Path
 
 import httpx
 
+from app.config import get_settings
 from app.events.sources.cityspark import (
     MAX_PAGES,
     PAGE_SIZE,
@@ -292,7 +293,8 @@ async def test_fetch_sends_no_auth_referer_or_spoofed_ua(mock_http):
     for request in requests:
         assert "authorization" not in request.headers
         assert "referer" not in request.headers
-        assert request.headers["user-agent"].startswith("python-httpx/")
+        # The app's own identifying UA (make_client's default), not a spoofed browser one.
+        assert request.headers["user-agent"] == get_settings().user_agent
 
 
 # --- registry + failure isolation ---

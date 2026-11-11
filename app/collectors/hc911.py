@@ -47,9 +47,7 @@ class HC911Collector(BaseCollector):
             "X-Frontend-Auth": self.settings.hc911_auth_token,
             "Origin": self.settings.hc911_origin,
         }
-        async with make_client(
-            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
-        ) as client:
+        async with make_client(timeout=30, follow_redirects=False) as client:
             resp = await client.get(self.settings.hc911_api_url, headers=headers)
             resp.raise_for_status()
             return resp.json()

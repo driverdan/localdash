@@ -79,9 +79,7 @@ class TdotCollector(BaseCollector):
     async def fetch(self) -> Any:
         headers = {"X-API-Key": self.api_key}
         out: list[dict] = []
-        async with make_client(
-            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
-        ) as client:
+        async with make_client(timeout=30, follow_redirects=False) as client:
             for endpoint in self.endpoints:
                 resp = await client.get(f"{self.base_url}/{endpoint}", headers=headers)
                 if resp.status_code == 204:
