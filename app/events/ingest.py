@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select, update
@@ -71,6 +72,11 @@ def _supplied_coords(raw: RawEvent) -> Coords | None:
     return None
 
 
+def _coords(lat: float | None, lon: float | None) -> Coords | None:
+    """A (lat, lon) tuple from nullable columns; None when the latitude is missing."""
+    return (lat, lon) if lat is not None else None
+
+
 async def _geocode(
     session: AsyncSession,
     geocoder: Geocoder,
@@ -85,7 +91,7 @@ async def _geocode(
 
     row = await session.scalar(select(GeocodeCache).where(GeocodeCache.address == address))
     if row is not None:
-        coords = (row.latitude, row.longitude) if row.latitude is not None else None
+        coords = _coords(row.latitude, row.longitude)
     else:
         coords = await geocoder.geocode(address)
         session.add(
@@ -127,6 +133,33 @@ async def _find_by_source_listing(session: AsyncSession, raw: RawEvent) -> Event
     return next((e for e in events if _as_utc(e.starts_at).date() == day), None)
 
 
+async def _find_known_event(session: AsyncSession, raw: RawEvent, key: str) -> Event | None:
+    """Tiers 1-2: the source listing (adopting a drifted key), then the exact canonical key."""
+    event = await _find_by_source_listing(session, raw)
+    if event is not None:
+        if event.canonical_key != key:
+            # Same listing, drifted key (upstream retitle or a normalization
+            # change): adopt the current key so exact lookups keep working.
+            taken = await session.scalar(select(Event.id).where(Event.canonical_key == key))
+            if taken is None:
+                event.canonical_key = key
+        return event
+    return await session.scalar(
+        select(Event).where(Event.canonical_key == key).options(*_EVENT_OPTIONS)
+    )
+
+
+def _event_side(event: Event, coords: Coords | None) -> MatchSide:
+    """A stored event's matching signals, with its coordinates read separately."""
+    return MatchSide(
+        title=event.title,
+        start=event.starts_at,
+        coords=coords,
+        venue_name=event.venue_name,
+        address=event.address,
+    )
+
+
 async def _find_fuzzy_candidate(
     session: AsyncSession, raw: RawEvent, coords: Coords | None
 ) -> Event | None:
@@ -146,16 +179,147 @@ async def _find_fuzzy_candidate(
         address=raw.address,
     )
     for event, lat, lon in rows:
-        event_side = MatchSide(
-            title=event.title,
-            start=event.starts_at,
-            coords=(lat, lon) if lat is not None else None,
-            venue_name=event.venue_name,
-            address=event.address,
-        )
-        if events_match(raw_side, event_side):
+        if events_match(raw_side, _event_side(event, _coords(lat, lon))):
             return event
     return None
+
+
+async def _locate(
+    session: AsyncSession,
+    geocoder: Geocoder,
+    raw: RawEvent,
+    address: str | None,
+    geo_cache: dict[str, Coords | None],
+) -> Coords | None:
+    """Source-supplied coordinates when present, else geocode ``address``."""
+    coords = _supplied_coords(raw)
+    if coords is None:
+        coords = await _geocode(session, geocoder, address, geo_cache)
+    return coords
+
+
+def _beyond_radius(raw: RawEvent, coords: Coords | None, max_miles: float) -> bool:
+    """Ingest radius filter: True when a located new event lies beyond max_miles."""
+    if max_miles <= 0 or coords is None:
+        return False
+    distance = _haversine_miles(get_settings().center, coords)
+    if distance <= max_miles:
+        return False
+    log.debug(
+        "skipping far event %r (%.0f mi > %.0f mi)",
+        raw.title,
+        distance,
+        max_miles,
+    )
+    return True
+
+
+def _tag_names(raw: RawEvent, blocked_tags: set[str]) -> set[str]:
+    """Tag names for a new event: supplied tags, else keyword tags, minus the blocklist."""
+    # Source-supplied tags (lowercased to merge with the keyword
+    # vocabulary) replace keyword tagging entirely.
+    if raw.tags:
+        names = set(name.lower() for name in raw.tags)
+    else:
+        names = tag_event(raw.title, raw.description or "")
+    # Blocklisted topics are never created or attached (both paths).
+    return names - blocked_tags
+
+
+async def _create_event(
+    session: AsyncSession,
+    raw: RawEvent,
+    key: str,
+    coords: Coords | None,
+    blocked_tags: set[str],
+    tag_cache: dict[str, Tag],
+) -> Event:
+    """Add a new canonical event for raw, then attach its tags in sorted order."""
+    event = Event(
+        canonical_key=key,
+        title=raw.title,
+        description=raw.description or "",
+        starts_at=raw.start_time,
+        ends_at=raw.end_time,
+        venue_name=raw.venue_name,
+        address=raw.address,
+        image_url=raw.image_url,
+        location=_point(coords) if coords else None,
+        tags=[],
+        links=[],
+    )
+    # Added before any tag lookup: _get_or_create_tag's SELECTs autoflush.
+    session.add(event)
+    for name in sorted(_tag_names(raw, blocked_tags)):
+        event.tags.append(await _get_or_create_tag(session, name, tag_cache))
+    return event
+
+
+def _backfill_missing(
+    event: Event,
+    *,
+    description: str | None,
+    venue_name: str | None,
+    address: str | None,
+    ends_at: datetime | None,
+    image_url: str | None,
+) -> None:
+    """The shared merge backfill rule: fill empty fields, never overwrite a stored value."""
+    if not event.description and description:
+        event.description = description
+    if event.venue_name is None and venue_name:
+        event.venue_name = venue_name
+    if event.address is None and address:
+        event.address = address
+    if event.ends_at is None and ends_at:
+        event.ends_at = ends_at
+    if event.image_url is None and image_url:
+        event.image_url = image_url
+
+
+async def _merge_report(
+    session: AsyncSession,
+    event: Event,
+    raw: RawEvent,
+    geocoder: Geocoder,
+    geo_cache: dict[str, Coords | None],
+) -> None:
+    """Merge a matched report into its event: backfill, then locate if still unlocated."""
+    _backfill_missing(
+        event,
+        description=raw.description,
+        venue_name=raw.venue_name,
+        address=raw.address,
+        ends_at=raw.end_time,
+        image_url=raw.image_url,
+    )
+    if event.location is None:
+        # Read after the backfill: the report may have just supplied the address.
+        coords = await _locate(session, geocoder, raw, event.address or raw.address, geo_cache)
+        if coords:
+            event.location = _point(coords)
+
+
+def _upsert_link(event: Event, raw: RawEvent) -> None:
+    """One link per listing (source name + URL); a re-report refreshes its source event id."""
+    existing = next(
+        (
+            link
+            for link in event.links
+            if link.source_name == raw.source_name and link.source_url == raw.source_url
+        ),
+        None,
+    )
+    if existing is None:
+        event.links.append(
+            EventLink(
+                source_name=raw.source_name,
+                source_url=raw.source_url,
+                source_event_id=raw.source_event_id,
+            )
+        )
+    elif raw.source_event_id:
+        existing.source_event_id = raw.source_event_id
 
 
 async def upsert_raw_events(
@@ -181,105 +345,22 @@ async def upsert_raw_events(
 
     for raw in raws:
         key = canonical_key(raw.title, raw.start_time)
-        event = await _find_by_source_listing(session, raw)
-        if event is not None and event.canonical_key != key:
-            # Same listing, drifted key (upstream retitle or a normalization
-            # change): adopt the current key so exact lookups keep working.
-            taken = await session.scalar(select(Event.id).where(Event.canonical_key == key))
-            if taken is None:
-                event.canonical_key = key
-        if event is None:
-            event = await session.scalar(
-                select(Event).where(Event.canonical_key == key).options(*_EVENT_OPTIONS)
-            )
-
+        event = await _find_known_event(session, raw, key)
         coords: Coords | None = None
         if event is None:
-            # Prefer source-supplied coordinates; geocode only when absent.
-            coords = _supplied_coords(raw)
-            if coords is None:
-                coords = await _geocode(session, geocoder, raw.address, geo_cache)
+            # Tier 3 needs coordinates; locate only once tiers 1-2 miss.
+            coords = await _locate(session, geocoder, raw, raw.address, geo_cache)
             event = await _find_fuzzy_candidate(session, raw, coords)
-
         if event is None:
-            if max_miles > 0 and coords is not None:
-                distance = _haversine_miles(get_settings().center, coords)
-                if distance > max_miles:
-                    skipped_far += 1
-                    log.debug(
-                        "skipping far event %r (%.0f mi > %.0f mi)",
-                        raw.title,
-                        distance,
-                        max_miles,
-                    )
-                    continue
-            event = Event(
-                canonical_key=key,
-                title=raw.title,
-                description=raw.description or "",
-                starts_at=raw.start_time,
-                ends_at=raw.end_time,
-                venue_name=raw.venue_name,
-                address=raw.address,
-                image_url=raw.image_url,
-                location=_point(coords) if coords else None,
-                tags=[],
-                links=[],
-            )
-            session.add(event)
+            if _beyond_radius(raw, coords, max_miles):
+                skipped_far += 1
+                continue
+            event = await _create_event(session, raw, key, coords, blocked_tags, tag_cache)
             created += 1
-            # Source-supplied tags (lowercased to merge with the keyword
-            # vocabulary) replace keyword tagging entirely.
-            if raw.tags:
-                names = set(name.lower() for name in raw.tags)
-            else:
-                names = tag_event(raw.title, raw.description or "")
-            # Blocklisted topics are never created or attached (both paths).
-            names -= blocked_tags
-            for name in sorted(names):
-                event.tags.append(await _get_or_create_tag(session, name, tag_cache))
         else:
+            await _merge_report(session, event, raw, geocoder, geo_cache)
             merged += 1
-            # Backfill any fields the canonical record is missing.
-            if not event.description and raw.description:
-                event.description = raw.description
-            if event.venue_name is None and raw.venue_name:
-                event.venue_name = raw.venue_name
-            if event.address is None and raw.address:
-                event.address = raw.address
-            if event.ends_at is None and raw.end_time:
-                event.ends_at = raw.end_time
-            if event.image_url is None and raw.image_url:
-                event.image_url = raw.image_url
-            if event.location is None:
-                coords = _supplied_coords(raw)
-                if coords is None:
-                    coords = await _geocode(
-                        session, geocoder, event.address or raw.address, geo_cache
-                    )
-                if coords:
-                    event.location = _point(coords)
-
-        # One link per listing (source name + URL); a re-report of the same
-        # listing refreshes its source event id rather than adding a link.
-        existing = next(
-            (
-                link
-                for link in event.links
-                if link.source_name == raw.source_name and link.source_url == raw.source_url
-            ),
-            None,
-        )
-        if existing is None:
-            event.links.append(
-                EventLink(
-                    source_name=raw.source_name,
-                    source_url=raw.source_url,
-                    source_event_id=raw.source_event_id,
-                )
-            )
-        elif raw.source_event_id:
-            existing.source_event_id = raw.source_event_id
+        _upsert_link(event, raw)
         await session.flush()
 
     await session.commit()
@@ -290,16 +371,14 @@ def _merge_pair(survivor: Event, loser: Event) -> None:
     """Fold loser into survivor: longer title, union links/tags, backfill."""
     if len(loser.title) > len(survivor.title):
         survivor.title = loser.title
-    if not survivor.description and loser.description:
-        survivor.description = loser.description
-    if survivor.venue_name is None and loser.venue_name:
-        survivor.venue_name = loser.venue_name
-    if survivor.address is None and loser.address:
-        survivor.address = loser.address
-    if survivor.ends_at is None and loser.ends_at:
-        survivor.ends_at = loser.ends_at
-    if survivor.image_url is None and loser.image_url:
-        survivor.image_url = loser.image_url
+    _backfill_missing(
+        survivor,
+        description=loser.description,
+        venue_name=loser.venue_name,
+        address=loser.address,
+        ends_at=loser.ends_at,
+        image_url=loser.image_url,
+    )
     if survivor.location is None and loser.location is not None:
         survivor.location = loser.location
     kept = {(link.source_name, link.source_url) for link in survivor.links}
@@ -310,6 +389,47 @@ def _merge_pair(survivor: Event, loser: Event) -> None:
     for tag in loser.tags:
         if tag not in survivor.tags:
             survivor.tags.append(tag)
+
+
+@dataclass
+class _Candidate:
+    """A stored upcoming event under reconciliation, with its evolving match state."""
+
+    event: Event
+    coords: Coords | None
+    key: str  # canonical_key recomputed under the current normalization
+
+
+async def _reconcile_bucket(session: AsyncSession, candidates: list[_Candidate]) -> int:
+    """Merge one UTC-day bucket in id order; each survivor absorbs every later match.
+
+    The earliest remaining row survives and is compared with every later
+    row, its title, coordinates and key updated as it absorbs them. Rows it
+    does not absorb, in their original order, are the next round's
+    candidates. Returns the merge count.
+    """
+    merged = 0
+    remaining = candidates
+    while remaining:
+        survivor, *rest = remaining
+        remaining = []
+        for other in rest:
+            if survivor.key != other.key and not events_match(
+                _event_side(survivor.event, survivor.coords),
+                _event_side(other.event, other.coords),
+            ):
+                remaining.append(other)
+                continue
+            log.info(
+                "reconciling duplicate events %r <- %r", survivor.event.title, other.event.title
+            )
+            _merge_pair(survivor.event, other.event)
+            if survivor.coords is None and other.coords is not None:
+                survivor.coords = other.coords
+            survivor.key = canonical_key(survivor.event.title, survivor.event.starts_at)
+            await session.delete(other.event)
+            merged += 1
+    return merged
 
 
 async def reconcile_events(session: AsyncSession) -> int:
@@ -333,47 +453,16 @@ async def reconcile_events(session: AsyncSession) -> int:
         )
     ).all()
 
-    buckets: dict[dt.date, list[list]] = defaultdict(list)
+    buckets: dict[dt.date, list[_Candidate]] = defaultdict(list)
     for event, lat, lon in rows:
-        coords = (lat, lon) if lat is not None else None
-        key = canonical_key(event.title, event.starts_at)
-        buckets[_as_utc(event.starts_at).date()].append([event, coords, key])
+        candidate = _Candidate(
+            event, _coords(lat, lon), canonical_key(event.title, event.starts_at)
+        )
+        buckets[_as_utc(event.starts_at).date()].append(candidate)
 
     merged = 0
     for bucket in buckets.values():
-        for i, (survivor, s_coords, s_key) in enumerate(bucket):
-            if survivor is None:
-                continue
-            for j in range(i + 1, len(bucket)):
-                loser, l_coords, l_key = bucket[j]
-                if loser is None:
-                    continue
-                a = MatchSide(
-                    title=survivor.title,
-                    start=survivor.starts_at,
-                    coords=s_coords,
-                    venue_name=survivor.venue_name,
-                    address=survivor.address,
-                )
-                b = MatchSide(
-                    title=loser.title,
-                    start=loser.starts_at,
-                    coords=l_coords,
-                    venue_name=loser.venue_name,
-                    address=loser.address,
-                )
-                if s_key != l_key and not events_match(a, b):
-                    continue
-                log.info("reconciling duplicate events %r <- %r", survivor.title, loser.title)
-                _merge_pair(survivor, loser)
-                if s_coords is None and l_coords is not None:
-                    s_coords = l_coords
-                    bucket[i][1] = l_coords
-                s_key = canonical_key(survivor.title, survivor.starts_at)
-                bucket[i][2] = s_key
-                await session.delete(loser)
-                bucket[j][0] = None
-                merged += 1
+        merged += await _reconcile_bucket(session, bucket)
 
     await session.commit()
     return merged
