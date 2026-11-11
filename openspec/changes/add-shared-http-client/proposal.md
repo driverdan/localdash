@@ -23,6 +23,9 @@ to short UAs, and NWS requires an identifying UA. Today nothing checks them exce
   when it builds the client); a call site passes one only to override it. Every client sends a
   non-empty User-Agent: there is no way to request httpx's default, and a blank override raises.
   The module also holds the test seam, a module-level transport override.
+- The `user_agent` setting defaults to `DEFAULT_USER_AGENT`, defined in `app/http.py` as the
+  browser string with ` LocalDash/0.1` appended (`Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1`). `app/config.py` imports it from
+  `app.http`; `make_client` imports `get_settings` inside the function, so there is no cycle.
 - Three User-Agent overrides remain, each required by a main spec: `BROWSER_USER_AGENT` for
   CarCruiseFinder and the news HTML scrape, and `events_geocoder_user_agent` for Nominatim.
 - `BROWSER_USER_AGENT` in `app/http.py` replaces `app.news.registry.USER_AGENT` and
@@ -50,10 +53,13 @@ to short UAs, and NWS requires an identifying UA. Today nothing checks them exce
 - The geocoder's connection reuse. Nominatim lookups in one refresh cycle now share keep-alive
   connections instead of opening a new TCP/TLS connection per query. The request line, headers,
   timeout and the ≥1 s spacing between requests do not change.
-- The User-Agent of the Meetup, iCal, tribe and CitySpark sources, which now send the app's
-  `user_agent` setting instead of `python-httpx/<version>`. This was added in review of #344: no
-  request should go out with httpx's default or an empty User-Agent. Each configured tribe site,
-  iCal feed and the CitySpark endpoint is checked live with both UAs before it ships.
+- The User-Agent of every upstream that does not use one of the three overrides. They now send
+  `DEFAULT_USER_AGENT` (browser string plus `LocalDash/0.1`): hc911, TDOT, EPB, TNAW, NWS, AirNow
+  and the Chattanooga Zoo instead of `LocalDash/0.1`, and Meetup, iCal, tribe and CitySpark
+  instead of `python-httpx/<version>`. This was added in review of #344: no request should go out
+  with httpx's default or an empty User-Agent, and the default should be a real browser UA with
+  LocalDash appended. Each affected upstream is checked live with the old and new UA before it
+  ships.
 
 No other request to any upstream changes.
 
@@ -66,24 +72,28 @@ No other request to any upstream changes.
   transport and cannot reach the real network.
 
 ### Modified Capabilities
-None. The User-Agent statements already in `news` ("Scheduled feed fetching with per-feed error
-isolation"), `events` (CarCruiseFinder, CitySpark, tribe, zoo, geocoding) and `weather` ("Identifying
-User-Agent on upstream requests") stay true as written. CitySpark and tribe "SHALL NOT send a
-spoofed browser User-Agent", which the `user_agent` setting is not, and no main spec says any
-source sends httpx's default. This change makes them testable and does not change them.
+- `events`: the CitySpark, tribe and Chattanooga Zoo requirements said those sources send no
+  spoofed browser User-Agent (the zoo: "the project's standard `user_agent`"). With the browser-based
+  default they now say each sends the application's default User-Agent.
+
+The other User-Agent statements in `news` ("Scheduled feed fetching with per-feed error
+isolation"), `events` (CarCruiseFinder, geocoding) and `weather` ("Identifying User-Agent on
+upstream requests") stay true as written: the browser-UA rules are kept by the overrides, and the
+new default still names LocalDash.
 
 ## Impact
 
-- New: `app/http.py` (imports `get_settings` from `app.config` for its default User-Agent; no
-  import cycle), a shared mock-HTTP test helper and fixture, and a request-settings test module.
+- New: `app/http.py` (defines `DEFAULT_USER_AGENT`; reads `get_settings().user_agent` through a
+  function-level import, so `app.config` can import `DEFAULT_USER_AGENT` without a cycle), a shared mock-HTTP test helper and fixture, and a request-settings test module.
 - Edited: `app/collectors/{hc911,tdot,epb,tnaw}.py`, `app/events/geocoding.py`,
   `app/events/refresh.py`, `app/events/sources/{chattzoo,meetup,ical,tribe,cityspark,carcruisefinder}.py`,
   `app/news/fetcher.py`, `app/news/registry.py` (constant removed), `app/weather/service.py`.
 - Tests: `tests/conftest.py`, `tests/test_events_{cityspark,chattzoo,carcruisefinder,tribe,geocoding}.py`,
   `tests/test_weather.py`, `tests/test_live_signals.py` (its `NominatimGeocoder` stub must support
   `async with`), plus new fetch tests for the geo collectors, Meetup, iCal and the news HTML scrape.
-- `app/config.py`: blank-value validation on `user_agent` and `events_geocoder_user_agent`
-  (defaults unchanged).
-- Wire: Meetup, iCal, tribe and CitySpark send the `user_agent` setting instead of httpx's default.
+- `app/config.py`: `user_agent` defaults to `DEFAULT_USER_AGENT`; blank-value validation on
+  `user_agent` and `events_geocoder_user_agent`.
+- Wire: every upstream except the three overrides sends `DEFAULT_USER_AGENT` (previously
+  `LocalDash/0.1` or httpx's default).
 - Docs: `AGENTS.md`.
 - No new dependencies, no migration, no API or frontend change.

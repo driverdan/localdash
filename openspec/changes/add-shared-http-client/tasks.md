@@ -65,3 +65,12 @@
 - [ ] 9.10 `AGENTS.md` "HTTP client — httpx" paragraph: timeout and redirects are explicit per call; the UA defaults to the `user_agent` setting and is passed only to override it; no request sends httpx's default or an empty UA
 - [ ] 9.11 Live check (read-only, a handful of requests): for each configured tribe site, each configured iCal feed and the CitySpark endpoint, send the request the source sends once with the app UA and once with `python-httpx/<version>`, and record both statuses in the PR. Meetup needs a token; skip it if none is configured. If an upstream accepts httpx's default but rejects the app UA, stop and ask the owner
 - [ ] 9.12 Run the full test suite, `ruff check`, `ruff format --check` and `openspec validate add-shared-http-client --strict`; all pass
+
+## 10. Browser-based default User-Agent (second revision in review of #344)
+
+- [ ] 10.1 `app/http.py`: add `DEFAULT_USER_AGENT = f"{BROWSER_USER_AGENT} LocalDash/0.1"`; move the `get_settings` import inside `make_client` so `app.http` does not import `app.config` at module level
+- [ ] 10.2 `app/config.py`: `user_agent` defaults to `DEFAULT_USER_AGENT` (imported from `app.http`); confirm there is no import cycle and `USER_AGENT` still overrides it
+- [ ] 10.3 Tests: the default-UA test asserts the exact string `Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1`, that it starts with `BROWSER_USER_AGENT` and ends with `LocalDash/0.1`; the wire table expects the new default for every default site; the browser literal is still only in `app/http.py`; update any test that expects `LocalDash/0.1` as the default
+- [ ] 10.4 Source docstrings and `AGENTS.md` lines that say a source sends no browser UA or sends `LocalDash/0.1`: say it sends the app's default UA
+- [ ] 10.5 Live check (read-only, one request each): with the new default and with today's UA (`LocalDash/0.1` or `python-httpx/<version>`), request EPB, TNAW, NWS, the Chattanooga Zoo, each tribe site, each iCal feed and CitySpark; hc911, TDOT and AirNow only if their keys are configured. Also, for the owner only, request CarCruiseFinder's listing and one Local 3 feed with the new default and with `BROWSER_USER_AGENT` (the overrides stay regardless). If an upstream accepts today's UA but rejects the new default, stop and ask the owner
+- [ ] 10.6 Run the full test suite, `ruff check`, `ruff format --check` and `openspec validate add-shared-http-client --strict`; all pass
