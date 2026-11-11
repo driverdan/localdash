@@ -324,8 +324,9 @@ configuration by passing values (`blocked_tags=`, `center=`, `window_days=`) or 
 with `make_settings(**overrides)` from `conftest.py` (defaults plus overrides, ignoring `.env`);
 never mutate the cached `get_settings()` instance or set environment variables and clear its cache.
 The exceptions are tests whose code under test is itself a composition root that reads
-`get_settings()`: refresh-cycle tests patch `app.<feature>.refresh.get_settings`, and the
-log-redaction tests set the environment.
+`get_settings()`: refresh-cycle tests patch `app.<feature>.refresh.get_settings`, tests of
+`make_client`'s default User-Agent patch `app.config.get_settings` (it is imported at call time),
+and the log-redaction tests set the environment.
 
 **CI:** `.github/workflows/tests.yml` runs on every PR and on pushes to `main`. A `changes` job
 path-filters the diff (`dorny/paths-filter`) and the other jobs run only when their area changed —
@@ -637,5 +638,5 @@ by the events distance origin, the CitySpark/Meetup source defaults, and the wea
 There is no `.env` by default; the code runs on the defaults in
 `config.py`. `get_settings()` is read only at composition roots (the refresh cycles, the app
 lifespan and `main.py`, which hand the settings to the scheduler's `job_specs`, `db.py`, the
-redaction filter, router `Depends(get_settings)`, and `WeatherService`'s fallback when built
-without settings); pipeline functions receive the values they use as arguments. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
+redaction filter, router `Depends(get_settings)`, `WeatherService`'s fallback when built
+without settings, and `make_client`'s default User-Agent in `app/http.py`); pipeline functions receive the values they use as arguments. Inside Docker the app reaches Postgres at host `db`; locally at `localhost`.
