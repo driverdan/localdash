@@ -410,6 +410,11 @@ entity as `latest_properties["status"]`, which change detection, `GET /entities`
 panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
 in the payload, so if the upstream `status` means something else and must be kept, rename it.
 
+**Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
+entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
+panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
+in the payload, so if the upstream `status` means something else and must be kept, rename it.
+
 ### The news feature (`app/news/`, ported from ChattNews)
 Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `news_refresh_minutes`
 (default 15) and by `POST /api/v1/news/refresh`; the two paths are serialized by an asyncio lock in
