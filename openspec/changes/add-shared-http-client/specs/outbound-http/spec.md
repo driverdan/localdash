@@ -8,7 +8,10 @@ application's `user_agent` setting, read when the client is built; a caller SHAL
 User-Agent only to override that default with a different one. Every client SHALL send a non-empty
 User-Agent: the factory SHALL offer no way to send httpx's own default (`python-httpx/<version>`),
 and SHALL reject a blank override with an error. The `user_agent` setting SHALL be the only
-setting the factory reads; every other value comes from the caller. The `user_agent` and
+setting the factory reads; every other value comes from the caller. The `user_agent` setting
+SHALL default to `DEFAULT_USER_AGENT`, defined in `app/http.py` as `BROWSER_USER_AGENT` followed by
+a space and `LocalDash/0.1` (a real browser string that still names the app), and SHALL remain
+overridable through the environment (`USER_AGENT`). The `user_agent` and
 `events_geocoder_user_agent` settings SHALL reject blank values when settings load. Requests made
 through `feedparser` (news RSS feeds) are outside the factory's scope, but SHALL use the same
 browser User-Agent constant (see "One shared browser User-Agent").
@@ -26,6 +29,11 @@ browser User-Agent constant (see "One shared browser User-Agent").
 #### Scenario: A client built without a User-Agent sends the app's
 - **WHEN** a client is built without a User-Agent argument
 - **THEN** its requests carry the configured `user_agent` setting
+
+#### Scenario: The default User-Agent is a browser string naming the app
+- **WHEN** the `user_agent` setting is not overridden
+- **THEN** its value is `Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1`: it starts with `BROWSER_USER_AGENT` and ends with
+  `LocalDash/0.1`
 
 #### Scenario: A blank User-Agent is rejected
 - **WHEN** a caller passes an empty or whitespace-only User-Agent to the factory, or the
@@ -68,7 +76,8 @@ Site-specific headers SHALL also be preserved: hc911 sends `Content-Type: applic
 
 ### Requirement: One shared browser User-Agent
 The application SHALL define the mainstream browser User-Agent string exactly once, as
-`BROWSER_USER_AGENT` in `app/http.py`. The news RSS fetch (via feedparser), the news HTML scrape,
+`BROWSER_USER_AGENT` in `app/http.py`. `DEFAULT_USER_AGENT` SHALL be built from that constant, not
+from a second copy of the string. The news RSS fetch (via feedparser), the news HTML scrape,
 and the CarCruiseFinder source SHALL all use that constant.
 
 #### Scenario: News feeds and CarCruiseFinder share one constant
