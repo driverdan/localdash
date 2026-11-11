@@ -36,7 +36,7 @@ def build_sources(settings: Settings) -> list[EventSource]:
     """Build the list of real sources to ingest on each run."""
     sources: list[EventSource] = [
         CarCruiseFinderSource(),
-        ChattZooSource(user_agent=settings.user_agent),
+        ChattZooSource(),
     ]
 
     if settings.events_cityspark_enabled:
