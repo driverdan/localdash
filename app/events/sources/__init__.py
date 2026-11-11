@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import Settings
+from app.config import Settings, split_csv
 from app.events import MEETUP_RADIUS_MILES
 from app.events.sources.base import EventSource
 from app.events.sources.carcruisefinder import CarCruiseFinderSource
@@ -51,10 +51,10 @@ def build_sources(settings: Settings) -> list[EventSource]:
             )
         )
 
-    for url in filter(None, (u.strip() for u in settings.events_ical_feeds.split(","))):
+    for url in settings.events_ical_feed_list:
         sources.append(ICalSource(url))
 
-    for entry in filter(None, (e.strip() for e in settings.events_tribe_calendars.split(","))):
+    for entry in split_csv(settings.events_tribe_calendars):
         name, sep, base_url = entry.partition("=")
         if not sep or not name.strip() or not base_url.strip():
             log.warning("events_tribe_calendars entry %r is not Name=BaseURL; skipped", entry)

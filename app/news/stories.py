@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.news.models import NewsArticle, NewsFeed, NewsSource
-from app.news.textutil import truncate_sentences
+from app.text import truncate_sentences
 
 
 def build_stories(rows: list[dict]) -> list[dict]:

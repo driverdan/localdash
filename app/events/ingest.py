@@ -27,6 +27,8 @@ from app.events.geocoding import Coords, Geocoder, NullGeocoder
 from app.events.models import Event, EventLink, GeocodeCache, Tag
 from app.events.sources.base import EventSource, RawEvent
 from app.events.tagging import tag_event
+from app.geo import ewkt_point
+from app.timeutil import as_utc
 
 log = logging.getLogger("localdash.events")
 
@@ -34,11 +36,6 @@ log = logging.getLogger("localdash.events")
 _FUZZY_WINDOW = timedelta(hours=2)
 
 _EVENT_OPTIONS = (selectinload(Event.links), selectinload(Event.tags))
-
-
-def _point(coords: Coords) -> str:
-    """WKT for a PostGIS point from (lat, lon)."""
-    return f"SRID=4326;POINT({coords[1]} {coords[0]})"
 
 
 async def _get_or_create_tag(session: AsyncSession, name: str, cache: dict[str, Tag]) -> Tag:
@@ -110,12 +107,6 @@ async def _geocode(
     return coords
 
 
-def _as_utc(t: datetime) -> datetime:
-    if t.tzinfo is None:
-        return t.replace(tzinfo=timezone.utc)
-    return t.astimezone(timezone.utc)
-
-
 async def _find_by_source_listing(session: AsyncSession, raw: RawEvent) -> Event | None:
     """Tier 1: the event already linking this exact source listing.
 
@@ -133,8 +124,8 @@ async def _find_by_source_listing(session: AsyncSession, raw: RawEvent) -> Event
         .where(EventLink.source_name == raw.source_name, listing)
         .options(*_EVENT_OPTIONS)
     )
-    day = _as_utc(raw.start_time).date()
-    return next((e for e in events if _as_utc(e.starts_at).date() == day), None)
+    day = as_utc(raw.start_time).date()
+    return next((e for e in events if as_utc(e.starts_at).date() == day), None)
 
 
 async def _find_known_event(session: AsyncSession, raw: RawEvent, key: str) -> Event | None:
@@ -168,7 +159,7 @@ async def _find_fuzzy_candidate(
     session: AsyncSession, raw: RawEvent, coords: Coords | None
 ) -> Event | None:
     """Tier 3: a stored event within the start window that events_match accepts."""
-    start = _as_utc(raw.start_time)
+    start = as_utc(raw.start_time)
     rows = await session.execute(
         select(Event, func.ST_Y(Event.location), func.ST_X(Event.location))
         .where(Event.starts_at.between(start - _FUZZY_WINDOW, start + _FUZZY_WINDOW))
@@ -249,7 +240,7 @@ async def _create_event(
         venue_name=raw.venue_name,
         address=raw.address,
         image_url=raw.image_url,
-        location=_point(coords) if coords else None,
+        location=ewkt_point(*coords) if coords else None,
         tags=[],
         links=[],
     )
@@ -303,7 +294,7 @@ async def _merge_report(
         # Read after the backfill: the report may have just supplied the address.
         coords = await _locate(session, geocoder, raw, event.address or raw.address, geo_cache, now)
         if coords:
-            event.location = _point(coords)
+            event.location = ewkt_point(*coords)
 
 
 def _upsert_link(event: Event, raw: RawEvent) -> None:
@@ -477,7 +468,7 @@ async def reconcile_events(session: AsyncSession, *, now: datetime | None = None
         candidate = _Candidate(
             event, _coords(lat, lon), canonical_key(event.title, event.starts_at)
         )
-        buckets[_as_utc(event.starts_at).date()].append(candidate)
+        buckets[as_utc(event.starts_at).date()].append(candidate)
 
     merged = 0
     for bucket in buckets.values():
@@ -530,7 +521,7 @@ async def retry_failed_geocodes(
             await session.execute(
                 update(Event)
                 .where(Event.address == row.address, Event.location.is_(None))
-                .values(location=_point(coords))
+                .values(location=ewkt_point(*coords))
             )
     await session.commit()
     return {"retried": len(rows), "resolved": resolved}

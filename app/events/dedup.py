@@ -18,6 +18,8 @@ import math
 import re
 from typing import NamedTuple
 
+from app.timeutil import as_utc
+
 _NON_ALNUM = re.compile(r"[^a-z0-9 ]")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -52,7 +54,7 @@ def canonical_key(title: str, start_time: dt.datetime) -> str:
     Two events with the same normalized title that start within the same UTC
     hour are treated as the same event. Naive datetimes are taken as UTC.
     """
-    basis = f"{normalize_title(title)}|{_as_utc(start_time).strftime('%Y-%m-%dT%H')}"
+    basis = f"{normalize_title(title)}|{as_utc(start_time).strftime('%Y-%m-%dT%H')}"
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]
 
 
@@ -64,12 +66,6 @@ def haversine_miles(a: tuple[float, float], b: tuple[float, float]) -> float:
         + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
     )
     return 2 * 3958.8 * math.asin(math.sqrt(h))
-
-
-def _as_utc(t: dt.datetime) -> dt.datetime:
-    if t.tzinfo is None:
-        return t.replace(tzinfo=dt.timezone.utc)
-    return t.astimezone(dt.timezone.utc)
 
 
 def _within_one_edit(a: str, b: str) -> bool:
@@ -138,7 +134,7 @@ def events_match(a: MatchSide, b: MatchSide) -> bool:
     at least one side. With no location evidence at all, this never matches —
     the exact canonical key still covers identical titles in the same hour.
     """
-    if abs(_as_utc(a.start) - _as_utc(b.start)) > _MAX_START_DELTA:
+    if abs(as_utc(a.start) - as_utc(b.start)) > _MAX_START_DELTA:
         return False
     if not titles_match(a.title, b.title):
         return False

@@ -431,7 +431,8 @@ Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async 
 `normalize()`), then register it in `app/collectors/__init__.py`'s `build_collectors()`. Nothing else
 changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic. `fetch()`
 builds its client with `app.http.make_client` (never `httpx.AsyncClient` directly); add the source
-to `tests/test_http_wire.py`.
+to `tests/test_http_wire.py`. Coerce coordinates with `as_float` from `app/collectors/base.py` and
+parse source timestamps with `parse_iso_utc(..., naive_tz=...)` from `app/timeutil.py`.
 
 **Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
 entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
@@ -455,7 +456,8 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
   `use_feed_tags: False` declares its `<category>` tags meaningless. Specific sections are listed
   before the general news feed so the section fallback prefers the specific category.
 - `classify.py` — **per-article content categorization**, first match wins: a mapped feed
-  `<category>` tag → a keyword match on title + summary → the feed's section as last resort.
+  `<category>` tag → a keyword match on title + summary → the feed's section as last resort. The
+  keyword tier uses the shared `app.text.keyword_matches`, as the events tagger does.
 - `fetcher.py` — feedparser per `rss` feed (in a thread), BeautifulSoup for `html` feeds. Dedup is
   `UNIQUE(source_id, guid)`; the upsert recomputes and overwrites `category` on every fetch (other
   fields keep their first-seen values).

@@ -9,28 +9,23 @@ service tracking each incident by master_incident_id over time.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from app.collectors.base import BaseCollector, NormalizedObservation
+from app.collectors.base import BaseCollector, NormalizedObservation, as_float
 from app.config import Settings
 from app.http import make_client
+from app.timeutil import parse_iso_utc
 
 # Calls with this type are filtered out by the source site (permitted burns).
 EXCLUDED_TYPES = {"PERBURN"}
 
 
 def _parse_dt(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    # Values without an offset are read as UTC (the feed always sends "Z").
+    dt = parse_iso_utc(value)
     # The feed uses 1900-01-01 as a "no value" sentinel for statusdatetime.
-    if dt.year < 1990:
-        return None
-    return dt.astimezone(timezone.utc)
+    return None if dt is None or dt.year < 1990 else dt
 
 
 class HC911Collector(BaseCollector):
@@ -71,8 +66,8 @@ class HC911Collector(BaseCollector):
             agency = (item.get("agency_type") or "").strip()
             category = {"Law": "police", "Fire": "fire", "EMS": "ems"}.get(agency, "other")
 
-            lat = _as_float(item.get("latitude"))
-            lon = _as_float(item.get("longitude"))
+            lat = as_float(item.get("latitude"))
+            lon = as_float(item.get("longitude"))
 
             label = item.get("type") or item.get("type_description")
             source_time = _parse_dt(item.get("statusdatetime")) or _parse_dt(item.get("creation"))
@@ -90,11 +85,3 @@ class HC911Collector(BaseCollector):
                 )
             )
         return out
-
-
-def _as_float(value: Any) -> float | None:
-    try:
-        f = float(value)
-    except TypeError, ValueError:
-        return None
-    return f if f == f else None  # reject NaN

@@ -10,7 +10,8 @@ from pathlib import Path
 
 from app.news.clustering import ClusterArticle, assign_clusters
 from app.news.stories import build_stories
-from app.news.textutil import strip_html, title_tokens, truncate_sentences
+from app.news.textutil import title_tokens
+from app.text import strip_html, truncate_sentences
 
 FIXTURE = Path(__file__).parent / "fixtures" / "news_clustering.json"
 

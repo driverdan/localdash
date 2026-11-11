@@ -35,8 +35,8 @@ from app.http import BROWSER_USER_AGENT, make_client
 from app.news.classify import classify
 from app.news.models import NewsArticle, NewsFeed, NewsSource
 from app.news.registry import feed_kind, uses_feed_tags
-from app.news.textutil import strip_html, truncate_sentences
 from app.redaction import redact
+from app.text import strip_html, truncate_sentences
 
 log = logging.getLogger("localdash.news.fetcher")
 
@@ -50,13 +50,18 @@ def _entry_published(entry) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _entry_summary(entry) -> str:
+def _entry_raw_content(entry) -> str:
+    """An entry's raw HTML body: content[0].value, else summary, else description."""
     raw = ""
     if getattr(entry, "content", None):
         raw = entry.content[0].get("value", "")
     if not raw:
         raw = getattr(entry, "summary", "") or getattr(entry, "description", "")
-    return truncate_sentences(strip_html(raw), 600)
+    return raw or ""
+
+
+def _entry_summary(entry) -> str:
+    return truncate_sentences(strip_html(_entry_raw_content(entry)), 600)
 
 
 _IMG_SRC = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
@@ -72,12 +77,7 @@ def _entry_image(entry) -> str | None:
     for enc in getattr(entry, "enclosures", []) or []:
         if str(enc.get("type", "")).startswith("image") and enc.get("href"):
             return enc["href"]
-    raw = ""
-    if getattr(entry, "content", None):
-        raw = entry.content[0].get("value", "")
-    if not raw:
-        raw = getattr(entry, "summary", "") or getattr(entry, "description", "")
-    match = _IMG_SRC.search(raw or "")
+    match = _IMG_SRC.search(_entry_raw_content(entry))
     return match.group(1) if match else None
 
 
@@ -186,9 +186,36 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
     return result.rowcount
 
 
-async def _fetch_html_feed(
-    session: AsyncSession, feed: NewsFeed, source_slug: str
-) -> tuple[int, str]:
+def _article_row(
+    feed: NewsFeed,
+    *,
+    guid: str,
+    url: str,
+    title: str,
+    summary: str,
+    image_url: str | None,
+    tags: list[str],
+    published: datetime,
+    now: datetime,
+) -> dict:
+    """One news_articles row for `feed`, with its content-derived category.
+
+    `feed.category` is only the last-resort fallback inside classify().
+    """
+    return {
+        "source_id": feed.source_id,
+        "guid": guid,
+        "url": url,
+        "title": title,
+        "summary": summary,
+        "image_url": image_url,
+        "category": classify(title, summary, tags, feed.category),
+        "published": published,
+        "fetched_at": now,
+    }
+
+
+async def _fetch_html_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, str]:
     """Fetch one kind='html' feed by scraping its listing page. Returns
     (changed article count, status). An HTTP error propagates to fetch_all's
     per-feed handler; an empty/unrecognized page reports 'no entries'."""
@@ -199,19 +226,19 @@ async def _fetch_html_feed(
 
     now = datetime.now(timezone.utc)
     rows = [
-        {
-            "source_id": feed.source_id,
-            "guid": row["guid"],
-            "url": row["url"],
-            "title": row["title"],
-            "summary": row["summary"],
-            "image_url": row["image_url"],
+        _article_row(
+            feed,
+            guid=row["guid"],
+            url=row["url"],
+            title=row["title"],
+            summary=row["summary"],
+            image_url=row["image_url"],
             # No feed <category> tags on a scraped page, so the tag tier is a
             # no-op ([]); category is keyword-classified, else the feed section.
-            "category": classify(row["title"], row["summary"], [], feed.category),
-            "published": row["published"],
-            "fetched_at": now,
-        }
+            tags=[],
+            published=row["published"],
+            now=now,
+        )
         for row in partial
     ]
     added = await upsert_articles(session, rows)
@@ -221,7 +248,7 @@ async def _fetch_html_feed(
 async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) -> tuple[int, str]:
     """Fetch one feed. Returns (changed article count, status)."""
     if feed_kind(feed.url) == "html":
-        return await _fetch_html_feed(session, feed, source_slug)
+        return await _fetch_html_feed(session, feed)
 
     parsed = await asyncio.to_thread(_parse_feed, feed.url)
     status = getattr(parsed, "status", None)
@@ -238,28 +265,22 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) ->
         title = strip_html(getattr(entry, "title", "") or "")
         if not url or not title:
             continue
-        summary = _entry_summary(entry)
         rows.append(
-            {
-                "source_id": feed.source_id,
-                "guid": getattr(entry, "id", "") or url,
-                "url": url,
-                "title": title,
-                "summary": summary,
-                "image_url": _entry_image(entry),
+            _article_row(
+                feed,
+                guid=getattr(entry, "id", "") or url,
+                url=url,
+                title=title,
+                summary=_entry_summary(entry),
+                image_url=_entry_image(entry),
                 # Content-derived, not the feed section (feed.category is the
                 # last-resort fallback inside classify()). Sources registered
                 # with use_feed_tags: False carry only boilerplate tags, so the
                 # tag tier is suppressed for them.
-                "category": classify(
-                    title,
-                    summary,
-                    _entry_tags(entry) if uses_feed_tags(source_slug) else [],
-                    feed.category,
-                ),
-                "published": _entry_published(entry),
-                "fetched_at": now,
-            }
+                tags=_entry_tags(entry) if uses_feed_tags(source_slug) else [],
+                published=_entry_published(entry),
+                now=now,
+            )
         )
 
     added = await upsert_articles(session, rows)

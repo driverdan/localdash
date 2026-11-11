@@ -9,8 +9,9 @@ first match wins, and always yields one of registry.CATEGORIES:
      everything else is ignored, and a source registered with
      ``use_feed_tags: False`` skips this tier entirely because its tags are
      boilerplate — the fetcher passes it an empty tag list);
-  2. a keyword match on the title + summary (topic->keywords, modeled on the
-     sibling events classifier, app/events/tagging.py);
+  2. a keyword match on the title + summary (topic->keywords, matched with
+     app.text.keyword_matches, which the events tagger app/events/tagging.py
+     shares);
   3. the feed's registered section category, as the last-resort fallback so an
      article is never left uncategorized (this is the pre-change behavior).
 
@@ -18,6 +19,8 @@ Both maps are defined here in code — the source of truth, mirroring registry.p
 """
 
 from __future__ import annotations
+
+from app.text import keyword_matches
 
 # Feed <category> tag (lowercased) -> normalized category. Kept deliberately
 # small and high-confidence: the WordPress feeds mix real topics with geography
@@ -162,10 +165,9 @@ def classify(
         return "news"
 
     # Tier 2: keyword match on title + summary.
-    haystack = f" {title} {summary} ".lower()
-    for category, keywords in TOPIC_KEYWORDS.items():
-        if any(kw in haystack for kw in keywords):
-            return category
+    match = next(keyword_matches(f"{title} {summary}", TOPIC_KEYWORDS), None)
+    if match is not None:
+        return match
 
     # Tier 3: the feed's registered section category.
     return feed_category

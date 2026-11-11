@@ -15,6 +15,7 @@ from icalendar import Calendar
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
+from app.timeutil import as_utc
 
 log = logging.getLogger("localdash.events")
 
@@ -53,9 +54,7 @@ def _to_aware_utc(value) -> dt.datetime | None:
     if value is None:
         return None
     if isinstance(value, dt.datetime):
-        if value.tzinfo is not None:
-            return value.astimezone(dt.timezone.utc)
-        return value.replace(tzinfo=dt.timezone.utc)
+        return as_utc(value)
     if isinstance(value, dt.date):
         return dt.datetime(value.year, value.month, value.day, tzinfo=dt.timezone.utc)
     return None

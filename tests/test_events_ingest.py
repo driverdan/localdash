@@ -839,7 +839,8 @@ async def test_reconcile_window_follows_injected_now(events_db_session):
 
 
 async def test_reconcile_merges_after_coordinates_appear(events_db_session):
-    from app.events.ingest import _point, reconcile_events
+    from app.events.ingest import reconcile_events
+    from app.geo import ewkt_point
 
     start = upcoming(30, 22)
     a = seed_event("test-Riverfront Cruise In", start)
@@ -851,8 +852,8 @@ async def test_reconcile_merges_after_coordinates_appear(events_db_session):
     assert len(await _events(events_db_session)) == 2  # no location evidence yet
 
     # A later geocode resolves both addresses to the same block.
-    a.location = _point(DOWNTOWN_CHATTANOOGA)
-    b.location = _point((35.0457, -85.3098))
+    a.location = ewkt_point(*DOWNTOWN_CHATTANOOGA)
+    b.location = ewkt_point(35.0457, -85.3098)
     await events_db_session.commit()
 
     await reconcile_events(events_db_session)
@@ -865,11 +866,12 @@ async def test_reconcile_merges_stale_key_exact_duplicates(events_db_session):
     # identical normalized titles (post stopword folding) in the same hour,
     # but stored under stale pre-folding canonical keys and geocoded just
     # past the fuzzy tier's distance gate. Key equality must merge them.
-    from app.events.ingest import _point, reconcile_events
+    from app.events.ingest import reconcile_events
+    from app.geo import ewkt_point
 
     start = upcoming(30, 13)
-    a = seed_event("test-Karts & Koffee Franklin", start, location=_point((35.9513, -86.8840)))
-    b = seed_event("test-Karts and Koffee Franklin", start, location=_point((35.9412, -86.8770)))
+    a = seed_event("test-Karts & Koffee Franklin", start, location=ewkt_point(35.9513, -86.8840))
+    b = seed_event("test-Karts and Koffee Franklin", start, location=ewkt_point(35.9412, -86.8770))
     # Simulate the stale stored keys: distinct, as written before the change.
     a.canonical_key = "stale-key-a"
     b.canonical_key = "stale-key-b"
@@ -1061,8 +1063,9 @@ async def _lat_lon(session, event):
 
 
 async def test_reconcile_backfills_missing_fields_and_unions_tags(events_db_session):
-    from app.events.ingest import _point, reconcile_events
+    from app.events.ingest import reconcile_events
     from app.events.models import Tag
+    from app.geo import ewkt_point
 
     gala_start = upcoming(30, 22)
     gala_ends = upcoming(30, 23)
@@ -1074,7 +1077,7 @@ async def test_reconcile_backfills_missing_fields_and_unions_tags(events_db_sess
         gala_start,
         venue="Loser Venue",
         address=BROAD_ST,
-        location=_point(DOWNTOWN_CHATTANOOGA),
+        location=ewkt_point(*DOWNTOWN_CHATTANOOGA),
         url_slug="full",
     )
     full.description = "loser description"
@@ -1091,7 +1094,7 @@ async def test_reconcile_backfills_missing_fields_and_unions_tags(events_db_sess
         keeper_start,
         venue="Keeper Venue",
         address=MARKET_ST,
-        location=_point(DOWNTOWN_CHATTANOOGA),
+        location=ewkt_point(*DOWNTOWN_CHATTANOOGA),
         url_slug="keeper",
     )
     keeper.description = "keeper description"
@@ -1102,7 +1105,7 @@ async def test_reconcile_backfills_missing_fields_and_unions_tags(events_db_sess
         keeper_start,
         venue="Rival Venue",
         address=BEALE_ST,
-        location=_point(MEMPHIS),
+        location=ewkt_point(*MEMPHIS),
         url_slug="rival",
     )
     rival.description = "rival description"
@@ -1145,17 +1148,21 @@ async def test_reconcile_survivor_chains_through_inherited_coordinates(events_db
     # The survivor has no location evidence of its own. It merges the second
     # row on key equality, inherits that row's coordinates, and only then
     # passes the fuzzy location gate against the third row.
-    from app.events.ingest import _point, reconcile_events
+    from app.events.ingest import reconcile_events
+    from app.geo import ewkt_point
 
     start = upcoming(30, 22)
     first = seed_event("test-Valley Cruise In", start, url_slug="first")
     second = seed_event(
-        "test-Valley Cruise In", start, location=_point(DOWNTOWN_CHATTANOOGA), url_slug="second"
+        "test-Valley Cruise In",
+        start,
+        location=ewkt_point(*DOWNTOWN_CHATTANOOGA),
+        url_slug="second",
     )
     third = seed_event(
         "test-Valley Sonic Cruise In",
         start,
-        location=_point((35.0457, -85.3098)),
+        location=ewkt_point(35.0457, -85.3098),
         url_slug="third",
     )
     second.canonical_key = "stale-key-second"  # stored keys are unique; recomputed ones match

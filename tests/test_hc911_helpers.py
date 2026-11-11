@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.collectors.hc911 import _as_float, _parse_dt
+from app.collectors.base import as_float
+from app.collectors.hc911 import _parse_dt
 
 
 def test_parse_dt_iso_with_z():
@@ -24,12 +25,12 @@ def test_parse_dt_handles_bad_input():
 
 
 def test_as_float_valid():
-    assert _as_float("35.04") == 35.04
-    assert _as_float(35) == 35.0
+    assert as_float("35.04") == 35.04
+    assert as_float(35) == 35.0
 
 
 def test_as_float_invalid_returns_none():
-    assert _as_float(None) is None
-    assert _as_float("x") is None
-    assert _as_float("nan") is None  # NaN rejected
-    assert _as_float(float("nan")) is None
+    assert as_float(None) is None
+    assert as_float("x") is None
+    assert as_float("nan") is None  # NaN rejected
+    assert as_float(float("nan")) is None

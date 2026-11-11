@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
@@ -35,6 +36,15 @@ def clean_image_url(url: str | None) -> str | None:
     if _PLACEHOLDER_RE.search(basename):
         return None
     return url
+
+
+def join_address(parts: Iterable[object]) -> str | None:
+    """Join the non-blank string ``parts`` with ", ", or None when there are none.
+
+    Each source chooses its own address fields; this only joins them.
+    """
+    joined = ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
+    return joined or None
 
 
 @dataclass

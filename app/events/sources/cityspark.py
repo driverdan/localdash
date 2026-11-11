@@ -40,8 +40,9 @@ import json
 import logging
 import re
 
-from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.events.sources.base import EventSource, RawEvent, clean_image_url, join_address
 from app.http import make_client
+from app.timeutil import parse_iso_utc
 
 log = logging.getLogger("localdash.events")
 
@@ -52,18 +53,6 @@ PAGE_SIZE = 100
 MAX_PAGES = 20
 # The bootstrap assigns the portal config before the widget bundle.
 _LOCALS_RE = re.compile(r"var\s+cSparkLocals\s*=\s*")
-
-
-def _parse_utc(value: str | None) -> dt.datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=dt.timezone.utc)
-    return parsed.astimezone(dt.timezone.utc)
 
 
 def _rollup(tag_id: int, by_id: dict[int, dict]) -> str | None:
@@ -134,9 +123,7 @@ def _event_image(event: dict) -> str | None:
 
 
 def _join_address(event: dict) -> str | None:
-    parts = (event.get("Address"), event.get("CityState"), event.get("Zip"))
-    joined = ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
-    return joined or None
+    return join_address((event.get("Address"), event.get("CityState"), event.get("Zip")))
 
 
 def parse_payload(payload: dict) -> list[RawEvent]:
@@ -150,7 +137,7 @@ def parse_payload(payload: dict) -> list[RawEvent]:
     base_url = payload.get("baseUrl") or f"{PORTAL}/full-cal/#/"
     events: list[RawEvent] = []
     for event in payload.get("Value") or []:
-        start = _parse_utc(event.get("StartUTC"))
+        start = parse_iso_utc(event.get("StartUTC"))
         if start is None:
             # Never fall back to DateStart — its "Z" is venue-local time.
             log.warning("cityspark: event without StartUTC skipped: %r", event.get("Name"))
@@ -160,7 +147,7 @@ def parse_payload(payload: dict) -> list[RawEvent]:
                 title=event.get("Name") or "Untitled event",
                 description=event.get("Description") or "",
                 start_time=start,
-                end_time=_parse_utc(event.get("EndUTC")),
+                end_time=parse_iso_utc(event.get("EndUTC")),
                 venue_name=event.get("Venue") or None,
                 address=_join_address(event),
                 latitude=event.get("latitude"),

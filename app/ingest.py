@@ -27,6 +27,7 @@ from sqlalchemy import func, or_, select
 
 from app.collectors.base import NormalizedObservation
 from app.diff import Diff
+from app.geo import ewkt_point
 from app.geojson import entity_properties, feature, feature_geom
 from app.models import Entity, Observation
 
@@ -88,7 +89,7 @@ def _geom_value(obs: NormalizedObservation):
     if obs.geometry is not None:
         return func.ST_SetSRID(func.ST_GeomFromGeoJSON(json.dumps(obs.geometry)), 4326)
     if obs.lat is not None and obs.lon is not None:
-        return f"SRID=4326;POINT({obs.lon} {obs.lat})"
+        return ewkt_point(obs.lat, obs.lon)
     return None
 
 
