@@ -34,6 +34,19 @@ class FakeSessionLocal:
         return False
 
 
+class FakeNominatimGeocoder:
+    """Stands in for NominatimGeocoder, which refresh() opens with `async with`."""
+
+    def __init__(self, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
 @pytest.fixture
 def fake_manager():
     return FakeManager()
@@ -82,7 +95,7 @@ def _patch_events_cycle(monkeypatch, fake_manager, run_stats, retry_stats, recon
 
     monkeypatch.setattr(events_refresh_mod, "SessionLocal", FakeSessionLocal)
     monkeypatch.setattr(events_refresh_mod, "build_sources", lambda settings: [])
-    monkeypatch.setattr(events_refresh_mod, "NominatimGeocoder", lambda **kw: object())
+    monkeypatch.setattr(events_refresh_mod, "NominatimGeocoder", FakeNominatimGeocoder)
     monkeypatch.setattr(events_refresh_mod, "run_sources", fake_run_sources)
     monkeypatch.setattr(events_refresh_mod, "retry_failed_geocodes", fake_retry)
     monkeypatch.setattr(events_refresh_mod, "reconcile_events", fake_reconcile)

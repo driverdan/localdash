@@ -11,6 +11,7 @@ from pathlib import Path
 
 import httpx
 
+from app.config import get_settings
 from app.events.sources.cityspark import (
     MAX_PAGES,
     PAGE_SIZE,
@@ -227,18 +228,6 @@ def make_source(**overrides) -> CitySparkSource:
     return CitySparkSource(**kwargs)
 
 
-def install_transport(monkeypatch, handler):
-    """Route the source's httpx client through a mock transport."""
-    transport = httpx.MockTransport(handler)
-    real_client = httpx.AsyncClient
-
-    def fake_client(**kwargs):
-        kwargs["transport"] = transport
-        return real_client(**kwargs)
-
-    monkeypatch.setattr("app.events.sources.cityspark.httpx.AsyncClient", fake_client)
-
-
 def paged_handler(pages: list[list[dict]], requests: list[httpx.Request]):
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -252,14 +241,14 @@ def paged_handler(pages: list[list[dict]], requests: list[httpx.Request]):
     return handler
 
 
-async def test_fetch_paginates_until_a_short_page_and_dedupes_by_id(monkeypatch):
+async def test_fetch_paginates_until_a_short_page_and_dedupes_by_id(mock_http):
     def page(start: int, count: int) -> list[dict]:
         return [make_event(Id=f"ev-{i}", Name=f"Event {i}") for i in range(start, start + count)]
 
     pages = [page(0, PAGE_SIZE), page(100, PAGE_SIZE), page(200, 26)]
     pages[1][0]["Id"] = "ev-0"  # repeated across pages: deduped
     requests: list[httpx.Request] = []
-    install_transport(monkeypatch, paged_handler(pages, requests))
+    mock_http.install(paged_handler(pages, requests))
 
     events = await make_source().fetch()
 
@@ -271,9 +260,9 @@ async def test_fetch_paginates_until_a_short_page_and_dedupes_by_id(monkeypatch)
     assert all(b["end"] for b in bodies)  # end always set: null caps the API at one day
 
 
-async def test_fetch_empty_result_yields_zero_events(monkeypatch):
+async def test_fetch_empty_result_yields_zero_events(mock_http):
     requests: list[httpx.Request] = []
-    install_transport(monkeypatch, paged_handler([], requests))
+    mock_http.install(paged_handler([], requests))
 
     events = await make_source().fetch()
 
@@ -281,7 +270,7 @@ async def test_fetch_empty_result_yields_zero_events(monkeypatch):
     assert len([r for r in requests if r.method == "POST"]) == 1
 
 
-async def test_fetch_page_cap_bounds_a_non_terminating_loop(monkeypatch):
+async def test_fetch_page_cap_bounds_a_non_terminating_loop(mock_http):
     full_page = [make_event(Id="same-id", Name="Repeat")] * PAGE_SIZE
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -289,22 +278,23 @@ async def test_fetch_page_cap_bounds_a_non_terminating_loop(monkeypatch):
             return httpx.Response(200, text=make_bootstrap())
         return httpx.Response(200, json={"Value": full_page, "Success": True})
 
-    install_transport(monkeypatch, handler)
+    mock_http.install(handler)
     events = await make_source().fetch()
 
     assert len(events) == 1  # every page repeated one Id; the cap ended the loop
 
 
-async def test_fetch_sends_no_auth_referer_or_spoofed_ua(monkeypatch):
+async def test_fetch_sends_no_auth_referer_or_spoofed_ua(mock_http):
     requests: list[httpx.Request] = []
-    install_transport(monkeypatch, paged_handler([], requests))
+    mock_http.install(paged_handler([], requests))
 
     await make_source().fetch()
 
     for request in requests:
         assert "authorization" not in request.headers
         assert "referer" not in request.headers
-        assert request.headers["user-agent"].startswith("python-httpx/")
+        # The app's own identifying UA (make_client's default), not a spoofed browser one.
+        assert request.headers["user-agent"] == get_settings().user_agent
 
 
 # --- registry + failure isolation ---
@@ -331,13 +321,13 @@ def test_build_sources_omits_cityspark_when_disabled():
 
 
 async def test_failing_cityspark_source_does_not_abort_the_refresh_cycle(
-    monkeypatch, events_db_session
+    mock_http, events_db_session
 ):
     from app.events.ingest import run_sources
     from tests.fakes import FakeSource
     from tests.test_events_ingest import make_raw
 
-    install_transport(monkeypatch, lambda request: httpx.Response(500))
+    mock_http.install(lambda request: httpx.Response(500))
 
     stats = await run_sources(
         events_db_session, [make_source(), FakeSource([make_raw("test-fake")])]

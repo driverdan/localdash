@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.config import Settings, get_settings
+from app.http import make_client
 from app.weather.airnow import airnow_error_messages, parse_airnow
 from app.weather.nws import parse_forecast, parse_observation, parse_points, parse_stations
 
@@ -38,9 +39,6 @@ STATION_LIMIT = 3
 
 
 class WeatherService:
-    # Test seam: offline tests set an httpx.MockTransport; None means real HTTP.
-    _transport: httpx.AsyncBaseTransport | None = None
-
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._payload: dict | None = None
@@ -110,17 +108,17 @@ class WeatherService:
         # carried this AQI) has been cached. _fetched_at still holds its time here.
         return time.monotonic() - self._fetched_at <= max_age
 
-    def _make_client(self, settings: Settings) -> httpx.AsyncClient:
-        # NWS asks for an identifying User-Agent; geo+json is its native shape.
-        return httpx.AsyncClient(
-            transport=self._transport,
-            headers={"User-Agent": settings.user_agent, "Accept": "application/geo+json"},
+    def _make_client(self) -> httpx.AsyncClient:
+        # NWS asks for an identifying User-Agent (make_client sends the app's
+        # `user_agent` setting by default); geo+json is its native shape.
+        return make_client(
             timeout=10.0,
             follow_redirects=True,
+            headers={"Accept": "application/geo+json"},
         )
 
     async def _refresh(self, settings: Settings) -> dict:
-        async with self._make_client(settings) as client:
+        async with self._make_client() as client:
             if self._forecast_url is None or not self._station_urls:
                 await self._discover(client, settings)
             periods, current, aqi = await asyncio.gather(

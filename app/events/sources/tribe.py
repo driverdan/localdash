@@ -7,7 +7,8 @@ slop is harmless because the window is a fetch horizon, not a display filter)
 and ``per_page``/``page`` pagination reported via ``total_pages``. Calendars
 are configured with the ``events_tribe_calendars`` setting (``Name=BaseURL``
 entries); the default is the Chattanooga Public Library. Verified 2026-07: the
-endpoint needs no auth and accepts the default User-Agent, and each
+endpoint needs no auth and needs no particular User-Agent (it gets the app's
+default, the ``user_agent`` setting via :func:`app.http.make_client`), and each
 recurring-series occurrence is its own post with a distinct ``id``, so
 occurrence ids are safe as source event ids.
 
@@ -26,10 +27,10 @@ import datetime as dt
 import html as html_lib
 import logging
 
-import httpx
 from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -132,7 +133,7 @@ class TribeEventsSource(EventSource):
         }
         endpoint = f"{self.base_url}/wp-json/tribe/events/v1/events"
         events: list[RawEvent] = []
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=True) as client:
             for page in range(1, MAX_PAGES + 1):
                 resp = await client.get(endpoint, params={**params, "page": page})
                 resp.raise_for_status()

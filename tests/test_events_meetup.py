@@ -1,6 +1,10 @@
 """Offline tests for the Meetup source: parse half and token-gated registration."""
 
 import datetime as dt
+import json
+
+import httpx
+import pytest
 
 from app.config import Settings
 from app.events.sources import build_sources
@@ -145,3 +149,30 @@ def test_build_sources_empty_ical_feeds_yields_no_ical_sources():
     """Explicitly empty EVENTS_ICAL_FEEDS disables iCal ingestion entirely."""
     sources = build_sources(_settings(events_ical_feeds=""))
     assert not any(isinstance(s, ICalSource) for s in sources)
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_posts_graphql_with_bearer_token_and_parses(mock_http):
+    mock_http.install(lambda request: httpx.Response(200, json=SAMPLE_PAYLOAD))
+
+    events = await _source().fetch()
+
+    assert [e.source_event_id for e in events] == ["302000001"]
+    (request,) = mock_http.requests
+    assert request.method == "POST"
+    assert str(request.url) == "https://api.meetup.com/gql"
+    assert request.headers["Authorization"] == "Bearer test-token"
+    body = json.loads(request.content)
+    assert "keywordSearch" in body["query"]
+    assert body["variables"]["filter"]["lat"] == 35.0456
+    assert body["variables"]["filter"]["lon"] == -85.3097
+    assert body["variables"]["filter"]["source"] == "EVENTS"
+
+
+async def test_fetch_non_2xx_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(401))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _source().fetch()

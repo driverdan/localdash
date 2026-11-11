@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.config import get_settings
 from app.events.sources.chattzoo import (
     LISTING_URL,
     SOURCE_NAME,
@@ -234,23 +235,20 @@ def test_every_event_carries_zoo_coordinates_so_ingest_does_not_geocode():
 # --- source-level fetching and failure isolation ---------------------------
 
 
-def _client_transport(handler) -> httpx.MockTransport:
-    return httpx.MockTransport(handler)
-
-
 @pytest.mark.asyncio
-async def test_fetch_walks_listing_then_detail_pages(monkeypatch):
+async def test_fetch_walks_listing_then_detail_pages(monkeypatch, mock_http):
     requested: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         requested.append(str(request.url))
-        assert request.headers["User-Agent"] == "TestAgent/1.0"
+        assert request.headers["User-Agent"] == get_settings().user_agent
         if request.url.path.endswith("zooevents"):
             return httpx.Response(200, text=load("listing.html"))
         return httpx.Response(200, text=load("detail_single.html"))
 
-    source = ChattZooSource(user_agent="TestAgent/1.0")
-    _patch_client(monkeypatch, handler)
+    source = ChattZooSource()
+    _pin_clock(monkeypatch)
+    mock_http.install(handler)
     events = await source.fetch()
 
     assert requested[0] == LISTING_URL
@@ -260,14 +258,15 @@ async def test_fetch_walks_listing_then_detail_pages(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_failed_listing_fetch_raises_for_run_sources_to_isolate(monkeypatch):
-    _patch_client(monkeypatch, lambda request: httpx.Response(503))
+async def test_failed_listing_fetch_raises_for_run_sources_to_isolate(monkeypatch, mock_http):
+    _pin_clock(monkeypatch)
+    mock_http.install(lambda request: httpx.Response(503))
     with pytest.raises(httpx.HTTPStatusError):
         await ChattZooSource().fetch()
 
 
 @pytest.mark.asyncio
-async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch):
+async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch, mock_http):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("zooevents"):
             return httpx.Response(200, text=load("listing.html"))
@@ -275,7 +274,8 @@ async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch):
             return httpx.Response(500)
         return httpx.Response(200, text=load("detail_single.html"))
 
-    _patch_client(monkeypatch, handler)
+    _pin_clock(monkeypatch)
+    mock_http.install(handler)
     events = await ChattZooSource().fetch()
 
     # Three surviving detail pages, each yielding the single-date fixture.
@@ -283,18 +283,11 @@ async def test_one_failing_detail_page_loses_only_its_own_events(monkeypatch):
     assert all("Pirates" in e.title for e in events)
 
 
-def _patch_client(monkeypatch, handler) -> None:
-    """Route the source's AsyncClient through a MockTransport and pin its clock.
+def _pin_clock(monkeypatch) -> None:
+    """Pin the source's clock for a fetch test.
 
     ``fetch`` is the one code path that reads the wall clock, so it gets the same
     fixed ``NOW`` the parse-level tests pass explicitly. Without this the fixture
     dates age past ``now`` and every event is dropped as stale.
     """
     monkeypatch.setattr("app.events.sources.chattzoo._now", lambda: NOW)
-    original = httpx.AsyncClient
-
-    def factory(*args, **kwargs):
-        kwargs["transport"] = _client_transport(handler)
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr("app.events.sources.chattzoo.httpx.AsyncClient", factory)

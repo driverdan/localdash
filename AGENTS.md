@@ -61,7 +61,16 @@ separate worker + broker (Celery/Redis): at this scale a background task is simp
 moving parts.
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
-same library FastAPI's TestClient builds on).
+same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
+`app/http.py`, and each call passes its timeout and redirect policy explicitly. The User-Agent
+defaults to the `user_agent` setting, whose default `DEFAULT_USER_AGENT` is the browser UA with
+` LocalDash/0.1` appended (a real browser string that still identifies us); pass `user_agent=` only to override it with a UA the upstream
+requires (today: `BROWSER_USER_AGENT` for CarCruiseFinder and the news HTML scrape, the geocoder's
+own setting for Nominatim; `tests/test_http.py` enforces that list). No request sends httpx's
+default `python-httpx/…` or an empty UA, and a blank override raises. `tests/test_http_wire.py`
+pins each upstream's values. Tests fake upstreams with
+the `mock_http` fixture (`mock_http.install(handler)`; sent requests in `mock_http.requests`). Any
+outbound request a test doesn't mock is refused and fails the test, even if the code swallows it.
 
 **RSS parsing — feedparser** (plus **BeautifulSoup** for the one `kind: html` news feed and the
 events scrapers). feedparser is synchronous, so the news fetcher runs it in `asyncio.to_thread`;
@@ -397,7 +406,14 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 ### Adding a data source
 Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async `fetch()` and pure
 `normalize()`), then register it in `app/collectors/__init__.py`'s `build_collectors()`. Nothing else
-changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic.
+changes — scheduler, ingest, API, WebSocket, and the frontend are all source-agnostic. `fetch()`
+builds its client with `app.http.make_client` (never `httpx.AsyncClient` directly); add the source
+to `tests/test_http_wire.py`.
+
+**Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
+entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
+panel read. Do not copy it into `properties`. The normalized status overrides any raw `status` key
+in the payload, so if the upstream `status` means something else and must be kept, rename it.
 
 **Status contract:** set `NormalizedObservation.status` and nothing else. Ingest records it on the
 entity as `latest_properties["status"]`, which change detection, `GET /entities` and the detail
@@ -435,7 +451,7 @@ Pipeline: **fetch → cluster → serve**, run as one APScheduler job every `new
   `image_url` added in `0007`).
 
 **Feed gotchas (hard-won in ChattNews, don't regress):** requests must send the browser
-`USER_AGENT` in `registry.py` (TownNews/Local 3 429s unfamiliar UAs); Local 3 feeds are TownNews
+`BROWSER_USER_AGENT` in `app/http.py` (TownNews/Local 3 429s unfamiliar UAs); Local 3 feeds are TownNews
 search URLs (`c=local-news` / `c=local-sports*` — unfiltered mixes in national CNN wire); TFP's
 `breakingnews` feed is valid-but-empty, `local/` is the working one, and TFP politics/life include
 syndicated national content (known caveat); WDEF feeds live on `www.wdef.com` (apex 301s); a feed
@@ -510,7 +526,7 @@ requests coalesce behind an asyncio lock; a failed refresh serves the previous p
 failure 502s (the home strip degrades to a one-line notice without touching the other widgets).
 
 **NWS gotchas (don't regress):** requests must send an identifying `User-Agent` (the global
-`user_agent` setting); observations are °C / km/h and are converted to °F / mph; stations
+`user_agent` setting, whose default ends in `LocalDash/0.1`); observations are °C / km/h and are converted to °F / mph; stations
 sometimes report a **null temperature** — fall back to the next station, never render an empty
 reading; the leading forecast period is **renamed through the day** ("Today" → "This Afternoon" →
 "Tonight"), so period names are passed through verbatim and never hardcoded; station observations

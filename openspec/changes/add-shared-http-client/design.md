@@ -15,10 +15,17 @@ patch `httpx.AsyncClient` by dotted path, with a separate copy of the helper in 
 - `tests/test_events_geocoding.py:17` and `:100`: two variants in one file
 - `tests/test_weather.py`: sets `WeatherService._transport`, the only seam built into app code
 
-### Current request settings per call site (must be preserved)
+### Current request settings per call site (before this change)
 
-"httpx default" for User-Agent means no override: httpx sends `python-httpx/<version>`. "Not
-followed" for redirects means httpx's default `follow_redirects=False`.
+This table records `main` before the change. "httpx default" for User-Agent means no override:
+httpx sends `python-httpx/<version>`. "Not followed" for redirects means httpx's default
+`follow_redirects=False`. After the review revision (see "Revision in review of #344" below), the
+`user_agent` setting's default also changes, from `LocalDash/0.1` to `DEFAULT_USER_AGENT` (the
+browser string with ` LocalDash/0.1` appended). So **every row that sends the `user_agent` setting
+changes UA**: the four "httpx default" rows (Meetup, iCal, tribe, CitySpark) and the
+`settings.user_agent` rows (hc911, TDOT, EPB, TNAW, ChattZoo, NWS/AirNow). The browser-UA rows
+(CarCruiseFinder, news HTML scrape, feedparser) and the Nominatim row keep their values, and every
+row keeps its timeout, redirect policy and other headers.
 
 | Call site | User-Agent | Timeout (s) | Redirects | Other headers |
 |---|---|---|---|---|
@@ -37,8 +44,9 @@ followed" for redirects means httpx's default `follow_redirects=False`.
 | `app/weather/service.py:115` `WeatherService._make_client` | `settings.user_agent` (client header) | 10.0 | followed | `Accept: application/geo+json` |
 | `app/news/fetcher.py:91` `_parse_feed` (**feedparser/urllib, not httpx**) | `registry.USER_AGENT` via `agent=` | feedparser's | urllib's | `Accept: application/rss+xml, application/xml, */*` |
 
-Every row keeps its User-Agent, timeout, redirect policy and other headers after this change. The
-one exception is the geocoder's client lifetime (Decision 5). `_parse_feed` stays on feedparser
+Every row keeps its timeout, redirect policy and other headers after this change. The rows that
+send the `user_agent` setting, and the four "httpx default" rows that now join them, send the new
+default UA (Decision 1). The other exception is the geocoder's client lifetime (Decision 5). `_parse_feed` stays on feedparser
 (AGENTS.md explains why). Only the constant it imports moves.
 
 ### Sibling changes (proposed in parallel; suggested landing order)
@@ -53,8 +61,10 @@ This change is #2 of 13. It overlaps with:
 - **#4 `unify-refresh-orchestration`**: rewrites `app/events/refresh.py`. It must keep the
   `async with NominatimGeocoder(...)` scope added here, so that one geocoder and one client cover
   `run_sources` plus `retry_failed_geocodes` in a cycle.
-- **#6 `inject-settings-and-clock`**: `app/http.py` takes plain values (a UA string, a timeout) and
-  never reads `get_settings()`, which fits that change's direction. ChattZoo's `_now` clock seam
+- **#6 `inject-settings-and-clock`**: `app/http.py` takes plain values (a timeout, a redirect
+  policy, an optional UA override) and reads exactly one setting, `user_agent`, for its default
+  User-Agent. That change's list of places allowed to call `get_settings()` names the factory's
+  default User-Agent for this reason. ChattZoo's `_now` clock seam
   belongs to #6, and the shared HTTP helper here does not absorb it. ChattZoo tests keep pinning
   `_now` separately.
 - **#8 `add-typed-contracts`**: reworks the news registry into dataclasses. This change removes
@@ -66,8 +76,9 @@ This change is #2 of 13. It overlaps with:
 ## Goals / Non-Goals
 
 **Goals:**
-- One place constructs outbound httpx clients. Each call site states its User-Agent, timeout and
-  redirect policy explicitly.
+- One place constructs outbound httpx clients. Each call site states its timeout and redirect
+  policy explicitly, and a User-Agent only when it overrides the app's default.
+- Every outbound request sends a non-empty User-Agent; none sends httpx's default.
 - One named browser User-Agent constant.
 - One test seam and one test helper. Tests cannot reach the real network by accident.
 - Each call site's request settings are pinned by a test, so a refactor that changes them fails
@@ -75,8 +86,9 @@ This change is #2 of 13. It overlaps with:
 - Geocoding reuses one client per refresh cycle.
 
 **Non-Goals:**
-- Changing any upstream's User-Agent, timeout or redirect policy, including giving the default-UA
-  sources (Meetup, iCal, tribe, CitySpark) an identifying UA. See Open Questions.
+- Changing any upstream's timeout or redirect policy, or the User-Agent of the three overrides
+  (CarCruiseFinder, the news HTML scrape, Nominatim). Every other upstream's User-Agent does
+  change; see Decision 1.
 - Long-lived clients for collectors or sources across polls. That needs lifespan wiring and buys
   little at 1–5 minute intervals. A client per `fetch()` stays.
 - Retries, backoff or rate limiting in the factory. The geocoder's spacing stays where it is.
@@ -85,7 +97,7 @@ This change is #2 of 13. It overlaps with:
 
 ## Decisions
 
-### 1. `app/http.py`: a factory with required keyword arguments
+### 1. `app/http.py`: a factory with required timeout and redirects, and a default User-Agent
 
 ```python
 BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
@@ -93,18 +105,35 @@ BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 F
 def make_client(
     *,
     timeout: float,
-    user_agent: str | None,          # None = httpx's default UA, deliberately
     follow_redirects: bool,
+    user_agent: str | None = None,   # None = the app's `user_agent` setting
     headers: Mapping[str, str] | None = None,
 ) -> httpx.AsyncClient: ...
 ```
 
-`timeout`, `user_agent` and `follow_redirects` have **no defaults**. A factory with defaults would
-hide the differences that matter here: it would be easy to drop a `follow_redirects=True` or to give
-a default-UA source an identifying UA without noticing. With required arguments, a reader sees each
-site's settings in the call, and a reviewer sees any change to them in the diff. `None` for
-`user_agent` is how a site says "httpx default". Tribe and CitySpark use it on purpose, per their
-docstrings. Meetup and iCal use it because they always have.
+`timeout` and `follow_redirects` have **no defaults**. A factory with defaults there would hide the
+differences that matter: it would be easy to drop a `follow_redirects=True` without noticing. With
+required arguments, a reader sees each site's settings in the call, and a reviewer sees any change
+to them in the diff.
+
+The User-Agent is different: almost every site wants the same one, the app's identifying
+`user_agent` setting. So `user_agent` defaults to it. Omitted or `None`, `make_client` reads
+`get_settings().user_agent` when it builds the client (at call time, not at import, so tests that
+vary settings see the value they set). A call site passes `user_agent=` only to override it with a
+genuinely different User-Agent that its upstream requires. There are three such overrides, each
+demanded by a main spec:
+
+- `BROWSER_USER_AGENT` for CarCruiseFinder (403s anything else) and the news HTML scrape (TownNews
+  returns 429); `events` and `news` require a browser UA there.
+- `settings.events_geocoder_user_agent` for Nominatim, whose usage policy asks for a descriptive UA;
+  `events` requires it to be configurable.
+
+There is no way to ask for httpx's own default (`python-httpx/<version>`), and no client sends an
+empty User-Agent: an explicit blank override (`""` or whitespace) raises `ValueError`, and the
+`user_agent` and `events_geocoder_user_agent` settings reject blank values at load. As a result
+Meetup, iCal, tribe and CitySpark, which used to send httpx's default, now send the `user_agent`
+setting, and that setting's default changes from `LocalDash/0.1` to `DEFAULT_USER_AGENT`. Both are
+deliberate wire changes (see "Revision in review of #344").
 
 The User-Agent goes into the client's default headers. Today the geo collectors, the geocoder and
 CarCruiseFinder pass it per request. The request carries the same header and value either way.
@@ -112,8 +141,17 @@ Header order may differ, and none of these upstreams depends on header order. Ot
 where they are: per-request headers (`X-API-Key`, `Authorization`, `Origin`, …) remain per-request,
 and Weather's `Accept` goes through `headers=`.
 
-`app/http.py` imports nothing from `app.config`. Callers pass the UA string (`settings.user_agent`,
-`settings.events_geocoder_user_agent`, `BROWSER_USER_AGENT`, or `None`).
+**The default value.** The `user_agent` setting defaults to `DEFAULT_USER_AGENT`, defined in
+`app/http.py` next to the browser string it is built from:
+`DEFAULT_USER_AGENT = f"{BROWSER_USER_AGENT} LocalDash/0.1"`, i.e. `Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1`. A real browser string
+avoids the upstreams that punish unfamiliar UAs, and the `LocalDash/0.1` suffix keeps it
+identifying (NWS asks for that). `USER_AGENT` in the environment still overrides it.
+
+**No import cycle.** `app/config.py` imports `DEFAULT_USER_AGENT` from `app.http` for the field
+default, and `make_client` imports `get_settings` inside the function, so `app.http` has no
+module-level import of `app.config`. The browser string stays defined once, `settings.user_agent`
+is always populated, and `make_client` reads only `user_agent`. Callers that override pass the UA string
+(`settings.events_geocoder_user_agent` or `BROWSER_USER_AGENT`).
 
 *Alternatives:* (a) An enum of UA policies (`APP`, `BROWSER`, `DEFAULT`). The geocoder has its own
 setting, so the enum would still need a free-string case, and it would hide the actual value from a
@@ -168,8 +206,8 @@ as its own one-line `monkeypatch` in that test file.
 A new parametrized test (`tests/test_http_wire.py`) runs each httpx call site's `fetch` (or
 `geocode`, or the weather refresh) once through `mock_http`. For each site it asserts:
 
-- the `User-Agent` header equals the expected string, or starts with `python-httpx/` for
-  default-UA sites;
+- the `User-Agent` header equals the expected string, and for every site is non-empty and does
+  not start with `python-httpx/`;
 - `request.extensions["timeout"]` matches the table;
 - the redirect policy: the handler answers the first request with a 302. A site that follows
   redirects makes a second request. A site that does not makes none.
@@ -190,7 +228,8 @@ would keep the bug this decision fixes. `events.refresh()` wraps the cycle in
 `async with NominatimGeocoder(...) as geocoder:`, so `run_sources` and `retry_failed_geocodes`
 share it, as they already share the rate limiter.
 
-This is the change's **one observable wire difference**: lookups in a cycle reuse keep-alive
+This is one of the change's two observable wire differences (the other is the User-Agent of the
+four former httpx-default sources, Decision 1): lookups in a cycle reuse keep-alive
 connections to `nominatim.openstreetmap.org`. Each request's method, URL, query, headers and timeout
 are unchanged. Slot spacing (`min_interval`) is unchanged because it is enforced before each send,
 whatever the connection. Nominatim's usage policy limits request rate and asks for an identifying
@@ -216,9 +255,9 @@ database-only. Keeping all HTTP concerns in one spec puts the guard next to the 
 ## Risks / Trade-offs
 
 - [A call site's settings change by accident during the refactor] → Decision 4's test pins each
-  row, and its expected values are copied from the Context table, which records `main` before
-  the change. The reviewer checks the test's table against the Context table, not against the
-  refactored code.
+  row, and its expected values are copied from the spec's per-upstream table (the Context table
+  with the four revised User-Agent rows). The reviewer checks the test's table against the spec,
+  not against the refactored code.
 - [Global seam leaks between tests] → Only `monkeypatch` writes it, and monkeypatch restores it
   after each test. The autouse deny fixture installs a fresh deny transport for each test.
 - [Default-deny turns a currently passing test red] → That test is making real network calls
@@ -235,13 +274,45 @@ database-only. Keeping all HTTP concerns in one spec puts the guard next to the 
 Code-only refactor with no data, schema or config migration. Rollback is a revert. Deploy is the
 usual rebuild. After deploy, check that one news cycle, one events cycle and one weather refresh
 succeed. Look at `news_feeds.last_status`, the events refresh log line and the home weather strip.
-No Local 3 feed should be at 429 and CarCruiseFinder should not return 403.
+No Local 3 feed should be at 429 and CarCruiseFinder should not return 403. The tribe, iCal and
+CitySpark sources should still yield events with the app's User-Agent.
 
 ## Open Questions
 
-- Meetup and iCal send httpx's default UA, and neither docstring says that is deliberate (tribe's
-  and CitySpark's do). Should they move to `settings.user_agent`? That is a wire change, so this
-  change leaves it out. It would be a one-argument follow-up after this lands.
+- ~~Meetup and iCal send httpx's default UA. Should they move to `settings.user_agent`?~~
+  Answered in review of #344: yes, and so do tribe and CitySpark. No source sends httpx's default.
 - Is default-deny welcome as part of this change, or should it be its own change? It is included
   because it costs one fixture once the seam exists, and the risk of missing a real network call
   in a test is what makes the seam worth having.
+
+## Revision in review of #344
+
+The first version of this design kept every User-Agent byte-for-byte, so `make_client` required a
+`user_agent` argument and `None` meant "send httpx's default". In review of the implementation PR
+(#344) the owner pointed out that most call sites pass the app's own `user_agent` setting, that
+none of those is a custom UA, and that no call should send an empty User-Agent. The plan was
+revised:
+
+- `make_client`'s `user_agent` became optional and defaults to the `user_agent` setting; there is
+  no longer a way to request httpx's default, and a blank override raises (Decision 1).
+- The collectors, weather, and the Chattanooga Zoo source stop passing a UA; `ChattZooSource`
+  loses its `user_agent` constructor argument.
+- Meetup, iCal, tribe and CitySpark now send the `user_agent` setting instead of
+  `python-httpx/<version>`. This is a wire change. Before shipping it, each configured tribe site,
+  iCal feed and the CitySpark endpoint is checked live with both User-Agents.
+- The three overrides that remain (browser UA for CarCruiseFinder and the news HTML scrape,
+  `events_geocoder_user_agent` for Nominatim) are required by the main `events` and `news` specs.
+- `app/http.py` now reads one setting, so `inject-settings-and-clock` lists the factory's default
+  User-Agent among the places allowed to call `get_settings()`.
+
+Second revision, also in review of #344: the owner asked that the default User-Agent be "a real
+browser agent with LocalDash added to the end" instead of `LocalDash/0.1`. The `user_agent`
+setting now defaults to `DEFAULT_USER_AGENT` (`Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1`), built from `BROWSER_USER_AGENT` in
+`app/http.py`. Every upstream that sends the setting changes UA: hc911, TDOT, EPB, TNAW, NWS,
+AirNow and the Chattanooga Zoo (from `LocalDash/0.1`), and Meetup, iCal, tribe and CitySpark
+(from `python-httpx/<version>`). The `events` spec's CitySpark, tribe and Chattanooga Zoo
+requirements said those sources send no spoofed browser User-Agent (or "the project's standard
+`user_agent`"); MODIFIED deltas in `specs/events/spec.md` now say they send the application's
+default User-Agent. The `weather` spec's identifying-UA scenario stays true (the string names
+LocalDash) and the `news` spec's browser-UA rule is unchanged. The live check covers every
+default-UA upstream with the new string.

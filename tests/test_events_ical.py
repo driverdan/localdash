@@ -2,6 +2,9 @@
 
 import datetime as dt
 
+import httpx
+import pytest
+
 from app.events.sources.ical import ICalSource
 
 UTC = dt.timezone.utc
@@ -114,3 +117,23 @@ def test_undated_components_are_skipped():
 def test_date_only_start_becomes_midnight_utc():
     events = _source().parse(ICS_ALL_DAY)
     assert events[0].start_time == dt.datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_parses_the_downloaded_calendar(mock_http):
+    mock_http.install(lambda request: httpx.Response(200, content=ICS_SAMPLE))
+
+    events = await _source().fetch()
+
+    assert [str(r.url) for r in mock_http.requests] == ["https://example.com/feed.ics"]
+    assert [e.title for e in events] == [e.title for e in _source().parse(ICS_SAMPLE)]
+    assert events
+
+
+async def test_fetch_non_2xx_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(404))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _source().fetch()

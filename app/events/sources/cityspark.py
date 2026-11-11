@@ -4,7 +4,8 @@ CitySpark is a commercial events aggregator; this reads the **undocumented
 internal JSON API** behind The Pulse's calendar widget at
 chattanoogapulse.com/local-events-calendar. It may change or be restricted
 without notice. Nothing is circumvented: the API needs no auth, no referer,
-and no browser User-Agent — requests are a handful of paged POSTs per refresh
+and no particular User-Agent (it gets the app's default, the ``user_agent``
+setting via :func:`app.http.make_client`) — requests are a handful of paged POSTs per refresh
 plus one GET for the portal bootstrap. Breakage manifests as zero events plus
 logs, contained by run_sources()'s per-source failure isolation.
 
@@ -39,9 +40,8 @@ import json
 import logging
 import re
 
-import httpx
-
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -228,7 +228,7 @@ class CitySparkSource(EventSource):
     async def fetch(self) -> list[RawEvent]:
         start = dt.datetime.now(dt.timezone.utc)
         end = start + dt.timedelta(days=self.lookahead_days)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=False) as client:
             resp = await client.get(f"{PORTAL}/PortalScripts/{self.slug}")
             resp.raise_for_status()
             bootstrap = parse_bootstrap(resp.text)

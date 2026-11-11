@@ -29,8 +29,8 @@ page fans out into one :class:`RawEvent` per surviving occurrence, and
 collapse them on ingest's exact source-listing dedup tier.
 
 Every zoo event is at one address, so the venue coordinates are supplied directly
-and this source adds no geocoder load. The site serves plain requests fine, so no
-browser User-Agent is spoofed. Breakage manifests as zero events plus logs,
+and this source adds no geocoder load. The site needs no particular User-Agent, so it
+gets the app's default, the ``user_agent`` setting via :func:`app.http.make_client`. Breakage manifests as zero events plus logs,
 contained by ``run_sources()``'s per-source failure isolation.
 """
 
@@ -47,6 +47,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -250,19 +251,15 @@ class ChattZooSource(EventSource):
     def __init__(
         self,
         url: str = LISTING_URL,
-        user_agent: str = "LocalDash/0.1",
+        *,
         timeout: int = 20,
     ):
         self.url = url
-        self.user_agent = user_agent
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        headers = {"User-Agent": self.user_agent}
         now = _now()
-        async with httpx.AsyncClient(
-            timeout=self.timeout, follow_redirects=True, headers=headers
-        ) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=True) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()
             entries = parse_listing(resp.text, self.url)

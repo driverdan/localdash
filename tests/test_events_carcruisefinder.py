@@ -7,11 +7,11 @@ import httpx
 import pytest
 
 from app.events.sources.carcruisefinder import (
-    BROWSER_UA,
     LISTING_URL,
     CarCruiseFinderSource,
     parse_listing,
 )
+from app.http import BROWSER_USER_AGENT
 
 FIXTURES = Path(__file__).parent / "fixtures" / "carcruisefinder"
 UTC = dt.timezone.utc
@@ -105,36 +105,24 @@ def test_naive_start_date_is_interpreted_as_eastern():
     assert event.end_time is None
 
 
-def install_transport(monkeypatch, handler):
-    """Route the source's httpx client through a mock transport."""
-    transport = httpx.MockTransport(handler)
-    real_client = httpx.AsyncClient
-
-    def fake_client(**kwargs):
-        kwargs["transport"] = transport
-        return real_client(**kwargs)
-
-    monkeypatch.setattr("app.events.sources.carcruisefinder.httpx.AsyncClient", fake_client)
-
-
-async def test_fetch_sends_browser_ua_and_makes_one_request(monkeypatch):
+async def test_fetch_sends_browser_ua_and_makes_one_request(mock_http):
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         return httpx.Response(200, text=load("listing.html"))
 
-    install_transport(monkeypatch, handler)
+    mock_http.install(handler)
     events = await CarCruiseFinderSource().fetch()
 
     assert len(events) == 19
     assert len(requests) == 1
     assert str(requests[0].url) == LISTING_URL
-    assert requests[0].headers["User-Agent"] == BROWSER_UA
+    assert requests[0].headers["User-Agent"] == BROWSER_USER_AGENT
 
 
-async def test_fetch_http_error_raises(monkeypatch):
-    install_transport(monkeypatch, lambda request: httpx.Response(403))
+async def test_fetch_http_error_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(403))
 
     with pytest.raises(httpx.HTTPStatusError):
         await CarCruiseFinderSource().fetch()

@@ -153,18 +153,6 @@ def make_source(**overrides) -> TribeEventsSource:
     return TribeEventsSource(**kwargs)
 
 
-def install_transport(monkeypatch, handler):
-    """Route the source's httpx client through a mock transport."""
-    transport = httpx.MockTransport(handler)
-    real_client = httpx.AsyncClient
-
-    def fake_client(**kwargs):
-        kwargs["transport"] = transport
-        return real_client(**kwargs)
-
-    monkeypatch.setattr("app.events.sources.tribe.httpx.AsyncClient", fake_client)
-
-
 def paged_handler(pages: list[list[dict]], requests: list[httpx.Request]):
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -175,13 +163,13 @@ def paged_handler(pages: list[list[dict]], requests: list[httpx.Request]):
     return handler
 
 
-async def test_fetch_follows_total_pages_within_the_date_window(monkeypatch):
+async def test_fetch_follows_total_pages_within_the_date_window(mock_http):
     pages = [
         [make_event(id=i, title=f"Event {i}") for i in range(PAGE_SIZE)],
         [make_event(id=PAGE_SIZE, title=f"Event {PAGE_SIZE}")],
     ]
     requests: list[httpx.Request] = []
-    install_transport(monkeypatch, paged_handler(pages, requests))
+    mock_http.install(paged_handler(pages, requests))
 
     events = await make_source().fetch()
 
@@ -195,14 +183,14 @@ async def test_fetch_follows_total_pages_within_the_date_window(monkeypatch):
     assert (end - start).days == 14
 
 
-async def test_fetch_page_cap_bounds_a_non_terminating_loop(monkeypatch):
+async def test_fetch_page_cap_bounds_a_non_terminating_loop(mock_http):
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         return httpx.Response(200, json=make_page([make_event()], total_pages=999))
 
-    install_transport(monkeypatch, handler)
+    mock_http.install(handler)
 
     await make_source().fetch()
 

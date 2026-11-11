@@ -11,10 +11,10 @@ from __future__ import annotations
 import datetime as dt
 import logging
 
-import httpx
 from icalendar import Calendar
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import make_client
 
 log = logging.getLogger("localdash.events")
 
@@ -68,7 +68,7 @@ class ICalSource(EventSource):
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=True) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()
         return self.parse(resp.content)

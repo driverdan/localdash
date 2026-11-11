@@ -42,6 +42,35 @@ import psycopg  # noqa: E402
 import pytest  # noqa: E402
 from psycopg import sql  # noqa: E402
 
+import app.http  # noqa: E402
+from tests.mock_http import MockHTTP  # noqa: E402
+
+
+# --- Outbound HTTP: default-deny + shared mock ---------------------------------
+@pytest.fixture(autouse=True)
+def _outbound_http(monkeypatch) -> Iterator[MockHTTP]:
+    """Route every app.http client through a per-test MockHTTP that denies by default.
+
+    An unmocked request raises inside the app and also fails the test at teardown,
+    since refresh paths deliberately swallow per-source errors.
+    """
+    recorder = MockHTTP()
+    monkeypatch.setattr(app.http, "_transport", recorder.transport)
+    yield recorder
+    report = recorder.unmocked_report()
+    if report:
+        pytest.fail(report, pytrace=False)
+
+
+@pytest.fixture
+def mock_http(_outbound_http: MockHTTP) -> MockHTTP:
+    """The test's outbound-HTTP recorder: `mock_http.install(handler)` to answer
+    requests; `mock_http.requests` lists every request sent."""
+    return _outbound_http
+
+
+# -------------------------------------------------------------------------------
+
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 REPO_ROOT = Path(__file__).parent.parent
 

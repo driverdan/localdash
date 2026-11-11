@@ -30,11 +30,15 @@ async def refresh() -> dict:
     settings = get_settings()
     async with _refresh_lock:
         sources = build_sources(settings)
-        geocoder = NominatimGeocoder(
-            user_agent=settings.events_geocoder_user_agent,
-            min_interval=settings.events_geocoder_min_interval_seconds,
-        )
-        async with SessionLocal() as session:
+        # One geocoder (and so one HTTP client) for the whole cycle: source
+        # ingest and the retry pass share its connection pool and rate limit.
+        async with (
+            NominatimGeocoder(
+                user_agent=settings.events_geocoder_user_agent,
+                min_interval=settings.events_geocoder_min_interval_seconds,
+            ) as geocoder,
+            SessionLocal() as session,
+        ):
             stats = await run_sources(
                 session, sources, geocoder, max_miles=settings.events_ingest_max_miles
             )

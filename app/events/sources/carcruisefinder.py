@@ -10,8 +10,8 @@ JSON-LD was observed carrying wrong UTC offsets (EST on August dates), which
 would shift canonical keys and break cross-source dedup.
 
 The site returns 403 to generic/short User-Agents on its human-facing pages,
-so requests carry a fixed realistic browser UA (same precedent as the
-ChattNews/TownNews feeds in app/news/registry.py) — the minimum that works; no
+so requests carry a fixed realistic browser UA (``app.http.BROWSER_USER_AGENT``,
+shared with the ChattNews/TownNews feeds) — the minimum that works; no
 further WAF circumvention. The source is inherently fragile (WAF policy or
 markup changes break it at any time); breakage manifests as zero events plus
 logs, contained by run_sources()'s per-source failure isolation.
@@ -27,16 +27,14 @@ from typing import Any, Iterator
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import httpx
 from bs4 import BeautifulSoup
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
+from app.http import BROWSER_USER_AGENT, make_client
 
 log = logging.getLogger("localdash.events")
 
 LISTING_URL = "https://carcruisefinder.com/car-shows/tag/chattanooga-tn/"
-# The site 403s generic UAs; a realistic desktop browser UA is required.
-BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 SOURCE_NAME = "CarCruiseFinder"
 # These are local car meets; naive JSON-LD datetimes are venue-local.
 LOCAL_TZ = ZoneInfo("America/New_York")
@@ -150,7 +148,9 @@ class CarCruiseFinderSource(EventSource):
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            resp = await client.get(self.url, headers={"User-Agent": BROWSER_UA})
+        async with make_client(
+            timeout=self.timeout, user_agent=BROWSER_USER_AGENT, follow_redirects=True
+        ) as client:
+            resp = await client.get(self.url)
             resp.raise_for_status()
         return parse_listing(resp.text, self.url)

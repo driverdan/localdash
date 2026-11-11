@@ -13,11 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.news.models import NewsFeed, NewsSource
 
-# A plain browser UA for feed requests: TownNews sites (Local 3) put unfamiliar
-# UA strings in a near-zero rate-limit bucket and answer them with HTTP 429.
-# Deliberately NOT the app-wide settings.user_agent used by the geo collectors.
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
-
 # Normalized categories in display order. Each source section feed maps to one.
 CATEGORIES = {
     "news": "News",

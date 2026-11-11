@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import httpx
+import pytest
+
 from app.collectors.tnaw import TnawCollector, _parse_layers
 from app.config import Settings
 
@@ -85,3 +88,35 @@ def test_features_without_id_or_geometry_are_dropped():
 def test_non_list_payload_is_empty():
     assert _collector().normalize({"not": "a list"}) == []
     assert _collector().normalize([("general", "not a list")]) == []
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_queries_each_layer_filtered_to_the_state(mock_http):
+    collector = _collector()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        layer = request.url.path.split("/")[-2]
+        return httpx.Response(200, json={"features": [_feature(props={"EventID": layer})]})
+
+    mock_http.install(handler)
+
+    raw = await collector.fetch()
+
+    layers = [layer for layer, _ in collector.layers]
+    assert [r.url.path.split("/")[-2] for r in mock_http.requests] == layers
+    for request in mock_http.requests:
+        assert request.url.path.endswith("/query")
+        assert request.url.params["where"] == f"EventState='{collector.state}'"
+        assert request.url.params["f"] == "geojson"
+        assert request.url.params["outSR"] == "4326"
+    assert [category for category, _ in raw] == [c for _, c in collector.layers]
+    assert len(collector.normalize(raw)) == len(layers)
+
+
+async def test_fetch_non_2xx_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(500))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _collector().fetch()

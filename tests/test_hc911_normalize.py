@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import httpx
+import pytest
+
 from app.collectors.hc911 import HC911Collector
 
 
@@ -77,4 +80,25 @@ class _DummySettings:
     hc911_auth_token = "t"
     hc911_origin = "o"
     hc911_poll_interval = 60
-    user_agent = "test"
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_returns_the_json_array(settings, hc911_payload, mock_http):
+    mock_http.install(lambda request: httpx.Response(200, json=hc911_payload))
+
+    raw = await HC911Collector(settings).fetch()
+
+    assert raw == hc911_payload
+    (request,) = mock_http.requests
+    assert str(request.url) == settings.hc911_api_url
+    assert request.headers["X-Frontend-Auth"] == settings.hc911_auth_token
+    assert HC911Collector(settings).normalize(raw)  # the shape normalize() expects
+
+
+async def test_fetch_non_2xx_raises(settings, mock_http):
+    mock_http.install(lambda request: httpx.Response(503))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await HC911Collector(settings).fetch()

@@ -6,7 +6,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.news.fetcher import parse_html_listing
+import httpx
+import pytest
+
+from app.news.fetcher import _fetch_html, parse_html_listing
 from app.news.registry import feed_kind
 
 FIXTURES = Path(__file__).parent / "fixtures" / "chattgov"
@@ -79,3 +82,22 @@ def test_feed_kind_rss_for_existing_feed():
 
 def test_feed_kind_defaults_to_rss_for_unknown_url():
     assert feed_kind("https://example.com/does-not-exist/feed") == "rss"
+
+
+# --- _fetch_html (through the mock_http fixture) ---
+
+
+async def test_fetch_html_returns_the_body_on_2xx(mock_http):
+    mock_http.install(lambda request: httpx.Response(200, text="<html>listing</html>"))
+
+    body = await _fetch_html("https://news.example/listing")
+
+    assert body == "<html>listing</html>"
+    assert [str(r.url) for r in mock_http.requests] == ["https://news.example/listing"]
+
+
+async def test_fetch_html_raises_on_non_2xx(mock_http):
+    mock_http.install(lambda request: httpx.Response(429))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _fetch_html("https://news.example/listing")

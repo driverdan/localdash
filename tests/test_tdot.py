@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import timezone
 
+import httpx
+import pytest
+
 from app.collectors.tdot import TdotCollector
 from app.config import Settings
 
@@ -80,3 +83,46 @@ def test_missing_id_and_location_are_handled():
 
 def test_non_list_payload_is_empty():
     assert _collector().normalize({"not": "a list"}) == []
+
+
+# --- fetch() (through the mock_http fixture) ---
+
+
+async def test_fetch_requests_every_endpoint_and_merges_items(mock_http):
+    collector = _collector()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        endpoint = request.url.path.rsplit("/", 1)[-1]
+        return httpx.Response(200, json=[_event(id=endpoint), "not-a-dict"])
+
+    mock_http.install(handler)
+
+    raw = await collector.fetch()
+
+    assert [r.url.path.rsplit("/", 1)[-1] for r in mock_http.requests] == collector.endpoints
+    assert [item["id"] for item in raw] == collector.endpoints  # non-dicts dropped
+    assert len(collector.normalize(raw)) == len(collector.endpoints)
+
+
+async def test_fetch_skips_an_empty_204_endpoint(mock_http):
+    collector = _collector()
+    first = collector.endpoints[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith(first):
+            return httpx.Response(204)
+        return httpx.Response(200, json=[_event(id=request.url.path)])
+
+    mock_http.install(handler)
+
+    raw = await collector.fetch()
+
+    assert len(mock_http.requests) == len(collector.endpoints)
+    assert len(raw) == len(collector.endpoints) - 1
+
+
+async def test_fetch_non_2xx_raises(mock_http):
+    mock_http.install(lambda request: httpx.Response(500))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _collector().fetch()

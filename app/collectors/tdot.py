@@ -20,10 +20,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-
 from app.collectors.base import BaseCollector, NormalizedObservation
 from app.config import Settings
+from app.http import make_client
 
 # eventTypeName -> our category. `isSevere` items override to "severe" (see _category).
 _TYPE_CATEGORY = {
@@ -78,9 +77,9 @@ class TdotCollector(BaseCollector):
         self.endpoints = [e.strip() for e in settings.tdot_endpoints.split(",") if e.strip()]
 
     async def fetch(self) -> Any:
-        headers = {"X-API-Key": self.api_key, "User-Agent": self.settings.user_agent}
+        headers = {"X-API-Key": self.api_key}
         out: list[dict] = []
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(timeout=30, follow_redirects=False) as client:
             for endpoint in self.endpoints:
                 resp = await client.get(f"{self.base_url}/{endpoint}", headers=headers)
                 if resp.status_code == 204:
