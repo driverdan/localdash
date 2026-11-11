@@ -3,11 +3,14 @@
 Every call site passes its timeout and redirect policy explicitly; neither has a
 default, so each upstream's request settings are visible where it fetches (and a
 change to them shows up in the diff). The User-Agent defaults to the app's
-`user_agent` setting, read when the client is built; a call site passes
+`user_agent` setting (itself defaulting to `DEFAULT_USER_AGENT`), read when the client
+is built; a call site passes
 `user_agent=` only to override it with a different UA its upstream requires (the
 browser UA, or the geocoder's own setting). Every client sends a non-empty
 User-Agent: there is no way to send httpx's default (`python-httpx/<version>`).
-`user_agent` is the only setting this module reads.
+`user_agent` is the only setting this module reads. `app.config` imports
+`DEFAULT_USER_AGENT` from here, so `get_settings` is imported inside `make_client`,
+not at module level, to avoid an import cycle.
 """
 
 from __future__ import annotations
@@ -16,12 +19,15 @@ from collections.abc import Mapping
 
 import httpx
 
-from app.config import get_settings
-
 # A mainstream browser User-Agent, for upstreams that punish anything else:
 # TownNews (Local 3 feeds) returns 429 to unfamiliar UAs, and CarCruiseFinder
 # returns 403 to short/script-like UAs. Define it here only; import it elsewhere.
 BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+
+# The default for the `user_agent` setting: a real browser string (so upstreams that
+# punish unfamiliar UAs accept it) that still names the app (NWS asks for an
+# identifying UA). Built from BROWSER_USER_AGENT so that string is defined only once.
+DEFAULT_USER_AGENT = f"{BROWSER_USER_AGENT} LocalDash/0.1"
 
 # Test-only seam: the test suite sets this (via monkeypatch) to route every
 # factory-built client through a mock transport. Production code never writes it;
@@ -43,6 +49,8 @@ def make_client(
     client-level default headers; per-request headers stay at the call site.
     """
     if user_agent is None:
+        from app.config import get_settings  # here, not at top: app.config imports this module
+
         user_agent = get_settings().user_agent
     elif not user_agent.strip():
         raise ValueError("make_client: user_agent override must not be blank")

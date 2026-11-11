@@ -29,9 +29,8 @@ page fans out into one :class:`RawEvent` per surviving occurrence, and
 collapse them on ingest's exact source-listing dedup tier.
 
 Every zoo event is at one address, so the venue coordinates are supplied directly
-and this source adds no geocoder load. The site serves plain requests fine, so no
-browser User-Agent is spoofed: it gets the app's standard ``user_agent`` setting,
-the :func:`app.http.make_client` default. Breakage manifests as zero events plus logs,
+and this source adds no geocoder load. The site needs no particular User-Agent, so it
+gets the app's default, the ``user_agent`` setting via :func:`app.http.make_client`. Breakage manifests as zero events plus logs,
 contained by ``run_sources()``'s per-source failure isolation.
 """
 

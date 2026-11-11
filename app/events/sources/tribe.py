@@ -7,8 +7,8 @@ slop is harmless because the window is a fetch horizon, not a display filter)
 and ``per_page``/``page`` pagination reported via ``total_pages``. Calendars
 are configured with the ``events_tribe_calendars`` setting (``Name=BaseURL``
 entries); the default is the Chattanooga Public Library. Verified 2026-07: the
-endpoint needs no auth and accepts a plain, non-browser User-Agent (it gets the
-app's ``user_agent`` setting, the :func:`app.http.make_client` default), and each
+endpoint needs no auth and needs no particular User-Agent (it gets the app's
+default, the ``user_agent`` setting via :func:`app.http.make_client`), and each
 recurring-series occurrence is its own post with a distinct ``id``, so
 occurrence ids are safe as source event ids.
 

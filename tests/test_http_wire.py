@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 
-import app.http
+import app.config
 from app.collectors import build_collectors
 from app.collectors.epb import EpbCollector
 from app.collectors.hc911 import HC911Collector
@@ -39,10 +39,12 @@ from app.http import BROWSER_USER_AGENT
 from app.news import fetcher
 from app.weather.service import WeatherService
 
-APP_UA = "LocalDash-wire-test/1.0"
-GEOCODER_UA = "LocalDash-wire-test/1.0 (geocoder)"
 # The mainstream browser UA, spelled out so a change to the constant fails here too.
 BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+# The `user_agent` setting's default (DEFAULT_USER_AGENT), sent by every site that
+# doesn't override it.
+APP_UA = f"{BROWSER_UA} LocalDash/0.1"
+GEOCODER_UA = "LocalDash-wire-test/1.0 (geocoder)"
 
 REDIRECT_PATH = "/__wire_redirect__"
 
@@ -153,7 +155,7 @@ SITES = [
 @pytest.fixture
 def app_user_agent(monkeypatch):
     """make_client's default UA comes from get_settings(); point it at SETTINGS."""
-    monkeypatch.setattr(app.http, "get_settings", lambda: SETTINGS)
+    monkeypatch.setattr(app.config, "get_settings", lambda: SETTINGS)
 
 
 @pytest.fixture

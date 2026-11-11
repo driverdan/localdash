@@ -8,9 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
+import app.config
 import app.http
 from app.config import Settings, get_settings
-from app.http import BROWSER_USER_AGENT, make_client
+from app.http import BROWSER_USER_AGENT, DEFAULT_USER_AGENT, make_client
 
 APP_DIR = Path(__file__).parent.parent / "app"
 HTTP_MODULE = APP_DIR / "http.py"
@@ -31,10 +32,25 @@ async def test_default_user_agent_is_the_setting(mock_http):
     assert mock_http.requests[0].headers["User-Agent"] == get_settings().user_agent
 
 
+def test_default_user_agent_is_a_browser_string_naming_the_app():
+    expected = (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1"
+    )
+    assert DEFAULT_USER_AGENT == expected
+    assert DEFAULT_USER_AGENT.startswith(BROWSER_USER_AGENT)
+    assert DEFAULT_USER_AGENT.endswith("LocalDash/0.1")
+    assert Settings.model_fields["user_agent"].default == DEFAULT_USER_AGENT
+
+
+def test_user_agent_setting_is_env_overridable(monkeypatch):
+    monkeypatch.setenv("USER_AGENT", "Override/1.0")
+    assert Settings(_env_file=None).user_agent == "Override/1.0"
+
+
 async def test_default_user_agent_is_read_when_the_client_is_built(mock_http, monkeypatch):
     # Not captured at import: a different Settings at build time is honoured.
     settings = Settings(_env_file=None, user_agent="Configured/2.0")
-    monkeypatch.setattr(app.http, "get_settings", lambda: settings)
+    monkeypatch.setattr(app.config, "get_settings", lambda: settings)
     mock_http.install(_ok)
     async with make_client(timeout=5, follow_redirects=False) as client:
         await client.get("https://example.test/")

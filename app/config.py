@@ -11,6 +11,8 @@ from functools import lru_cache
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.http import DEFAULT_USER_AGENT
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -67,7 +69,9 @@ class Settings(BaseSettings):
     tnaw_poll_interval: int = 300
     tnaw_enabled: bool = True
 
-    user_agent: str = "LocalDash/0.1"
+    # Sent by every outbound request that doesn't override it (app/http.py): the
+    # browser UA with " LocalDash/0.1" appended.
+    user_agent: str = DEFAULT_USER_AGENT
 
     # Shared app-level center coordinate (Chattanooga by default): the events
     # distance origin / source defaults and the weather location.

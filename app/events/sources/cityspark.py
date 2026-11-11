@@ -4,8 +4,8 @@ CitySpark is a commercial events aggregator; this reads the **undocumented
 internal JSON API** behind The Pulse's calendar widget at
 chattanoogapulse.com/local-events-calendar. It may change or be restricted
 without notice. Nothing is circumvented: the API needs no auth, no referer,
-and no browser User-Agent (it gets the app's ``user_agent`` setting, the
-:func:`app.http.make_client` default) — requests are a handful of paged POSTs per refresh
+and no particular User-Agent (it gets the app's default, the ``user_agent``
+setting via :func:`app.http.make_client`) — requests are a handful of paged POSTs per refresh
 plus one GET for the portal bootstrap. Breakage manifests as zero events plus
 logs, contained by run_sources()'s per-source failure isolation.
 

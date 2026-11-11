@@ -63,7 +63,8 @@ moving parts.
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
 same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
 `app/http.py`, and each call passes its timeout and redirect policy explicitly. The User-Agent
-defaults to the `user_agent` setting; pass `user_agent=` only to override it with a UA the upstream
+defaults to the `user_agent` setting, whose default `DEFAULT_USER_AGENT` is the browser UA with
+` LocalDash/0.1` appended (a real browser string that still identifies us); pass `user_agent=` only to override it with a UA the upstream
 requires (today: `BROWSER_USER_AGENT` for CarCruiseFinder and the news HTML scrape, the geocoder's
 own setting for Nominatim; `tests/test_http.py` enforces that list). No request sends httpx's
 default `python-httpx/…` or an empty UA, and a blank override raises. `tests/test_http_wire.py`
@@ -525,7 +526,7 @@ requests coalesce behind an asyncio lock; a failed refresh serves the previous p
 failure 502s (the home strip degrades to a one-line notice without touching the other widgets).
 
 **NWS gotchas (don't regress):** requests must send an identifying `User-Agent` (the global
-`user_agent` setting); observations are °C / km/h and are converted to °F / mph; stations
+`user_agent` setting, whose default ends in `LocalDash/0.1`); observations are °C / km/h and are converted to °F / mph; stations
 sometimes report a **null temperature** — fall back to the next station, never render an empty
 reading; the leading forecast period is **renamed through the day** ("Today" → "This Afternoon" →
 "Tonight"), so period names are passed through verbatim and never hardcoded; station observations
