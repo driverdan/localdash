@@ -37,7 +37,7 @@ def test_default_user_agent_is_a_browser_string_naming_the_app():
     expected = (
         "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 LocalDash/0.1"
     )
-    assert DEFAULT_USER_AGENT == expected
+    assert expected == DEFAULT_USER_AGENT
     assert DEFAULT_USER_AGENT.startswith(BROWSER_USER_AGENT)
     assert DEFAULT_USER_AGENT.endswith("LocalDash/0.1")
     assert Settings.model_fields["user_agent"].default == DEFAULT_USER_AGENT
