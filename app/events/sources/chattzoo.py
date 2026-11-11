@@ -30,7 +30,8 @@ collapse them on ingest's exact source-listing dedup tier.
 
 Every zoo event is at one address, so the venue coordinates are supplied directly
 and this source adds no geocoder load. The site serves plain requests fine, so no
-browser User-Agent is spoofed. Breakage manifests as zero events plus logs,
+browser User-Agent is spoofed: it gets the app's standard ``user_agent`` setting,
+the :func:`app.http.make_client` default. Breakage manifests as zero events plus logs,
 contained by ``run_sources()``'s per-source failure isolation.
 """
 
@@ -252,18 +253,14 @@ class ChattZooSource(EventSource):
         self,
         url: str = LISTING_URL,
         *,
-        user_agent: str,
         timeout: int = 20,
     ):
         self.url = url
-        self.user_agent = user_agent
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
         now = _now()
-        async with make_client(
-            timeout=self.timeout, user_agent=self.user_agent, follow_redirects=True
-        ) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=True) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()
             entries = parse_listing(resp.text, self.url)

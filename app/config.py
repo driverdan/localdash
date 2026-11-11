@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -141,6 +142,15 @@ class Settings(BaseSettings):
     tile_attribution: str = (
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     )
+
+    @field_validator("user_agent", "events_geocoder_user_agent")
+    @classmethod
+    def _user_agent_not_blank(cls, value: str) -> str:
+        # Every outbound request sends a real User-Agent (app/http.py); a blank one
+        # would go out empty, which some upstreams reject and Nominatim forbids.
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
 
     @property
     def blocked_tags(self) -> set[str]:

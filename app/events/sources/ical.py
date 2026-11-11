@@ -68,9 +68,7 @@ class ICalSource(EventSource):
         self.timeout = timeout
 
     async def fetch(self) -> list[RawEvent]:
-        async with make_client(
-            timeout=self.timeout, user_agent=None, follow_redirects=True
-        ) as client:
+        async with make_client(timeout=self.timeout, follow_redirects=True) as client:
             resp = await client.get(self.url)
             resp.raise_for_status()
         return self.parse(resp.content)

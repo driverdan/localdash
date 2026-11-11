@@ -45,9 +45,7 @@ class EpbCollector(BaseCollector):
     async def fetch(self) -> Any:
         headers = {"Accept": "application/json"}
         out: dict[str, list] = {}
-        async with make_client(
-            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
-        ) as client:
+        async with make_client(timeout=30, follow_redirects=False) as client:
             for service in self.services:
                 resp = await client.get(f"{self.base_url}/{service}/incidents", headers=headers)
                 resp.raise_for_status()

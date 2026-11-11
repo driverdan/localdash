@@ -62,8 +62,12 @@ moving parts.
 
 **HTTP client — httpx.** Async client for fetching upstream sources, matching the async stack (and the
 same library FastAPI's TestClient builds on). Every outbound client comes from `make_client` in
-`app/http.py`, and each call passes its timeout, User-Agent (`None` = httpx's default) and redirect
-policy explicitly; `tests/test_http_wire.py` pins each upstream's values. Tests fake upstreams with
+`app/http.py`, and each call passes its timeout and redirect policy explicitly. The User-Agent
+defaults to the `user_agent` setting; pass `user_agent=` only to override it with a UA the upstream
+requires (today: `BROWSER_USER_AGENT` for CarCruiseFinder and the news HTML scrape, the geocoder's
+own setting for Nominatim; `tests/test_http.py` enforces that list). No request sends httpx's
+default `python-httpx/…` or an empty UA, and a blank override raises. `tests/test_http_wire.py`
+pins each upstream's values. Tests fake upstreams with
 the `mock_http` fixture (`mock_http.install(handler)`; sent requests in `mock_http.requests`). Any
 outbound request a test doesn't mock is refused and fails the test, even if the code swallows it.
 

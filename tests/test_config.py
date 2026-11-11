@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from app.config import Settings, get_settings
 
 
@@ -34,3 +37,16 @@ def test_center_defaults_and_tuple_property():
 def test_center_is_env_overridable():
     s = Settings(center_lat=36.0, center_lon=-86.0)
     assert s.center == (36.0, -86.0)
+
+
+@pytest.mark.parametrize("field", ["user_agent", "events_geocoder_user_agent"])
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_blank_user_agent_settings_are_rejected(field, blank):
+    # Every outbound request must send a real User-Agent; a blank one fails at load.
+    with pytest.raises(ValidationError, match=field):
+        Settings(_env_file=None, **{field: blank})
+
+
+@pytest.mark.parametrize("field", ["user_agent", "events_geocoder_user_agent"])
+def test_user_agent_settings_have_non_blank_defaults(field):
+    assert getattr(Settings(_env_file=None), field).strip()

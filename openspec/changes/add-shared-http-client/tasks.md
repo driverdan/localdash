@@ -53,15 +53,15 @@
 
 ## 9. Default User-Agent (revision in review of #344)
 
-- [ ] 9.1 `app/http.py`: change the signature to `make_client(*, timeout, follow_redirects, user_agent: str | None = None, headers=None)`; omitted or `None` reads `get_settings().user_agent` inside `make_client` at call time (not at import); an explicit blank override (`""` or whitespace) raises `ValueError`; there is no way to send httpx's default UA. Import `get_settings` from `app.config` and confirm there is no import cycle. Update the module docstring and comments
-- [ ] 9.2 `app/config.py`: `user_agent` and `events_geocoder_user_agent` reject blank (empty or whitespace) values at load; defaults unchanged
-- [ ] 9.3 Stop passing the app's standard UA: hc911, TDOT, EPB, TNAW collectors, `WeatherService._make_client`, and `ChattZooSource`. Remove `ChattZooSource`'s `user_agent` constructor argument and stop passing it in `build_sources()`
-- [ ] 9.4 Meetup, iCal, tribe and CitySpark: drop `user_agent=None` so they send the `user_agent` setting. Update the docstrings that describe the UA sent (tribe's "accepts the default User-Agent", CitySpark's, ChattZoo's)
-- [ ] 9.5 `tests/test_http.py`: the default UA is the setting; an explicit override is sent; a blank override raises; no client sends `python-httpx/`
-- [ ] 9.6 `tests/test_http_wire.py`: update the expected table from the revised spec (the four former httpx-default sources expect the `user_agent` setting); remove the httpx-default path; assert over every pinned site that the UA is non-empty and does not start with `python-httpx/`
-- [ ] 9.7 Settings tests: a blank `user_agent` or `events_geocoder_user_agent` fails to load
-- [ ] 9.8 Update the ChattZoo tests and any other test passing a removed argument
-- [ ] 9.9 Add a test that fails if any `make_client(` call in `app/` passes `user_agent=None`, or passes `user_agent=` at a site other than the three sanctioned overrides (CarCruiseFinder, the news HTML scrape, the Nominatim geocoder)
-- [ ] 9.10 `AGENTS.md` "HTTP client — httpx" paragraph: timeout and redirects are explicit per call; the UA defaults to the `user_agent` setting and is passed only to override it; no request sends httpx's default or an empty UA
-- [ ] 9.11 Live check (read-only, a handful of requests): for each configured tribe site, each configured iCal feed and the CitySpark endpoint, send the request the source sends once with the app UA and once with `python-httpx/<version>`, and record both statuses in the PR. Meetup needs a token; skip it if none is configured. If an upstream accepts httpx's default but rejects the app UA, stop and ask the owner
-- [ ] 9.12 Run the full test suite, `ruff check`, `ruff format --check` and `openspec validate add-shared-http-client --strict`; all pass
+- [x] 9.1 `app/http.py`: change the signature to `make_client(*, timeout, follow_redirects, user_agent: str | None = None, headers=None)`; omitted or `None` reads `get_settings().user_agent` inside `make_client` at call time (not at import); an explicit blank override (`""` or whitespace) raises `ValueError`; there is no way to send httpx's default UA. Import `get_settings` from `app.config` and confirm there is no import cycle. Update the module docstring and comments
+- [x] 9.2 `app/config.py`: `user_agent` and `events_geocoder_user_agent` reject blank (empty or whitespace) values at load; defaults unchanged
+- [x] 9.3 Stop passing the app's standard UA: hc911, TDOT, EPB, TNAW collectors, `WeatherService._make_client`, and `ChattZooSource`. Remove `ChattZooSource`'s `user_agent` constructor argument and stop passing it in `build_sources()`
+- [x] 9.4 Meetup, iCal, tribe and CitySpark: drop `user_agent=None` so they send the `user_agent` setting. Update the docstrings that describe the UA sent (tribe's "accepts the default User-Agent", CitySpark's, ChattZoo's)
+- [x] 9.5 `tests/test_http.py`: the default UA is the setting; an explicit override is sent; a blank override raises; no client sends `python-httpx/`
+- [x] 9.6 `tests/test_http_wire.py`: update the expected table from the revised spec (the four former httpx-default sources expect the `user_agent` setting); remove the httpx-default path; assert over every pinned site that the UA is non-empty and does not start with `python-httpx/`
+- [x] 9.7 Settings tests: a blank `user_agent` or `events_geocoder_user_agent` fails to load
+- [x] 9.8 Update the ChattZoo tests and any other test passing a removed argument
+- [x] 9.9 Add a test that fails if any `make_client(` call in `app/` passes `user_agent=None`, or passes `user_agent=` at a site other than the three sanctioned overrides (CarCruiseFinder, the news HTML scrape, the Nominatim geocoder)
+- [x] 9.10 `AGENTS.md` "HTTP client — httpx" paragraph: timeout and redirects are explicit per call; the UA defaults to the `user_agent` setting and is passed only to override it; no request sends httpx's default or an empty UA
+- [x] 9.11 Live check (read-only, a handful of requests): for each configured tribe site, each configured iCal feed and the CitySpark endpoint, send the request the source sends once with the app UA and once with `python-httpx/<version>`, and record both statuses in the PR. Meetup needs a token; skip it if none is configured. If an upstream accepts httpx's default but rejects the app UA, stop and ask the owner
+- [x] 9.12 Run the full test suite, `ruff check`, `ruff format --check` and `openspec validate add-shared-http-client --strict`; all pass
