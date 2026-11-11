@@ -2,11 +2,16 @@
 
 ### Requirement: Outbound HTTP clients come from one factory
 Every `httpx` client the application uses to call an upstream service SHALL be constructed by the
-factory in `app/http.py`. The factory SHALL require each caller to state its timeout, its
-User-Agent (a string, or none to send httpx's default), and whether redirects are followed. None of
-these SHALL have a default. The factory SHALL NOT read application settings: callers pass the
-values. Requests made through `feedparser` (news RSS feeds) are outside the factory's scope, but
-SHALL use the same browser User-Agent constant (see "One shared browser User-Agent").
+factory in `app/http.py`. The factory SHALL require each caller to state its timeout and whether
+redirects are followed; neither SHALL have a default. The User-Agent SHALL default to the
+application's `user_agent` setting, read when the client is built; a caller SHALL pass a
+User-Agent only to override that default with a different one. Every client SHALL send a non-empty
+User-Agent: the factory SHALL offer no way to send httpx's own default (`python-httpx/<version>`),
+and SHALL reject a blank override with an error. The `user_agent` setting SHALL be the only
+setting the factory reads; every other value comes from the caller. The `user_agent` and
+`events_geocoder_user_agent` settings SHALL reject blank values when settings load. Requests made
+through `feedparser` (news RSS feeds) are outside the factory's scope, but SHALL use the same
+browser User-Agent constant (see "One shared browser User-Agent").
 
 #### Scenario: No direct client construction outside the factory
 - **WHEN** the application package `app/` is searched for `httpx.AsyncClient(`
@@ -14,7 +19,18 @@ SHALL use the same browser User-Agent constant (see "One shared browser User-Age
 
 #### Scenario: A call site states its request settings
 - **WHEN** a collector, event source, geocoder, news fetcher or weather service obtains a client
-- **THEN** its timeout, User-Agent choice and redirect policy are passed explicitly at that call
+- **THEN** its timeout and redirect policy are passed explicitly at that call, and a User-Agent is
+  passed only when the site overrides the default (the browser User-Agent or the geocoder's own
+  setting)
+
+#### Scenario: A client built without a User-Agent sends the app's
+- **WHEN** a client is built without a User-Agent argument
+- **THEN** its requests carry the configured `user_agent` setting
+
+#### Scenario: A blank User-Agent is rejected
+- **WHEN** a caller passes an empty or whitespace-only User-Agent to the factory, or the
+  `user_agent` or `events_geocoder_user_agent` setting is configured blank
+- **THEN** an error is raised and no request is sent
 
 ### Requirement: Per-upstream request settings are preserved
 Each upstream fetch SHALL send the User-Agent, use the timeout, apply the redirect policy and carry
@@ -26,10 +42,10 @@ deliberately, by updating this requirement.
 | hc911, TDOT, EPB, TN American Water collectors | `user_agent` setting | 30 | no |
 | Nominatim geocoder | `events_geocoder_user_agent` setting | 10 | no |
 | Chattanooga Zoo source | `user_agent` setting | 20 | yes |
-| Meetup source | httpx default | 20 | no |
-| iCal source | httpx default | 20 | yes |
-| Events Calendar (tribe) source | httpx default | 30 | yes |
-| CitySpark source | httpx default | 30 | no |
+| Meetup source | `user_agent` setting | 20 | no |
+| iCal source | `user_agent` setting | 20 | yes |
+| Events Calendar (tribe) source | `user_agent` setting | 30 | yes |
+| CitySpark source | `user_agent` setting | 30 | no |
 | CarCruiseFinder source | browser User-Agent | 20 | yes |
 | News `kind: html` listing scrape | browser User-Agent | 30 | yes |
 | NWS / AirNow (weather) | `user_agent` setting | 10 | yes |
@@ -44,10 +60,11 @@ Site-specific headers SHALL also be preserved: hc911 sends `Content-Type: applic
 - **THEN** each request's User-Agent, timeout and site-specific headers match the table, and a
   redirect response is followed exactly by the fetches marked "yes"
 
-#### Scenario: A default-UA source sends httpx's User-Agent
-- **WHEN** the Meetup, iCal, tribe or CitySpark source fetches
-- **THEN** its `User-Agent` header is httpx's default (`python-httpx/<version>`), not the app's
-  `user_agent` setting and not the browser User-Agent
+#### Scenario: No fetch sends httpx's default or an empty User-Agent
+- **WHEN** any fetch listed above is made
+- **THEN** its `User-Agent` header is non-empty and is not httpx's default
+  (`python-httpx/<version>`); the Meetup, iCal, tribe and CitySpark sources send the `user_agent`
+  setting
 
 ### Requirement: One shared browser User-Agent
 The application SHALL define the mainstream browser User-Agent string exactly once, as
