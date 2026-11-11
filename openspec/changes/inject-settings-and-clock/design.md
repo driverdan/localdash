@@ -160,7 +160,8 @@ protection that fixture gave.
 
 `get_settings()` stays in `app/db.py`, `app/main.py`, `app/scheduler.py`, `app/events/refresh.py`,
 `app/news/refresh.py` (new: it now reads the story window to pass to `recluster`),
-`app/weather/service.py` (singleton fallback only), router dependencies, and `app/redaction.py`.
+`app/weather/service.py` (singleton fallback only), router dependencies, `app/redaction.py`, and
+`app/http.py` (the outbound HTTP factory's default User-Agent).
 Redaction stays global on purpose: the log filter is installed once per process and must mask the
 live process's secrets, so `tests/test_redaction.py` correctly sets the environment and clears the
 cache. The review flagged that test as a symptom; it isn't one, and it is not changed.

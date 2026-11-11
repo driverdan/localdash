@@ -1,9 +1,10 @@
 """Pins each upstream fetch's request settings: User-Agent, timeout, redirects, headers.
 
-The expected values below are copied from the per-call-site table in
-openspec/changes/add-shared-http-client/design.md (which records the request settings
-before the move to app.http.make_client) and the `outbound-http` spec. A failure here
-is a wire change: make it deliberately, by updating the spec, not just this table.
+The expected values below are copied from the per-upstream table in the
+`outbound-http` spec (openspec/changes/add-shared-http-client/specs/outbound-http/spec.md).
+A failure here is a wire change: make it deliberately, by updating the spec, not just
+this table. No site may send an empty User-Agent or httpx's default
+(`python-httpx/<version>`).
 
 Each case drives the real fetch through the mock_http fixture. The handler answers the
 first request with a 302 to a marker path; only sites that follow redirects then
@@ -19,6 +20,7 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 
+import app.config
 from app.collectors import build_collectors
 from app.collectors.epb import EpbCollector
 from app.collectors.hc911 import HC911Collector
@@ -37,11 +39,12 @@ from app.http import BROWSER_USER_AGENT
 from app.news import fetcher
 from app.weather.service import WeatherService
 
-APP_UA = "LocalDash-wire-test/1.0"
-GEOCODER_UA = "LocalDash-wire-test/1.0 (geocoder)"
 # The mainstream browser UA, spelled out so a change to the constant fails here too.
 BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
-HTTPX_DEFAULT = object()  # sentinel: expect httpx's own python-httpx/<version>
+# The `user_agent` setting's default (DEFAULT_USER_AGENT), sent by every site that
+# doesn't override it.
+APP_UA = f"{BROWSER_UA} LocalDash/0.1"
+GEOCODER_UA = "LocalDash-wire-test/1.0 (geocoder)"
 
 REDIRECT_PATH = "/__wire_redirect__"
 
@@ -81,7 +84,7 @@ async def _weather() -> None:
 class Site:
     id: str
     run: Callable[[], Awaitable[object]]
-    user_agent: object  # str, or HTTPX_DEFAULT
+    user_agent: str
     timeout: float
     follows_redirects: bool
     headers: dict[str, str] = field(default_factory=dict)
@@ -129,14 +132,14 @@ SITES = [
     Site(
         "meetup",
         lambda: _source(MeetupSource).fetch(),
-        HTTPX_DEFAULT,
+        APP_UA,
         20,
         False,
         {"Authorization": "Bearer wire-token", "Content-Type": "application/json"},
     ),
-    Site("ical", lambda: _source(ICalSource).fetch(), HTTPX_DEFAULT, 20, True),
-    Site("tribe", lambda: _source(TribeEventsSource).fetch(), HTTPX_DEFAULT, 30, True),
-    Site("cityspark", lambda: _source(CitySparkSource).fetch(), HTTPX_DEFAULT, 30, False),
+    Site("ical", lambda: _source(ICalSource).fetch(), APP_UA, 20, True),
+    Site("tribe", lambda: _source(TribeEventsSource).fetch(), APP_UA, 30, True),
+    Site("cityspark", lambda: _source(CitySparkSource).fetch(), APP_UA, 30, False),
     Site("carcruisefinder", lambda: _source(CarCruiseFinderSource).fetch(), BROWSER_UA, 20, True),
     Site(
         "news_html",
@@ -150,9 +153,14 @@ SITES = [
 
 
 @pytest.fixture
+def app_user_agent(monkeypatch):
+    """make_client's default UA comes from get_settings(); point it at SETTINGS."""
+    monkeypatch.setattr(app.config, "get_settings", lambda: SETTINGS)
+
+
+@pytest.fixture
 def weather_settings(monkeypatch):
-    """WeatherService reads get_settings(); point it at the test UA, with AirNow on."""
-    monkeypatch.setenv("USER_AGENT", APP_UA)
+    """WeatherService reads get_settings(); turn AirNow on so its fetch is pinned too."""
     monkeypatch.setenv("AIRNOW_API_KEY", "wire-airnow-key")
     get_settings.cache_clear()
     yield
@@ -168,7 +176,7 @@ def _redirect_first(request: httpx.Request, sent: list[httpx.Request]) -> httpx.
 
 
 @pytest.mark.parametrize("site", SITES, ids=[s.id for s in SITES])
-async def test_request_settings(site: Site, mock_http, weather_settings):
+async def test_request_settings(site: Site, mock_http, app_user_agent, weather_settings):
     sent: list[httpx.Request] = []
     mock_http.install(lambda request: _redirect_first(request, sent))
 
@@ -180,11 +188,7 @@ async def test_request_settings(site: Site, mock_http, weather_settings):
     assert sent, "the fetch sent no request"
     for request in sent:
         ua = request.headers.get("User-Agent")
-        if site.user_agent is HTTPX_DEFAULT:
-            assert ua == f"python-httpx/{httpx.__version__}"
-            assert ua not in (APP_UA, BROWSER_UA)
-        else:
-            assert ua == site.user_agent
+        assert ua == site.user_agent
         t = site.timeout
         assert request.extensions["timeout"] == {"connect": t, "read": t, "write": t, "pool": t}
         for name, value in site.headers.items():
@@ -195,6 +199,14 @@ async def test_request_settings(site: Site, mock_http, weather_settings):
         assert len(followed) == 1 and sent[1] is followed[0]
     else:
         assert followed == []
+
+
+@pytest.mark.parametrize("site", SITES, ids=[s.id for s in SITES])
+def test_no_site_expects_an_empty_or_httpx_default_user_agent(site: Site):
+    # The table itself: every pinned UA is a real, non-httpx one, so the exact-match
+    # assertion above also proves nothing goes out empty or as python-httpx/<version>.
+    assert site.user_agent.strip()
+    assert not site.user_agent.startswith("python-httpx/")
 
 
 def test_browser_constant_matches_the_pinned_string():
