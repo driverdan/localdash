@@ -117,8 +117,8 @@ own (the backend has no matching rules): each feature owns
 owns the Leaflet map — and `events` on `/events`), composed per-route by `App.svelte`;
 feature-agnostic shell code lives in `frontend/src/lib/`. Routing is a **tiny hand-rolled path
 router** (`lib/router.svelte.ts`: reactive path + `pushState` + `popstate` — four routes don't
-justify a dependency), backed by an SPA fallback in `main.py`'s static mount (extension-less
-non-`/api` 404s serve `index.html` so `/map` deep-links).
+justify a dependency), backed by an SPA fallback in `app/spa.py`'s static mount, which `main.py`
+mounts last (extension-less non-`/api` 404s serve `index.html` so `/map` deep-links).
 **Import rules:** features import from `lib/`, themselves, and other features' `index.ts` public
 surfaces only (e.g. `home` reuses the news card) — never another feature's internals; the shell
 imports only each feature's `index.ts`; `lib/` imports from no feature. Adding a frontend feature =
@@ -608,8 +608,9 @@ not a list of forbidden imports.
   `events.py`, `weather.py`, `root.py` for app-shell), composed in
   `main.py` — adding a feature is a new router module + one `include_router` line (the news router
   is always mounted, `news_enabled` only gates its scheduler job; the weather router is mounted only
-  when `weather_enabled`). `main.py` mounts `static/` at `/` last so `/api` always wins (with an SPA
-  fallback: extension-less non-`/api` misses serve `index.html`).
+  when `weather_enabled`). `main.py` mounts `static/` at `/` last so `/api` always wins, through
+  `app/spa.py`'s `NoCacheStaticFiles`, which owns the SPA fallback (extension-less non-`/api` misses
+  serve `index.html`), the `Cache-Control: no-cache` header and site-name injection.
 - **Every JSON route declares a response model** (`response_model=`), so `/openapi.json` and
   `/docs` show a named schema for each; a new route must declare one too. Handlers build model
   instances, not dicts. As a layout preference (packages are not boundaries, see above), the models
