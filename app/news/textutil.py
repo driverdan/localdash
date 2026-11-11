@@ -9,15 +9,57 @@ from __future__ import annotations
 import re
 
 STOPWORDS = frozenset(
-    """a an and are as at be but by for from has have in into is it its of on
-    or over says say said than that the their this to under up was were will
-    with after before during new more amid""".split()
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "for",
+        "from",
+        "has",
+        "have",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "over",
+        "says",
+        "say",
+        "said",
+        "than",
+        "that",
+        "the",
+        "their",
+        "this",
+        "to",
+        "under",
+        "up",
+        "was",
+        "were",
+        "will",
+        "with",
+        "after",
+        "before",
+        "during",
+        "new",
+        "more",
+        "amid",
+    ]
 )
 
 _WORD_RE = re.compile(r"[a-z0-9']+")
 
 
-def title_tokens(title: str) -> frozenset:
+def title_tokens(title: str) -> frozenset[str]:
     """Clustering tokens: lowercase words over 2 chars minus stopwords, plus numbers.
 
     Numbers of any length are kept ("27", "41", "23"): a highway number, a score

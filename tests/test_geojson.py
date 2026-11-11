@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.geojson import entity_properties, feature_collection, feature_geom
 
@@ -32,7 +32,7 @@ def test_feature_geom_allows_null_geometry():
 
 
 def test_entity_properties_authoritative_keys_override_raw():
-    seen = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
+    seen = datetime(2026, 11, 6, 12, 0, tzinfo=UTC)
     props = entity_properties(
         {"id": "upstream-99", "source": "raw", "extra": 1, "status": "raw"},
         id=7,

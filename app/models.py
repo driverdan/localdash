@@ -78,7 +78,7 @@ class Entity(Base):
     geom_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
     latest_properties: Mapped[dict] = mapped_column(JSONB, default=dict)
 
-    observations: Mapped[list["Observation"]] = relationship(back_populates="entity")
+    observations: Mapped[list[Observation]] = relationship(back_populates="entity")
 
 
 class Observation(Base):
@@ -99,4 +99,4 @@ class Observation(Base):
     geom = mapped_column(Geometry("GEOMETRY", srid=4326), nullable=True)
     properties: Mapped[dict] = mapped_column(JSONB, default=dict)
 
-    entity: Mapped["Entity"] = relationship(back_populates="observations")
+    entity: Mapped[Entity] = relationship(back_populates="observations")

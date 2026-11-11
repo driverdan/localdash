@@ -7,7 +7,7 @@ import pytest
 
 from app.events.sources.ical import ICalSource, parse_calendar
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 ICS_SAMPLE = b"""BEGIN:VCALENDAR
 VERSION:2.0

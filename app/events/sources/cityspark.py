@@ -39,6 +39,7 @@ import datetime as dt
 import json
 import logging
 import re
+from typing import cast
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url, join_address
 from app.http import make_client
@@ -72,9 +73,9 @@ def _rollup(tag_id: int, by_id: dict[int, dict]) -> str | None:
     if not chain:
         return None
     if cursor is None and len(chain) >= 2:
-        return chain[-2]["name"]  # one level below the root
+        return cast(str, chain[-2]["name"])  # one level below the root
     # Root tag, dangling parent, or cycle: the last node reached.
-    return chain[-1]["name"]
+    return cast(str, chain[-1]["name"])
 
 
 def _rolled_tags(tag_ids: list[int], by_id: dict[int, dict]) -> list[str]:
@@ -95,12 +96,12 @@ def _slugify(name: str) -> str:
 
 def _event_url(event: dict, base_url: str) -> str:
     if event.get("PrimaryUrl"):
-        return event["PrimaryUrl"]
+        return cast(str, event["PrimaryUrl"])
     for link in event.get("Links") or []:
         if link.get("url"):
-            return link["url"]
+            return cast(str, link["url"])
     if event.get("TicketUrl"):
-        return event["TicketUrl"]
+        return cast(str, event["TicketUrl"])
     # No outbound URL at all: the widget's own detail route.
     return f"{base_url}details/{_slugify(event.get('Name') or '')}/{event.get('PId')}"
 
@@ -168,7 +169,7 @@ def parse_bootstrap(script: str) -> dict:
     if match is None:
         raise ValueError("cityspark: bootstrap script has no cSparkLocals assignment")
     locals_dict, _ = json.JSONDecoder().raw_decode(script, match.end())
-    return locals_dict
+    return cast(dict, locals_dict)
 
 
 class CitySparkSource(EventSource):
@@ -213,7 +214,7 @@ class CitySparkSource(EventSource):
         }
 
     async def fetch(self) -> list[RawEvent]:
-        start = dt.datetime.now(dt.timezone.utc)
+        start = dt.datetime.now(dt.UTC)
         end = start + dt.timedelta(days=self.lookahead_days)
         async with make_client(timeout=self.timeout, follow_redirects=False) as client:
             resp = await client.get(f"{PORTAL}/PortalScripts/{self.slug}")

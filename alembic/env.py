@@ -9,8 +9,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 # Every model module registers its tables on Base only when imported.
-import app.events.models  # noqa: F401
-import app.models  # noqa: F401
+import app.events.models
+import app.models
 import app.news.models  # noqa: F401
 from alembic import context
 from app.config import get_settings

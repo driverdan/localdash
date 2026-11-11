@@ -68,7 +68,7 @@ def test_live_ws_is_global_not_feature_scoped():
     try:
         with tc.websocket_connect("/api/v1/timeseries/ws"):
             connected = True
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — the exception type is incidental; non-acceptance matters
         pass
     assert not connected
 

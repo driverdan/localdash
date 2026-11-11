@@ -21,7 +21,7 @@ from app.events.sources.cityspark import (
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "cityspark" / "payload.json"
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def load_payload() -> dict:

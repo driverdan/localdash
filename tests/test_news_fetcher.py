@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import feedparser
@@ -94,8 +94,8 @@ def test_article_row_builds_the_nine_keys_and_passes_tags_to_classify(monkeypatc
 
     monkeypatch.setattr(fetcher, "classify", fake_classify)
     feed = SimpleNamespace(source_id=7, category="local")
-    published = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-    now = datetime(2026, 1, 1, 13, tzinfo=timezone.utc)
+    published = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    now = datetime(2026, 1, 1, 13, tzinfo=UTC)
 
     # The HTML listing path: no feed tags.
     row = _article_row(

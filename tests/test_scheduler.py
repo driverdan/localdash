@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -91,7 +91,7 @@ def test_build_scheduler_registers_enabled_specs_with_shared_options():
     jobs = {job.id: job for job in scheduler.get_jobs()}
 
     assert set(jobs) == {"a", "b"}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for spec in specs[:2]:
         job = jobs[spec.id]
         assert job.func is _run_job

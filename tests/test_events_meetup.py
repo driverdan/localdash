@@ -11,7 +11,7 @@ from app.events.sources import build_sources
 from app.events.sources.ical import ICalSource
 from app.events.sources.meetup import ENDPOINT, MeetupSource, parse_payload
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 # A representative slice of a Meetup GraphQL keywordSearch response.
 SAMPLE_PAYLOAD = {

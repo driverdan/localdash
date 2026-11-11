@@ -11,7 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 
-from icalendar import Calendar
+from icalendar import Calendar, Component
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
 
 
-def _attach_image_url(component) -> str | None:
+def _attach_image_url(component: Component) -> str | None:
     """The first usable image ``ATTACH`` URI, or None.
 
     An attachment counts as an image when its ``FMTTYPE`` parameter is an
@@ -49,14 +49,14 @@ def _attach_image_url(component) -> str | None:
     return None
 
 
-def _to_aware_utc(value) -> dt.datetime | None:
+def _to_aware_utc(value: object) -> dt.datetime | None:
     """Coerce an icalendar date/datetime to an aware UTC datetime."""
     if value is None:
         return None
     if isinstance(value, dt.datetime):
         return as_utc(value)
     if isinstance(value, dt.date):
-        return dt.datetime(value.year, value.month, value.day, tzinfo=dt.timezone.utc)
+        return dt.datetime(value.year, value.month, value.day, tzinfo=dt.UTC)
     return None
 
 

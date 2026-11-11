@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.timeutil import as_utc, parse_iso_utc
 
-UTC = timezone.utc
 EASTERN = ZoneInfo("America/New_York")
 
 

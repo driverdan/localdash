@@ -23,7 +23,7 @@ from app.events.sources.base import RawEvent
 from tests.conftest import make_settings
 from tests.fakes import BrokenSource, FakeGeocoder, FakeSource
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 BROAD_ST = "test-1 Broad St, Chattanooga, TN"
 MARKET_ST = "test-100 Market St, Chattanooga, TN"
 BEALE_ST = "test-1 Beale St, Memphis, TN"

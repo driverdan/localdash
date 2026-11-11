@@ -2,13 +2,26 @@
 # Fix-then-abort: hooks auto-fix, and if anything changed the commit fails so you
 # review the edits and re-commit. See openspec/changes/archive for rationale.
 repos:
-  # Python: ruff is self-provisioned by pre-commit (no global install needed).
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.2
+  # Python: ruff runs from the project's locked dev dependencies via `uv run`, so
+  # the hook, a manual `uv run ruff`, and CI all use the one ruff version in
+  # uv.lock (no separate pin to keep in step). Needs `uv` on PATH. --locked fails
+  # instead of re-locking if pyproject.toml was edited without `uv lock`; --extra
+  # dev installs ruff into a venv synced without extras. mypy is deliberately NOT
+  # here: it checks the whole package (run `uv run mypy`; CI's lint job enforces it).
+  - repo: local
     hooks:
       - id: ruff-check
-        args: [--fix]
+        name: ruff check
+        language: system
+        entry: uv run --locked --extra dev ruff check --fix
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
+        name: ruff format
+        language: system
+        entry: uv run --locked --extra dev ruff format
+        types_or: [python, pyi]
+        require_serial: true
 
   # Frontend: prettier reuses the repo's own Node toolchain (frontend/node_modules,
   # already required for builds and svelte-check). Runs from frontend/ so the

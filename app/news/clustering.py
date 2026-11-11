@@ -41,7 +41,7 @@ import math
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,16 +86,16 @@ class _Prepared:
     source_id: int
     ts: float
     norm_title: str
-    title_toks: frozenset
-    numbers: frozenset
+    title_toks: frozenset[str]
+    numbers: frozenset[str]
     # Title+summary tokens; None when the article has no usable summary.
-    text_toks: frozenset | None
+    text_toks: frozenset[str] | None
 
 
 class _Weights:
     """IDF weights from a corpus; tokens absent from the corpus get the maximum weight."""
 
-    def __init__(self, docs: list[frozenset]):
+    def __init__(self, docs: list[frozenset[str]]):
         df: dict[str, int] = {}
         for doc in docs:
             for tok in doc:
@@ -117,12 +117,12 @@ def build_weights(corpus: Iterable[tuple[str, str]]) -> tuple[_Weights, _Weights
     return _Weights(title_docs), _Weights(text_docs)
 
 
-def weighted_jaccard(a: frozenset, b: frozenset, weights: _Weights) -> float:
+def weighted_jaccard(a: frozenset[str], b: frozenset[str], weights: _Weights) -> float:
     union = weights.total(a | b)
     return weights.total(a & b) / union if union else 0.0
 
 
-def weighted_containment(a: frozenset, b: frozenset, weights: _Weights) -> float:
+def weighted_containment(a: frozenset[str], b: frozenset[str], weights: _Weights) -> float:
     smaller = min(weights.total(a), weights.total(b))
     return weights.total(a & b) / smaller if smaller else 0.0
 
@@ -171,15 +171,15 @@ def _matches(a: _Prepared, b: _Prepared, title_w: _Weights, text_w: _Weights) ->
         return False
 
     jaccard = weighted_jaccard(a.title_toks, b.title_toks, title_w)
-    if jaccard < MATCH_JACCARD:
-        if (
-            jaccard < CONTAINMENT_JACCARD_FLOOR
-            or len(a.title_toks & b.title_toks) < CONTAINMENT_MIN_SHARED
-            or weighted_containment(a.title_toks, b.title_toks, title_w) < MATCH_CONTAINMENT
-        ):
-            return False
+    if jaccard < MATCH_JACCARD and (
+        jaccard < CONTAINMENT_JACCARD_FLOOR
+        or len(a.title_toks & b.title_toks) < CONTAINMENT_MIN_SHARED
+        or weighted_containment(a.title_toks, b.title_toks, title_w) < MATCH_CONTAINMENT
+    ):
+        return False
 
-    if a.text_toks is not None and b.text_toks is not None:
+    # Collapsing this would turn the tail into a negated boolean return (SIM103).
+    if a.text_toks is not None and b.text_toks is not None:  # noqa: SIM102
         if weighted_jaccard(a.text_toks, b.text_toks, text_w) < SUMMARY_VETO:
             return False
     return True
@@ -240,7 +240,7 @@ async def recluster(session: AsyncSession, *, window_days: int, now: datetime | 
     current UTC time, read once).
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     cutoff = now - timedelta(days=window_days)
     corpus_cutoff = now - timedelta(days=max(IDF_LOOKBACK_DAYS, window_days))
     rows = (

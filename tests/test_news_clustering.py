@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from itertools import combinations
 from pathlib import Path
 
@@ -21,7 +21,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "news_clustering.json"
 MIN_PRECISION = 0.85
 MIN_RECALL = 0.45
 
-T0 = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
 
 # Token weights come from document frequency, so the unit tests weight against a
 # small background of everyday local headlines. Without it, every token shared by

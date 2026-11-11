@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,7 +25,7 @@ install_log_redaction()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # The news feed registry is code (app/news/registry.py); mirror it into the
     # DB before the scheduler's first fetch. Migrations have already run by now
     # (compose runs `alembic upgrade head` before serving; local dev does too).

@@ -7,7 +7,7 @@ get_stories()/get_sources() are the async DB entry points used by the router.
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,7 +80,7 @@ async def get_stories(
     ``now`` defaults to the current UTC time.
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     cutoff = now - timedelta(hours=hours)
     rows = (
         await session.execute(

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -56,7 +56,7 @@ async def run_collector(collector: BaseCollector) -> CollectorRun:
                 diff = await ingest(session, collector.source_key, observations)
             if not diff.is_empty:
                 await manager.broadcast(diff.to_message())
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # Persisted to sources.last_error and served by /sources: mask credentials.
             status, error = "error", redact(str(exc))
             log.exception("collector %s failed", collector.source_key)
@@ -72,7 +72,7 @@ async def _record_run(collector: BaseCollector, status: str, error: str | None, 
             name=collector.name,
             enabled=True,
             poll_interval_seconds=collector.poll_interval,
-            last_run_at=datetime.now(timezone.utc),
+            last_run_at=datetime.now(UTC),
             last_status=status,
             last_error=error,
             last_count=count,

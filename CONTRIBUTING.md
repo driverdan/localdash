@@ -90,7 +90,7 @@ code — `ruff` for Python, `prettier` for the frontend. Hooks are not installed
 automatically, so enable them once per clone:
 
 ```bash
-uv sync --extra dev          # pre-commit + ruff
+uv sync --extra dev          # pre-commit, ruff and mypy
 cd frontend && npm install   # prettier + prettier-plugin-svelte
 pre-commit install           # from the repo root
 ```
@@ -103,15 +103,21 @@ pre-commit run --all-files   # run across the whole tree
 npm run format               # format the frontend directly (from frontend/)
 ```
 
-Type-checking the frontend is a separate whole-project step, deliberately kept
-out of the commit hook:
+The Python hooks run ruff through `uv run`, so the hook uses the exact ruff
+version pinned in `uv.lock`; they need `uv` on your `PATH`.
+
+Type-checking is a separate whole-project step for both halves, deliberately
+kept out of the commit hook:
 
 ```bash
+uv run mypy                    # Python: type-checks app/
 cd frontend && npm run check   # svelte-check
 ```
 
-The hook is bypassable with `git commit --no-verify`, so treat it as a
-convenience rather than a hard gate.
+CI enforces lint, format, and type checks on every pull request (ruff, ruff
+format, and mypy in the `lint` job; prettier and svelte-check in the `frontend`
+job), so a commit that skipped the hook with `git commit --no-verify` still
+fails CI.
 
 ## Making a change
 

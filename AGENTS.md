@@ -88,6 +88,14 @@ ChattNews behavior was tuned against.
 **Config / validation — Pydantic v2 + pydantic-settings.** Typed settings loaded from env/`.env`, and
 `NormalizedObservation` is a Pydantic model so collector output is validated at the boundary.
 
+**Static checks — ruff + mypy** (both in the `dev` extras, pinned by `uv.lock`). ruff lints and
+formats; mypy type-checks `app/` under `strict` (with `disallow_any_generics` relaxed) and the
+Pydantic plugin. New `app/` code must have annotated signatures, and a type error is fixed on its
+merits (a narrower type, a `cast` for a known library gap such as SQLAlchemy's `rowcount`), not
+silenced: if an ignore is truly unavoidable it names its error code (`# type: ignore[code]`), and
+mypy's `warn_unused_ignores` reports it once it is no longer needed. `tests/` and `alembic/` are
+not type-checked.
+
 **Python dependency locking — uv (`uv.lock`).** The project stays plain PEP 621: uv owns no
 metadata in `pyproject.toml`, so `pip install -e ".[dev]"` keeps working and uv is removable by
 deleting one file. It is used for the one thing pip cannot do here — produce a **universal**
@@ -258,6 +266,7 @@ source .venv/bin/activate         # or prefix commands with `uv run`
 cp .env.example .env              # DATABASE_URL -> localhost:5432
 alembic upgrade head
 uvicorn app.main:app --reload
+uv run mypy                       # type-check app/ (also enforced by CI's lint job)
 ```
 `pip install -e ".[dev]"` still works — pyproject.toml is plain PEP 621 with no uv-specific
 tables — but it resolves fresh instead of reading `uv.lock`, so you can silently get versions CI
@@ -341,11 +350,16 @@ docs-only PR. The jobs:
   checkout can't even import the app without it. Installs are `uv sync --locked`, which makes the
   job double as the lockfile gate: a `pyproject.toml` dependency edit without a matching `uv lock`
   fails here instead of merging a stale lock.
-- **`frontend`** — `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
+- **`lint`** — runs on the `python` category, like `pytest`: `uv run ruff check .`,
+  `uv run ruff format --check .` and `uv run mypy`, all from `uv.lock`, in check mode. This is
+  the backstop for the commit hook (which `--no-verify` or an uninstalled hook skips), and a
+  ruff/mypy bump PR runs it, so new findings show up on that PR.
+- **`frontend`** — `npm run format:check` (prettier) + `npm run check` + `npm run build`. There is **no JS test suite** (no runner, no
   `*.test.ts`), so these stand in as the frontend gate; they're what catches a bad npm bump, which
   `pytest` never sees. If a JS test runner is ever added, wire `npm test` into this job.
 - **`docker`** — builds the production image whenever Python, frontend, or image files changed, so
-  a broken Dockerfile can't merge. It runs after the test jobs and never when one failed. On pushes
+  a broken Dockerfile can't merge. It runs after the `pytest`, `lint` and `frontend` jobs and never
+  when one failed. On pushes
   to `main` it also pushes `driverdan/localdash:latest` plus a `sha-<commit>` tag to Docker Hub; PR
   runs build without credentials or pushing.
 
@@ -353,24 +367,33 @@ docs-only PR. The jobs:
 code — `ruff check --fix` + `ruff format` for Python, `prettier` for `frontend/`. Enable it once
 per clone (hooks are not installed automatically):
 ```bash
-uv sync --extra dev               # installs pre-commit + ruff into the venv
+uv sync --extra dev               # installs pre-commit, ruff and mypy into the venv
 cd frontend && npm install        # prettier + prettier-plugin-svelte (also needed for builds)
 pre-commit install                # from the repo root — wires .git/hooks/pre-commit
 ```
 Behavior is **fix-then-abort**: if a hook rewrites a file the commit fails, leaving the fixes in
 the working tree for you to review, re-stage, and re-commit — auto-fixes are never silently
 committed. Config lives in `[tool.ruff]` (`pyproject.toml`), `frontend/.prettierrc`, and
-`.pre-commit-config.yaml`. `ruff` is self-provisioned by pre-commit; `prettier` reuses
+`.pre-commit-config.yaml`. The ruff hooks are `local` hooks running
+`uv run --locked --extra dev ruff ...`, so the hook, a manual `uv run ruff` and CI all use the one
+ruff version in `uv.lock`; the hook therefore needs `uv` on `PATH`. `prettier` reuses
 `frontend/node_modules`. Run against everything with `pre-commit run --all-files`; format the
 frontend directly with `npm run format`.
 
-`svelte-check` is deliberately **not** in the hook (it's a whole-project type checker, not a
-per-file linter) — keep running it as `npm run check`. **Known gap:** the hook is bypassable with
-`git commit --no-verify` and lint/format still has no CI backstop, so it remains a convenience
-rather than an enforcement boundary. A CI `pre-commit run --all-files` job is deferred to a later
-change. Keep the hook's ruff `rev` in step with the ruff version in `uv.lock` so the hook and a
-manual `uv run ruff format` agree; `openspec/` is excluded from ruff because ruff ≥ 0.17 also
-formats Python code blocks in Markdown and would rewrite archived artifacts.
+The ruff rule set is `E4`, `E7`, `E9`, `F`, `I`, `UP` (pyupgrade for the `py314` target), `B`
+(bugbear), `SIM`, `BLE` (blind `except Exception`) and `RUF100`. FastAPI's `Depends(...)` default
+is declared immutable for `B008` rather than suppressed per line. `RUF100` reports any `# noqa`
+that names a disabled rule or isn't needed, so every suppression is live; a deliberate catch-all
+carries a reason (`# noqa: BLE001 — a broken feed must not kill the cycle`). Errors ruff can't
+auto-fix (`B`, `SIM`, `BLE`) abort the commit until fixed by hand.
+
+`svelte-check` and `mypy` are deliberately **not** in the hook: both are whole-project type
+checkers, not per-file linters, and mypy needs the project's dependencies installed. Run them as
+`npm run check` and `uv run mypy`. **CI enforces all of it:** the `lint` job runs ruff (lint and
+format, check mode) and mypy, and the `frontend` job runs `npm run format:check`, so a commit made
+with `--no-verify` or without the hook installed still fails the PR. `openspec/` is excluded from
+ruff because ruff ≥ 0.17 also formats Python code blocks in Markdown and would rewrite archived
+artifacts.
 
 **Migrations:** `alembic upgrade head` / `alembic revision -m "msg"`. The schema uses PostGIS +
 TimescaleDB features that don't autogenerate, so migrations are hand-written **raw SQL** (see

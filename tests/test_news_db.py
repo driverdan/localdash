@@ -7,7 +7,7 @@ test, so every assertion is against this module's own seed data.
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select, text
@@ -120,7 +120,7 @@ async def test_registry_sync_deletes_sources_removed_from_registry(news_db_sessi
 
 
 def _article(source_id, guid, category, title="Some headline"):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return {
         "source_id": source_id,
         "guid": guid,
@@ -217,7 +217,7 @@ async def _seed_singleton_stories(session, monkeypatch, count: int) -> list[int]
     Returns the cluster ids in newest-activity-first order.
     """
     sid = await _seed_source(session, monkeypatch)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     arts = [_article(sid, f"lim-{i}", "news", title=f"test-limit story {i}") for i in range(count)]
     # Stagger published times: lim-0 newest, lim-{count-1} oldest.
     for i, a in enumerate(arts):
@@ -262,7 +262,7 @@ async def test_stories_omitted_limit_returns_full_window(news_db_session, monkey
 
 async def test_get_stories_cutoff_follows_injected_now(news_db_session, monkeypatch):
     ids_newest_first = await _seed_singleton_stories(news_db_session, monkeypatch, count=3)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     stories = await get_stories(news_db_session, hours=24, now=now)
     assert [s.id for s in stories] == ids_newest_first
@@ -346,7 +346,7 @@ async def test_backfill_corrects_only_future_dated_rows(news_db_session, monkeyp
     )
     await news_db_session.commit()
     # Write pre-cap data directly, bypassing upsert_articles' cap.
-    fetched = datetime(2026, 10, 28, 16, 31, tzinfo=timezone.utc)
+    fetched = datetime(2026, 10, 28, 16, 31, tzinfo=UTC)
     seeded = {
         "ahead": fetched + timedelta(days=30),
         "behind": fetched - timedelta(hours=2),
@@ -373,7 +373,7 @@ async def test_backfill_corrects_only_future_dated_rows(news_db_session, monkeyp
 
 async def test_capped_article_sorts_by_fetch_time(news_db_session, monkeypatch):
     sid = await _seed_source(news_db_session, monkeypatch)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     pinned = _article(sid, "pinned", "news", title="test-cap pinned schedule")
     pinned["fetched_at"] = now - timedelta(hours=2)
     pinned["published"] = now + timedelta(days=30)

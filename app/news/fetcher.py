@@ -22,12 +22,13 @@ import asyncio
 import calendar
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any, cast
 from urllib.parse import urljoin
 
 import feedparser
-from bs4 import BeautifulSoup
-from sqlalchemy import select, update
+from bs4 import BeautifulSoup, Tag
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,16 +42,16 @@ from app.text import strip_html, truncate_sentences
 log = logging.getLogger(__name__)
 
 
-def _entry_published(entry) -> datetime:
+def _entry_published(entry: feedparser.FeedParserDict) -> datetime:
     for attr in ("published_parsed", "updated_parsed"):
         parsed = getattr(entry, attr, None)
         if parsed:
             ts = calendar.timegm(parsed)
-            return datetime.fromtimestamp(ts, tz=timezone.utc)
-    return datetime.now(timezone.utc)
+            return datetime.fromtimestamp(ts, tz=UTC)
+    return datetime.now(UTC)
 
 
-def _entry_raw_content(entry) -> str:
+def _entry_raw_content(entry: feedparser.FeedParserDict) -> str:
     """An entry's raw HTML body: content[0].value, else summary, else description."""
     raw = ""
     if getattr(entry, "content", None):
@@ -60,14 +61,14 @@ def _entry_raw_content(entry) -> str:
     return raw or ""
 
 
-def _entry_summary(entry) -> str:
+def _entry_summary(entry: feedparser.FeedParserDict) -> str:
     return truncate_sentences(strip_html(_entry_raw_content(entry)), 600)
 
 
 _IMG_SRC = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 
 
-def _entry_image(entry) -> str | None:
+def _entry_image(entry: feedparser.FeedParserDict) -> str | None:
     """Feed-supplied image URL: first image enclosure, else first inline <img>.
 
     Only reads what the feed already carries — no article page is fetched.
@@ -76,18 +77,19 @@ def _entry_image(entry) -> str | None:
     """
     for enc in getattr(entry, "enclosures", []) or []:
         if str(enc.get("type", "")).startswith("image") and enc.get("href"):
-            return enc["href"]
+            href: str = enc["href"]
+            return href
     match = _IMG_SRC.search(_entry_raw_content(entry))
     return match.group(1) if match else None
 
 
-def _entry_tags(entry) -> list[str]:
+def _entry_tags(entry: feedparser.FeedParserDict) -> list[str]:
     """Per-item feed <category> terms (WordPress outlets carry these; others
     don't). feedparser exposes them as entry.tags, each a dict with a 'term'."""
     return [t.get("term", "") for t in getattr(entry, "tags", []) or [] if t.get("term")]
 
 
-def _parse_feed(url: str):
+def _parse_feed(url: str) -> feedparser.FeedParserDict:
     return feedparser.parse(
         url,
         agent=BROWSER_USER_AGENT,
@@ -95,7 +97,7 @@ def _parse_feed(url: str):
     )
 
 
-def _row_published(row) -> datetime:
+def _row_published(row: Tag) -> datetime:
     """Published time from a scraped .views-row's <time datetime>, in UTC.
 
     The datetime attribute carries a tz offset (e.g. -04:00); fall back to now
@@ -104,10 +106,10 @@ def _row_published(row) -> datetime:
     node = row.select_one(".views-field-created time[datetime]")
     if node:
         try:
-            return datetime.fromisoformat(node["datetime"]).astimezone(timezone.utc)
+            return datetime.fromisoformat(str(node["datetime"])).astimezone(UTC)
         except ValueError, KeyError:
             pass
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_html_listing(html: str, base_url: str) -> list[dict]:
@@ -126,7 +128,7 @@ def parse_html_listing(html: str, base_url: str) -> list[dict]:
         link = row.select_one(".views-field-title h3 a[href]")
         if link is None:
             continue
-        url = urljoin(base_url, link["href"].strip())
+        url = urljoin(base_url, str(link["href"]).strip())
         title = strip_html(link.get_text())
         if not url or not title:
             continue
@@ -182,7 +184,7 @@ async def upsert_articles(session: AsyncSession, rows: list[dict]) -> int:
         constraint="uq_news_article_source_guid",
         set_={"category": stmt.excluded.category},
     )
-    result = await session.execute(stmt)
+    result = cast(CursorResult[Any], await session.execute(stmt))
     return result.rowcount
 
 
@@ -224,7 +226,7 @@ async def _fetch_html_feed(session: AsyncSession, feed: NewsFeed) -> tuple[int, 
     if not partial:
         return 0, "error (no entries)"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = [
         _article_row(
             feed,
@@ -258,7 +260,7 @@ async def fetch_feed(session: AsyncSession, feed: NewsFeed, source_slug: str) ->
             detail = f"{detail}: {parsed.bozo_exception}"
         return 0, f"error ({detail})"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = []
     for entry in parsed.entries:
         url = getattr(entry, "link", "") or ""
@@ -302,13 +304,13 @@ async def fetch_all(session: AsyncSession) -> dict[str, str]:
         label = f"{source_slug}/{feed.category}"
         try:
             _, status = await fetch_feed(session, feed, source_slug)
-        except Exception as exc:  # a broken feed must not kill the cycle
+        except Exception as exc:  # noqa: BLE001 — a broken feed must not kill the cycle
             status = f"error ({redact(str(exc))})"  # persisted + served: mask credentials
             log.warning("fetch failed for %s: %s", label, exc)
         await session.execute(
             update(NewsFeed)
             .where(NewsFeed.id == feed.id)
-            .values(last_fetch=datetime.now(timezone.utc), last_status=status)
+            .values(last_fetch=datetime.now(UTC), last_status=status)
         )
         await session.commit()
         results[label] = status

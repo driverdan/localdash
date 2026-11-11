@@ -239,7 +239,7 @@ async def test_failed_discovery_is_retried_next_request(mock_http):
     nws = FakeNWS(mock_http)
     svc = nws.service()
     nws.failing.add(POINTS)
-    with pytest.raises(Exception):
+    with pytest.raises(httpx.HTTPStatusError):
         await svc.get_current()
     nws.failing.clear()
     payload = await svc.get_current()

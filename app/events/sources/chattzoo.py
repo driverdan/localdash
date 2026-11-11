@@ -44,7 +44,7 @@ from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from app.events.sources.base import EventSource, RawEvent, clean_image_url
 from app.http import make_client
@@ -87,7 +87,7 @@ class ListingEntry:
     image_url: str | None
 
 
-def _clean_text(node) -> str:
+def _clean_text(node: Tag | None) -> str:
     """Collapsed visible text of a BeautifulSoup node."""
     return " ".join(node.get_text(" ").split()) if node is not None else ""
 
@@ -148,7 +148,7 @@ def parse_occurrence(text: str, now: dt.datetime) -> tuple[dt.datetime, dt.datet
         end += dt.timedelta(days=1)
     if end < now:  # already over — in-progress events are kept
         return None
-    return start.astimezone(dt.timezone.utc), end.astimezone(dt.timezone.utc)
+    return start.astimezone(dt.UTC), end.astimezone(dt.UTC)
 
 
 def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[ListingEntry]:
@@ -160,7 +160,7 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[ListingEntr
     entries: list[ListingEntry] = []
     seen: set[str] = set()
     for card in soup.select("a.col.third.fundraiser[href]"):
-        url = urljoin(listing_url, card["href"].strip())
+        url = urljoin(listing_url, str(card["href"]).strip())
         if url in seen:
             continue
         title = _clean_text(card.find(["h2", "h3"]))
@@ -168,12 +168,14 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[ListingEntr
             log.warning("chattzoo: listing card without a title skipped: %s", url)
             continue
         image = card.find("img")
+        # `src` is single-valued, so bs4 returns it as a plain string.
+        src = image.get("src") if image else None
         seen.add(url)
         entries.append(
             ListingEntry(
                 title=title,
                 url=url,
-                image_url=clean_image_url(image.get("src") if image else None),
+                image_url=clean_image_url(src if isinstance(src, str) else None),
             )
         )
     return entries
@@ -242,7 +244,7 @@ def parse_detail(
 
 def _now() -> dt.datetime:
     """Wall clock, isolated so fetch tests can pin it the way parse tests do."""
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
 class ChattZooSource(EventSource):

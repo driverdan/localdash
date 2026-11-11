@@ -22,7 +22,8 @@ from __future__ import annotations
 import html as html_lib
 import json
 import logging
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
@@ -109,7 +110,9 @@ def parse_listing(html: str, listing_url: str = LISTING_URL) -> list[RawEvent]:
                     "carcruisefinder: event without start date skipped: %r", node.get("name")
                 )
                 continue
-            location = node.get("location") if isinstance(node.get("location"), dict) else {}
+            location = node.get("location")
+            if not isinstance(location, dict):
+                location = {}
             url = node.get("url") or listing_url
             events.append(
                 RawEvent(

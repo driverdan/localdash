@@ -35,7 +35,7 @@ async def test_sequential_requests_are_spaced(mock_http):
             assert await geocoder.geocode("1800 Rossville Ave") == (35.0456, -85.3097)
 
     assert len(send_times) == 3
-    for earlier, later in zip(send_times, send_times[1:]):
+    for earlier, later in zip(send_times[:-1], send_times[1:], strict=True):
         assert later - earlier >= 0.05 - TOLERANCE
 
 
@@ -49,7 +49,7 @@ async def test_concurrent_requests_are_spaced(mock_http):
     assert all(r == (35.0456, -85.3097) for r in results)
     assert len(send_times) == 3
     ordered = sorted(send_times)
-    for earlier, later in zip(ordered, ordered[1:]):
+    for earlier, later in zip(ordered[:-1], ordered[1:], strict=True):
         assert later - earlier >= 0.05 - TOLERANCE
 
 
@@ -232,5 +232,5 @@ async def test_fallback_attempts_are_rate_limited(mock_http):
 
     assert await geocode_once(VENUE_ADDRESS, min_interval=0.05) is None
     assert len(send_times) == 3
-    for earlier, later in zip(send_times, send_times[1:]):
+    for earlier, later in zip(send_times[:-1], send_times[1:], strict=True):
         assert later - earlier >= 0.05 - TOLERANCE

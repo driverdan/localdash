@@ -7,7 +7,7 @@ conftest.py); those tests fail if the server in DATABASE_URL is unreachable.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
@@ -225,7 +225,7 @@ async def test_fingerprint_stored_before_deploy_stays_valid(db_session):
     # An active point entity written by the previous code (EWKT geometry and the
     # "lon,lat" fingerprint) is re-observed at the same position and status:
     # no new observation and nothing in the diff's updated list.
-    now = datetime(2026, 11, 1, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
     db_session.add(
         Entity(
             source_key="test",

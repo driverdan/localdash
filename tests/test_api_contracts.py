@@ -11,7 +11,7 @@ response models existed and must not change when a route gains one.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import partial
 
 import feedparser
@@ -40,7 +40,6 @@ from tests.conftest import make_settings
 from tests.test_live_signals import FakeManager, FakeNominatimGeocoder
 from tests.test_weather import OBS_KCHA, FakeNWS, _load, _load_airnow
 
-UTC = timezone.utc
 T1 = datetime(2026, 7, 10, 10, 0, tzinfo=UTC)
 T2 = datetime(2026, 7, 10, 10, 5, 30, 250000, tzinfo=UTC)  # non-zero microseconds
 NEWS_NOW = datetime(2026, 7, 10, 12, 0, tzinfo=UTC)

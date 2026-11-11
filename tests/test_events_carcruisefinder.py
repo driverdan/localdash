@@ -14,7 +14,7 @@ from app.events.sources.carcruisefinder import (
 from app.http import BROWSER_USER_AGENT
 
 FIXTURES = Path(__file__).parent / "fixtures" / "carcruisefinder"
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def load(name: str) -> str:

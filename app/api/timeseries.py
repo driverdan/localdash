@@ -8,8 +8,8 @@ FeatureCollections. Live diffs are broadcast on the global /api/v1/ws bus
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
@@ -20,6 +20,8 @@ from fastapi import (
 )
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import QueryableAttribute
+from sqlalchemy.sql.functions import Function
 
 from app.collect import run_collector
 from app.db import get_session
@@ -41,14 +43,14 @@ def _parse_geom(geom_json: str | None) -> dict | None:
     return json.loads(geom_json) if geom_json else None
 
 
-def _bbox_filter(column, bbox: str | None):
+def _bbox_filter(column: QueryableAttribute[Any], bbox: str | None) -> Function[Any] | None:
     """Return a PostGIS bbox predicate for `column`, or None."""
     if not bbox:
         return None
     try:
         minx, miny, maxx, maxy = (float(x) for x in bbox.split(","))
     except ValueError:
-        raise HTTPException(400, "bbox must be 'minLon,minLat,maxLon,maxLat'")
+        raise HTTPException(400, "bbox must be 'minLon,minLat,maxLon,maxLat'") from None
     return func.ST_Intersects(column, func.ST_MakeEnvelope(minx, miny, maxx, maxy, 4326))
 
 
@@ -61,7 +63,7 @@ async def entities(
     bbox: str | None = None,
     closed_within: Annotated[int | None, Query(ge=0, le=10080)] = None,
     session: AsyncSession = Depends(get_session),
-):
+) -> dict:
     """Tracked entities as a GeoJSON FeatureCollection.
 
     Defaults to active entities only — closure never deletes, so the unfiltered
@@ -83,9 +85,7 @@ async def entities(
     )
 
     cutoff = (
-        datetime.now(timezone.utc) - timedelta(minutes=closed_within)
-        if closed_within is not None
-        else None
+        datetime.now(UTC) - timedelta(minutes=closed_within) if closed_within is not None else None
     )
     if active:
         if cutoff is not None:
@@ -179,8 +179,10 @@ async def entity_track(
         geometry = _parse_geom(geom_json)
         # lon/lat convenience fields stay populated only for point geometry;
         # they are null for polygons (clients read `geometry` for those).
-        is_point = bool(geometry) and geometry.get("type") == "Point"
-        lon, lat = geometry["coordinates"] if is_point else (None, None)
+        if geometry and geometry.get("type") == "Point":
+            lon, lat = geometry["coordinates"]
+        else:
+            lon, lat = None, None
         out.append(
             TrackPoint(
                 observed_at=at,
@@ -205,7 +207,7 @@ async def observations(
     end: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=50000)] = 5000,
     session: AsyncSession = Depends(get_session),
-):
+) -> dict:
     """Historical observations in a time window as a GeoJSON FeatureCollection."""
     q = select(
         Observation.entity_id,

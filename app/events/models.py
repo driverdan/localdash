@@ -43,7 +43,7 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), unique=True)
 
-    events: Mapped[list["Event"]] = relationship(secondary=event_tags, back_populates="tags")
+    events: Mapped[list[Event]] = relationship(secondary=event_tags, back_populates="tags")
 
 
 class Event(Base):
@@ -66,7 +66,7 @@ class Event(Base):
     )
 
     tags: Mapped[list[Tag]] = relationship(secondary=event_tags, back_populates="events")
-    links: Mapped[list["EventLink"]] = relationship(
+    links: Mapped[list[EventLink]] = relationship(
         back_populates="event", cascade="all, delete-orphan"
     )
 

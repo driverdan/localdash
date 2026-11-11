@@ -3,7 +3,7 @@ no DB): the pure parse_html_listing parser and the feed_kind registry lookup."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -50,7 +50,7 @@ def test_published_normalized_to_utc():
     rows = parse_html_listing(load("listing.html"), BASE_URL)
     first = rows[0]
     # 2026-07-22T15:28:48-04:00 -> 19:28:48Z
-    assert first["published"] == datetime(2026, 7, 22, 19, 28, 48, tzinfo=timezone.utc)
+    assert first["published"] == datetime(2026, 7, 22, 19, 28, 48, tzinfo=UTC)
     assert first["published"].tzinfo is not None
 
 
@@ -61,9 +61,9 @@ def test_row_without_body_gets_empty_summary():
 
 
 def test_unparseable_date_falls_back_to_now():
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     rows = parse_html_listing(load("listing.html"), BASE_URL)
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
     shooting = next(r for r in rows if r["title"] == "Shooting - Hawkins Oak Lane")
     assert before <= shooting["published"] <= after
 
