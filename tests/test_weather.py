@@ -193,8 +193,10 @@ class FakeNWS:
         return WeatherService()
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        # NWS requires an identifying UA: the default names LocalDash.
+        assert request.headers["User-Agent"] == get_settings().user_agent
+        assert "LocalDash/" in request.headers["User-Agent"]
         self.calls.append(str(request.url))
-        assert request.headers["User-Agent"] == "LocalDash/0.1"  # NWS-required UA
         url = str(request.url.copy_with(query=None))
         if url in self.failing or url not in self.routes:
             return httpx.Response(500)

@@ -57,8 +57,9 @@ timeseries ingest; the weather service) SHALL receive the setting values it uses
 construction, and SHALL NOT call `get_settings()` itself. API handlers SHALL receive settings
 through the FastAPI dependency `Depends(get_settings)`. `get_settings()` SHALL be called only at
 composition roots: the database module, the application module and its lifespan, the scheduler,
-the per-feature refresh cycles, router dependencies, the log-redaction filter, and the weather
-service's default when it is constructed without settings.
+the per-feature refresh cycles, router dependencies, the log-redaction filter, the weather
+service's default when it is constructed without settings, and the outbound HTTP factory's default
+User-Agent.
 
 A test that needs a non-default setting SHALL pass the value, or a `Settings` it builds itself
 (without reading `.env`), into the code under test. Tests SHALL NOT change the cached `Settings`
