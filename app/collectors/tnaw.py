@@ -59,9 +59,7 @@ class TnawCollector(BaseCollector):
             "f": "geojson",
         }
         out: list[tuple[str, list]] = []
-        async with make_client(
-            timeout=30, user_agent=self.settings.user_agent, follow_redirects=False
-        ) as client:
+        async with make_client(timeout=30, follow_redirects=False) as client:
             for layer, category in self.layers:
                 resp = await client.get(
                     f"{self.base_url}/{layer}/query", params=params, headers=headers

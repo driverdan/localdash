@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from app.config import Settings, get_settings, split_csv
 from tests.conftest import make_settings
@@ -85,3 +86,16 @@ def test_events_ical_feed_list():
         events_ical_feeds=" https://a.example/x.ics ,,https://b.example/y.ics"
     ).events_ical_feed_list == ["https://a.example/x.ics", "https://b.example/y.ics"]
     assert make_settings(events_ical_feeds="").events_ical_feed_list == []
+
+
+@pytest.mark.parametrize("field", ["user_agent", "events_geocoder_user_agent"])
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_blank_user_agent_settings_are_rejected(field, blank):
+    # Every outbound request must send a real User-Agent; a blank one fails at load.
+    with pytest.raises(ValidationError, match=field):
+        make_settings(**{field: blank})
+
+
+@pytest.mark.parametrize("field", ["user_agent", "events_geocoder_user_agent"])
+def test_user_agent_settings_have_non_blank_defaults(field):
+    assert getattr(make_settings(), field).strip()
