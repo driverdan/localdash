@@ -15,7 +15,7 @@ import pytest
 import app.events.refresh as events_refresh_mod
 import app.news.refresh as news_refresh_mod
 import app.scheduler as scheduler_mod
-from app.schemas import Diff
+from app.diff import Diff
 
 
 class FakeManager:

@@ -378,7 +378,7 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
      `is_active=false` (with `last_seen_at` set to the close time) and get a final `Closed`
      observation. A successful fetch that normalizes to nothing therefore closes every active
      entity of that source — only a raised fetch error leaves them alone.
-   - returns a `Diff` (`new`/`updated`/`closed`).
+   - returns a `Diff` (`new`/`updated`/`closed`, defined in `app/diff.py`).
 4. The scheduler broadcasts that `Diff` over the **global `/api/v1/ws` WebSocket bus** (`ws.py`,
    endpoint in `app/api/root.py`) as a `{topic: "timeseries", type: "diff"}` message; the frontend
    applies it incrementally. The same bus carries payload-free `{topic, type: "updated"}` pings for
@@ -402,6 +402,8 @@ calls**, not history. LocalDash *constructs* the time-series itself. Understandi
 - `observations` — the hypertable; PostGIS `geom` (any geometry — points for 911/TDOT/EPB, polygons
   for `tnaw` advisories; migration `0006`) + JSONB `properties`. Source-specific fields
   live in JSONB so new sources need no migration.
+- The shared declarative `Base` lives in `app/orm.py`; every feature's models register on it, and
+  `alembic/env.py` imports each model module explicitly so all tables reach its metadata.
 
 ### Adding a data source
 Write a `BaseCollector` subclass in `app/collectors/<name>.py` (implement async `fetch()` and pure

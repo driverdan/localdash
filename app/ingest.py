@@ -26,9 +26,9 @@ from typing import Any
 from sqlalchemy import func, or_, select
 
 from app.collectors.base import NormalizedObservation
+from app.diff import Diff
 from app.geojson import entity_properties, feature, feature_geom
 from app.models import Entity, Observation
-from app.schemas import Diff
 
 # Coordinate rounding (6 decimals ≈ 0.1 m) applied to geometry fingerprints, so a
 # point that jitters below that threshold produces the same fingerprint and does

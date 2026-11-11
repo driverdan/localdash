@@ -51,5 +51,5 @@ extend-exclude = ["openspec"]
 # the rest; both the hook and a manual `ruff` run share this config.
 select = ["E4", "E7", "E9", "F", "I"]
 
-[tool.setuptools]
-packages = ["app", "app.collectors", "app.api", "app.news", "app.events", "app.events.sources", "app.weather"]
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
