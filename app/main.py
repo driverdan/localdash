@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import events, news, root, timeseries, weather
+from app.api import auth, events, news, root, timeseries, weather
 from app.collectors import build_collectors
 from app.config import get_settings
 from app.db import SessionLocal
@@ -53,6 +53,7 @@ app.include_router(news.router, prefix="/api/v1/news")
 app.include_router(events.router, prefix="/api/v1/events")
 if get_settings().weather_enabled:
     app.include_router(weather.router, prefix="/api/v1/weather")
+app.include_router(auth.router, prefix="/api/v1/auth")
 app.include_router(root.router, prefix="/api/v1")
 
 # Serve the dashboard at / (mounted last so /api wins).

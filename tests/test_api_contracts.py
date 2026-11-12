@@ -844,10 +844,16 @@ async def test_observations_response_matches_documentation_model(client, db_sess
 def test_every_api_route_documents_a_named_200_schema():
     schema = app.openapi()
     checked = []
+    no_content = []
     for path, ops in schema["paths"].items():
         if not path.startswith("/api/v1/"):
             continue
         for method, op in ops.items():
+            if "200" not in op["responses"]:
+                # Body-less 204 routes carry no JSON schema to document.
+                assert "204" in op["responses"], f"{method.upper()} {path}"
+                no_content.append(f"{method.upper()} {path}")
+                continue
             content = op["responses"]["200"]["content"]["application/json"]["schema"]
             if content.get("type") == "array":  # /track and /sources are JSON arrays
                 content = content["items"]
@@ -855,4 +861,5 @@ def test_every_api_route_documents_a_named_200_schema():
             assert content["$ref"].startswith("#/components/schemas/")
             checked.append(f"{method.upper()} {path}")
     # Every JSON route, refresh routes included (the WebSocket is not in OpenAPI).
-    assert len(checked) == 14, checked
+    assert len(checked) == 15, checked
+    assert no_content == ["POST /api/v1/auth/login", "POST /api/v1/auth/logout"]

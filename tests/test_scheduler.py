@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.auth.cleanup import cleanup_sessions
 from app.collect import run_collector
 from app.config import Settings
 from app.events.refresh import refresh as events_refresh
@@ -43,13 +44,21 @@ def test_job_specs_ids_intervals_and_funcs():
 
     specs = {s.id: s for s in job_specs(_settings(), collectors)}
 
-    assert list(specs) == ["hc911", "tnaw", "news_refresh", "events_refresh", "weather_refresh"]
+    assert list(specs) == [
+        "hc911",
+        "tnaw",
+        "news_refresh",
+        "events_refresh",
+        "weather_refresh",
+        "auth_session_cleanup",
+    ]
     assert {k: s.interval_seconds for k, s in specs.items()} == {
         "hc911": 60,
         "tnaw": 300,
         "news_refresh": 15 * 60,
         "events_refresh": 60 * 60,
         "weather_refresh": 10 * 60,
+        "auth_session_cleanup": 60 * 60,
     }
     assert all(s.enabled for s in specs.values())
     assert specs["hc911"].func is run_collector
@@ -58,6 +67,8 @@ def test_job_specs_ids_intervals_and_funcs():
     assert specs["news_refresh"].func is news_refresh
     assert specs["events_refresh"].func is events_refresh
     assert specs["weather_refresh"].func is weather_refresh
+    assert specs["auth_session_cleanup"].func is cleanup_sessions
+    assert specs["auth_session_cleanup"].args == ()
     assert specs["news_refresh"].args == ()
 
 
