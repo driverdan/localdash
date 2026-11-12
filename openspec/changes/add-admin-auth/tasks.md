@@ -41,12 +41,12 @@
 
 ## 8. Frontend
 
-- [ ] 8.1 Add `redirect(to)` (History `replaceState`) to `frontend/src/lib/router.svelte.ts`.
-- [ ] 8.2 Add `frontend/src/features/auth/`: `api.ts` (form-encoded login, `me`, logout), `state.svelte.ts` (`unknown` / `anonymous` / `signedIn` plus the user, `loadUser()` that fetches once, `logout()`), and `index.ts` exporting the public surface.
-- [ ] 8.3 Add `LoginPage.svelte`: email and password inputs with autocomplete attributes, submit disabled while in flight, "Incorrect email or password" on 401, a generic message on other failures, `loadUser()` after success, and the shared site footer.
-- [ ] 8.4 Add `frontend/src/features/admin/` with `AdminPage.svelte` (heading, signed-in email, "Log out" button that logs out and redirects to `/login`, shared site footer) and `index.ts`; it imports only `auth`'s `index.ts`.
-- [ ] 8.5 Wire the shell: `/login` and `/admin` route entries in `App.svelte` following the guard table in design decision 14 (loading state, redirects, "no access" message with log out), and import `styles/auth.css` and `styles/admin.css` in `main.ts`.
-- [ ] 8.6 Write `auth.css` and `admin.css` using the existing theme variables; check both pages in the default and dark themes and at mobile width.
+- [x] 8.1 Add `redirect(to)` (History `replaceState`) to `frontend/src/lib/router.svelte.ts`.
+- [x] 8.2 Add `frontend/src/features/auth/`: `api.ts` (form-encoded login, `me`, logout), `state.svelte.ts` (`unknown` / `anonymous` / `signedIn` plus the user, `loadUser()` that fetches once, `logout()`), and `index.ts` exporting the public surface.
+- [x] 8.3 Add `LoginPage.svelte`: email and password inputs with autocomplete attributes, submit disabled while in flight, "Incorrect email or password" on 401, a generic message on other failures, `loadUser()` after success, and the shared site footer.
+- [x] 8.4 Add `frontend/src/features/admin/` with `AdminPage.svelte` (heading, signed-in email, "Log out" button that logs out and redirects to `/login`, shared site footer) and `index.ts`; it imports only `auth`'s `index.ts`.
+- [x] 8.5 Wire the shell: `/login` and `/admin` route entries in `App.svelte` following the guard table in design decision 14 (loading state, redirects, "no access" message with log out), and import `styles/auth.css` and `styles/admin.css` in `main.ts`.
+- [x] 8.6 Write `auth.css` and `admin.css` using the existing theme variables; check both pages in the default and dark themes and at mobile width.
 
 ## 9. Docs and verification
 

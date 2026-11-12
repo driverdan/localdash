@@ -2,9 +2,9 @@
  * LocalDash styling contract
  * ==========================
  * All visual styling lives in these global stylesheets — a base layer (this file)
- * plus one sheet per feature (timeseries.css, news.css, events.css, home.css) and
- * the dark theme's overrides (theme-dark.css) — imported once
- * at the app root (main.ts). This is the site's single source of visual truth.
+ * plus one sheet per feature (timeseries.css, news.css, events.css, home.css,
+ * auth.css, admin.css) and the dark theme's overrides (theme-dark.css) —
+ * imported once at the app root (main.ts). This is the site's single source of visual truth.
  *
  * Rules every feature follows (the timeseries/map feature is the reference impl —
  * it already carries zero scoped styles):
@@ -140,6 +140,34 @@ header nav a.active {
 }
 .not-found {
   padding: 24px;
+}
+/* The shell's /login and /admin guard states (App.svelte): "Loading…" while the
+   signed-in user is resolved, and the no-access message for a non-admin. */
+.route-notice {
+  margin: 0;
+  padding: 24px;
+  color: var(--color-text-muted);
+}
+.no-access p {
+  margin: 0 0 12px;
+  color: var(--color-text);
+}
+.no-access button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.no-access button:hover:enabled {
+  border-color: var(--color-link);
+}
+.no-access button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .status-bar {
   font-size: 12px;

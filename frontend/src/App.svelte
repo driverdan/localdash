@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { currentPath, navigate } from "./lib/router.svelte";
+  import { untrack } from "svelte";
+  import { currentPath, navigate, redirect } from "./lib/router.svelte";
   import { themes, currentTheme, applyTheme } from "./lib/theme.svelte";
   import { startLive, liveState } from "./lib/live.svelte";
   import DebugPanel from "./lib/DebugPanel.svelte";
@@ -7,6 +8,8 @@
   import { HomePage, registerHomeLive } from "./features/home";
   import { NewsFeed, registerNewsLive } from "./features/news";
   import { EventsPage, registerEventsLive } from "./features/events";
+  import { LoginPage, authState, loadUser, logout } from "./features/auth";
+  import { AdminPage } from "./features/admin";
 
   // The one live-update connection plus each feature's permanent subscriptions
   // (timeseries subscribes mount-scoped from its dashboard instead).
@@ -16,11 +19,42 @@
   registerHomeLive();
 
   // Route table: "/" -> home, "/news" -> news, "/map" -> timeseries,
-  // "/events" -> events.
+  // "/events" -> events, "/login" -> auth's login page, "/admin" -> admin's
+  // dashboard (admins only). The last two are not in the nav.
   const onHome = $derived(currentPath() === "/");
   const onMap = $derived(currentPath() === "/map");
   const onNews = $derived(currentPath() === "/news");
   const onEvents = $derived(currentPath() === "/events");
+  const onLogin = $derived(currentPath() === "/login");
+  const onAdmin = $derived(currentPath() === "/admin");
+
+  // Route guard for /login and /admin, by signed-in state:
+  //   route    unknown    anonymous         admin              signed-in non-admin
+  //   /admin   Loading…   -> /login         dashboard          no-access + log out
+  //   /login   Loading…   login form        -> /admin          -> /
+  // Redirects replace the history entry so Back never bounces. This is a
+  // convenience, not a security boundary: the API's require_admin is.
+  const auth = authState();
+
+  // Only these two routes ever ask who is signed in; public pages never call
+  // /api/v1/auth/me. untrack: re-run on route changes, not on auth changes.
+  $effect(() => {
+    if (onLogin || onAdmin) untrack(() => loadUser());
+  });
+
+  $effect(() => {
+    if (onAdmin && auth.status === "anonymous") redirect("/login");
+    else if (onLogin && auth.status === "signedIn")
+      redirect(auth.user?.is_superuser ? "/admin" : "/");
+  });
+
+  let loggingOut = $state(false);
+  async function signOut() {
+    loggingOut = true;
+    await logout();
+    loggingOut = false;
+    redirect("/login");
+  }
 
   // Connection indicator for the shared bus; every route is live now.
   const label = $derived(
@@ -78,6 +112,27 @@
   <NewsFeed />
 {:else if onEvents}
   <EventsPage />
+{:else if onLogin}
+  {#if auth.status === "anonymous"}
+    <LoginPage />
+  {:else}
+    <!-- unknown, or signed in and about to be redirected -->
+    <p class="route-notice">Loading…</p>
+  {/if}
+{:else if onAdmin}
+  {#if auth.status === "signedIn" && auth.user?.is_superuser}
+    <AdminPage />
+  {:else if auth.status === "signedIn"}
+    <div class="route-notice no-access">
+      <p>You do not have access to this page.</p>
+      <button type="button" onclick={signOut} disabled={loggingOut}
+        >Log out</button
+      >
+    </div>
+  {:else}
+    <!-- unknown, or anonymous and about to be redirected -->
+    <p class="route-notice">Loading…</p>
+  {/if}
 {:else}
   <p class="not-found">
     Page not found — <a href="/" onclick={(e) => go(e, "/")}
