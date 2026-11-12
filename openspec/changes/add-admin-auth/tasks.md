@@ -39,8 +39,17 @@
 - [ ] 7.7 CLI: create admin then log in, short password rejected, duplicate email rejected, `set-password` changes the password and deletes sessions; route listing shows only `login`, `logout`, `me` under `/api/v1/auth`.
 - [ ] 7.8 Cleanup deletes only expired sessions; the scheduler test covers the new job.
 
-## 8. Docs and verification
+## 8. Frontend
 
-- [ ] 8.1 Update `AGENTS.md` (auth package, cookie sessions, the two dependencies, the "no state-changing GET" rule, the CLI) and `README.md` (creating the first admin, including the `docker compose exec` form, and the recommended Cloudflare rate-limit rule on the login path).
-- [ ] 8.2 Run `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy` and `openspec validate add-admin-auth --strict`; all pass.
-- [ ] 8.3 Rebuild with `docker compose up --build`, create an admin with the CLI in the container, and confirm login, `/me` and logout with `curl`, and that the existing public endpoints still respond without a cookie.
+- [ ] 8.1 Add `redirect(to)` (History `replaceState`) to `frontend/src/lib/router.svelte.ts`.
+- [ ] 8.2 Add `frontend/src/features/auth/`: `api.ts` (form-encoded login, `me`, logout), `state.svelte.ts` (`unknown` / `anonymous` / `signedIn` plus the user, `loadUser()` that fetches once, `logout()`), and `index.ts` exporting the public surface.
+- [ ] 8.3 Add `LoginPage.svelte`: email and password inputs with autocomplete attributes, submit disabled while in flight, "Incorrect email or password" on 401, a generic message on other failures, `loadUser()` after success, and the shared site footer.
+- [ ] 8.4 Add `frontend/src/features/admin/` with `AdminPage.svelte` (heading, signed-in email, "Log out" button that logs out and redirects to `/login`, shared site footer) and `index.ts`; it imports only `auth`'s `index.ts`.
+- [ ] 8.5 Wire the shell: `/login` and `/admin` route entries in `App.svelte` following the guard table in design decision 14 (loading state, redirects, "no access" message with log out), and import `styles/auth.css` and `styles/admin.css` in `main.ts`.
+- [ ] 8.6 Write `auth.css` and `admin.css` using the existing theme variables; check both pages in the default and dark themes and at mobile width.
+
+## 9. Docs and verification
+
+- [ ] 9.1 Update `AGENTS.md` (auth package, cookie sessions, the two dependencies, the "no state-changing GET" rule, the CLI, the `auth` and `admin` frontend features, the `/login` and `/admin` routes and the guard) and `README.md` (creating the first admin, including the `docker compose exec` form, where to log in, and the recommended Cloudflare rate-limit rule on the login path).
+- [ ] 9.2 Run `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `npm run format:check`, `npm run check`, `npm run build` and `openspec validate add-admin-auth --strict`; all pass.
+- [ ] 9.3 Rebuild with `docker compose up --build`, create an admin and a non-admin with the CLI in the container, and in a browser walk every cell of the guard table: `/admin` signed out redirects to `/login`; a wrong password shows the error; an admin login lands on `/admin`; Back does not bounce; `/login` while signed in redirects; the non-admin sees the "no access" message; log out returns to `/login` and `/admin` redirects again. Confirm the existing public pages and endpoints work without a cookie.

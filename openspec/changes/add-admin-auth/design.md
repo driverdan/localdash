@@ -6,9 +6,13 @@ middleware and no auth dependency; every "token" in `app/` is an upstream API cr
 
 This is the first of a series of small changes that build an authenticated admin section:
 
-1. `add-admin-auth` (this change): backend accounts, login and access checks.
-2. `add-admin-dashboard`: login page, guarded `/admin` route, refresh endpoints admin-only.
+1. `add-admin-auth` (this change): accounts, login and access checks on the backend; a login
+   page and an empty admin dashboard page on the frontend.
+2. Next: refresh endpoints become admin-only and their buttons move to the dashboard.
 3. Later: refresh run history, config management, content curation.
+
+The frontend is a Svelte 5 SPA with a hand-rolled path router and four routes. It has no
+notion of a signed-in user, a guarded route or a 401.
 
 Constraints agreed with the project owner:
 
@@ -26,11 +30,13 @@ Constraints agreed with the project owner:
 - Two reusable dependencies, `current_user` and `require_admin`, for later changes.
 - An operator CLI to create the first admin without a registration endpoint.
 - Security behaviour pinned by tests, because the session code is ours.
+- A login page and an admin-only dashboard page with no content, so later changes have a
+  place to put admin UI.
 
 **Non-Goals:**
 
-- Any frontend (login page, `/admin` route, 401 handling in the SPA).
 - Gating any existing endpoint, including the three refresh endpoints.
+- Dashboard content, and links to `/login` or `/admin` from the public pages.
 - Roles or permissions beyond `is_superuser`.
 - Registration, email verification, password reset, OAuth sign-in.
 - Login rate limiting (see Risks).
@@ -180,8 +186,75 @@ app/auth/
 app/api/auth.py   login, logout, me
 ```
 
+### 12. Two frontend features: `auth` and `admin`
+
+```
+frontend/src/features/auth/
+  index.ts            LoginPage, authState(), loadUser(), logout(), User type
+  api.ts              login (form-encoded POST), me, logout
+  state.svelte.ts     { status: "unknown" | "anonymous" | "signedIn", user }
+  components/LoginPage.svelte
+frontend/src/features/admin/
+  index.ts            AdminPage
+  components/AdminPage.svelte
+frontend/src/styles/auth.css, admin.css
+```
+
+- The split follows the existing rule that a feature folder mirrors an API namespace: `auth`
+  matches `/api/v1/auth`, and `admin` will match `/api/v1/admin` when it exists. It also
+  keeps login usable by non-admin users later without importing anything admin.
+- `admin` imports only `auth`'s `index.ts`, as the import rules require.
+- *Alternative: one `admin` feature holding the login page.* Fewer folders, but login would
+  have to move out as soon as a non-admin user can sign in.
+
+### 13. The signed-in user is loaded lazily
+
+The auth state starts as `unknown`. `loadUser()` calls `GET /api/v1/auth/me` once and is
+invoked only when `/login` or `/admin` is rendered; a `401` means `anonymous`.
+
+- Public visitors never trigger the request, so the public pages make no extra call and log
+  no `401` in the console.
+- Consequence: the public header cannot show a "signed in" state or an Admin link. An admin
+  opens `/admin` directly. A header link can be added when there is something to link to.
+
+### 14. Route guard in the shell, with a history-replacing redirect
+
+`App.svelte` gains two route entries. For `/admin` and `/login` it renders by auth state:
+
+| Route | `unknown` | `anonymous` | signed in, admin | signed in, not admin |
+|---|---|---|---|---|
+| `/admin` | "Loading…" | redirect to `/login` | dashboard | "no access" message + log out |
+| `/login` | "Loading…" | login form | redirect to `/admin` | redirect to `/` |
+
+- `lib/router.svelte.ts` gains `redirect(to)`, which uses `history.replaceState`. With
+  `pushState`, pressing Back from `/login` would land on `/admin` and bounce forward again.
+- The guard is a convenience, not a security boundary: the admin page's code ships in the
+  public bundle and anyone can read it. The boundary is `require_admin` on the API. The page
+  holds no data in this change.
+- The admin bundle is not lazy-loaded. It is a heading and a button today; code-splitting is
+  worth adding when the admin UI has real weight.
+- After a successful login the page calls `loadUser()` and the table above sends the user on.
+  There is no "return to where you were" parameter, since `/admin` is the only guarded route.
+
+### 15. Login page and dashboard page behaviour
+
+- The login form posts `username` (the email) and `password` as
+  `application/x-www-form-urlencoded`, which is what `OAuth2PasswordRequestForm` reads. The
+  browser stores the cookie; no token touches JavaScript.
+- A `401` shows one message, "Incorrect email or password", matching the backend's refusal
+  to say which was wrong. Any other failure shows a generic "could not sign in" message. The
+  submit button is disabled while a request is in flight.
+- The inputs use `type="email"` / `type="password"` with `autocomplete="username"` /
+  `"current-password"` so password managers work.
+- The dashboard shows a heading, the signed-in email and a "Log out" button. Log out calls
+  the API, sets the state to `anonymous` and redirects to `/login`.
+- Both pages use the existing theme variables, so they work in every theme, and render the
+  shared site footer like the other content pages.
+
 ## Risks / Trade-offs
 
+- [The frontend has no test runner, so the guard table is checked by hand] → `npm run check`
+  covers types, and task 9.3 walks every cell of the table in a browser.
 - [We own the session code, so a logic bug is ours] → Keep it small, use only standard
   primitives, and pin each security property with a test (see specs).
 - [No login rate limiting: password guessing is unthrottled, and each attempt costs an
@@ -202,7 +275,8 @@ app/api/auth.py   login, logout, me
 
 - Deploy: the entrypoint already runs `alembic upgrade head`; the new migration only adds two
   tables. Then create the first admin with the CLI.
-- Nothing public changes, so there is no user-visible cutover.
+- Nothing on the existing pages changes; `/login` and `/admin` are new paths that were
+  not-found pages before.
 - Rollback: redeploy the previous image. The tables can stay (nothing else reads them) or be
   dropped with `alembic downgrade -1`.
 
