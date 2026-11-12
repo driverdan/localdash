@@ -25,6 +25,8 @@ import app.events.refresh as events_refresh_mod
 import app.news.fetcher as news_fetcher_mod
 import app.news.refresh as news_refresh_mod
 import app.news.stories as stories_mod
+from app.auth.accounts import create_user
+from app.auth.sessions import create_session
 from app.collectors.base import NormalizedObservation
 from app.config import get_settings
 from app.events.dedup import canonical_key
@@ -80,6 +82,20 @@ async def test_config(client):
     s = make_settings()
     r = await client.get("/api/v1/config")
     _check(r, {"tile_url": s.tile_url, "tile_attribution": s.tile_attribution})
+
+
+# --- auth -----------------------------------------------------------------------
+
+
+async def test_auth_me(client, db_session):
+    user = await create_user(
+        db_session, "admin@example.com", "correct horse battery staple", is_superuser=True
+    )
+    token = await create_session(db_session, user.id, lifetime=timedelta(days=1))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/auth/me", headers={"Cookie": f"localdash_session={token}"})
+    _check(r, {"id": str(user.id), "email": "admin@example.com", "is_superuser": True})
 
 
 # --- timeseries -----------------------------------------------------------------

@@ -94,6 +94,33 @@ Observation history is kept forever; there is no retention setting yet.
 Once the app is running, the full API is documented and browsable at
 <http://localhost:8000/docs>.
 
+## Admin accounts
+
+LocalDash has an admin login at `/login` and an admin dashboard at `/admin`.
+Neither is linked from the public pages, and the dashboard is empty for now;
+admin tools will land there in later releases. There is no sign-up page:
+accounts are created from the command line. Create the first admin with:
+
+```bash
+docker compose exec app python -m app.auth create-user --email you@example.com --admin
+```
+
+It prompts for the password twice (at least 12 characters); you can also pipe
+it on stdin. Leave off `--admin` for a non-admin account. To change a password,
+which also signs that account out everywhere:
+
+```bash
+docker compose exec app python -m app.auth set-password --email you@example.com
+```
+
+Outside Docker, run the same commands as `python -m app.auth …` from the
+project's virtualenv. Then open <http://localhost:8000/login>.
+
+Logins last `AUTH_SESSION_DAYS` (default 7). The session cookie is marked
+`Secure` by default, which works over HTTPS and on `http://localhost` in Chrome
+and Firefox; to sign in over plain HTTP from a LAN address (or Safari on
+localhost), set `AUTH_COOKIE_SECURE=false`.
+
 ## Expose it publicly (optional)
 
 The `cloudflared` compose service publishes the app over HTTPS without opening
@@ -113,8 +140,14 @@ docker compose --profile tunnel up -d --build
 
 Only the app is exposed; Postgres stays private to the compose network.
 
-> **LocalDash has no authentication.** Anyone with the URL can read the dashboard
-> and the API. If that matters, put Cloudflare Access (free) in front of it.
+> **The dashboard and its API are public.** Anyone with the URL can read them;
+> only `/admin` requires a login. If that matters, put Cloudflare Access (free)
+> in front of it.
+
+LocalDash does not rate-limit login attempts itself. When the app is public, add
+a Cloudflare **rate limiting rule** (Security → WAF → Rate limiting rules) that
+matches `POST` requests to the path `/api/v1/auth/login` and blocks a client IP
+that exceeds a few requests per minute.
 
 ## Contributing
 
