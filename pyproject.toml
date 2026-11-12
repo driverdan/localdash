@@ -25,6 +25,8 @@ dependencies = [
     "feedparser~=6.0.12",
     "icalendar>=7.2,<7.4",
     "beautifulsoup4~=4.15.0",      # CarCruiseFinder scraper (stdlib html.parser backend)
+    "pwdlib[argon2]~=0.3.1",       # password hashing (auth)
+    "python-multipart~=0.0.33",    # form parsing for OAuth2PasswordRequestForm (auth login)
 ]
 
 [project.optional-dependencies]
