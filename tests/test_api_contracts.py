@@ -25,6 +25,8 @@ import app.events.refresh as events_refresh_mod
 import app.news.fetcher as news_fetcher_mod
 import app.news.refresh as news_refresh_mod
 import app.news.stories as stories_mod
+from app.auth.accounts import create_user
+from app.auth.sessions import create_session
 from app.collectors.base import NormalizedObservation
 from app.config import get_settings
 from app.events.dedup import canonical_key
@@ -80,6 +82,20 @@ async def test_config(client):
     s = make_settings()
     r = await client.get("/api/v1/config")
     _check(r, {"tile_url": s.tile_url, "tile_attribution": s.tile_attribution})
+
+
+# --- auth -----------------------------------------------------------------------
+
+
+async def test_auth_me(client, db_session):
+    user = await create_user(
+        db_session, "admin@example.com", "correct horse battery staple", is_superuser=True
+    )
+    token = await create_session(db_session, user.id, lifetime=timedelta(days=1))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/auth/me", headers={"Cookie": f"localdash_session={token}"})
+    _check(r, {"id": str(user.id), "email": "admin@example.com", "is_superuser": True})
 
 
 # --- timeseries -----------------------------------------------------------------
@@ -844,10 +860,16 @@ async def test_observations_response_matches_documentation_model(client, db_sess
 def test_every_api_route_documents_a_named_200_schema():
     schema = app.openapi()
     checked = []
+    no_content = []
     for path, ops in schema["paths"].items():
         if not path.startswith("/api/v1/"):
             continue
         for method, op in ops.items():
+            if "200" not in op["responses"]:
+                # Body-less 204 routes carry no JSON schema to document.
+                assert "204" in op["responses"], f"{method.upper()} {path}"
+                no_content.append(f"{method.upper()} {path}")
+                continue
             content = op["responses"]["200"]["content"]["application/json"]["schema"]
             if content.get("type") == "array":  # /track and /sources are JSON arrays
                 content = content["items"]
@@ -855,4 +877,5 @@ def test_every_api_route_documents_a_named_200_schema():
             assert content["$ref"].startswith("#/components/schemas/")
             checked.append(f"{method.upper()} {path}")
     # Every JSON route, refresh routes included (the WebSocket is not in OpenAPI).
-    assert len(checked) == 14, checked
+    assert len(checked) == 15, checked
+    assert no_content == ["POST /api/v1/auth/login", "POST /api/v1/auth/logout"]

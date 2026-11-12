@@ -1,11 +1,12 @@
 """Background refresh scheduling: composes jobs, contains no cycle logic.
 
-`job_specs()` lists every scheduled job (one per collector, plus news, events
-and weather); `build_scheduler()` registers the enabled ones in one loop with
-the shared options; `_run_job()` is the one error-logging wrapper around every
-job. Each refresh cycle (its lock, session and signal) lives beside the code it
-drives: app/collect.py, app/news/refresh.py, app/events/refresh.py and
-app/weather/refresh.py. The scheduled and manual triggers call the same entry
+`job_specs()` lists every scheduled job (one per collector, plus news, events,
+weather and the expired-session cleanup); `build_scheduler()` registers the
+enabled ones in one loop with the shared options; `_run_job()` is the one
+error-logging wrapper around every job. Each refresh cycle (its lock, session
+and signal) lives beside the code it drives: app/collect.py,
+app/news/refresh.py, app/events/refresh.py, app/weather/refresh.py and
+app/auth/cleanup.py. The scheduled and manual triggers call the same entry
 points.
 """
 
@@ -18,6 +19,7 @@ from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from app.auth.cleanup import cleanup_sessions
 from app.collect import run_collector
 from app.collectors.base import BaseCollector
 from app.config import Settings
@@ -26,6 +28,8 @@ from app.news.refresh import refresh as news_refresh
 from app.weather.refresh import refresh as weather_refresh
 
 log = logging.getLogger(__name__)
+
+SESSION_CLEANUP_INTERVAL_SECONDS = 60 * 60
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,13 @@ def job_specs(settings: Settings, collectors: Mapping[str, BaseCollector]) -> li
             func=weather_refresh,
             interval_seconds=settings.weather_cache_minutes * 60,
             enabled=settings.weather_enabled,
+        ),
+        # Always on: expired sessions are already rejected, so this only bounds
+        # the sessions table.
+        JobSpec(
+            id="auth_session_cleanup",
+            func=cleanup_sessions,
+            interval_seconds=SESSION_CLEANUP_INTERVAL_SECONDS,
         ),
     ]
     return specs

@@ -9,6 +9,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 # Every model module registers its tables on Base only when imported.
+import app.auth.models
 import app.events.models
 import app.models
 import app.news.models  # noqa: F401

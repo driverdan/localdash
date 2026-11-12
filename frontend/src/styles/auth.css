@@ -1,0 +1,86 @@
+/* Auth feature. Styles the semantic hooks in LoginPage — all scoped under the
+   page's #login region. Tokens only, so every theme inherits it. */
+
+/* Fills the shell column below the header and owns its scroll like the other
+   content pages; the footer flows after the form. */
+#login {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page-bg);
+}
+
+#login .login-form {
+  width: 100%;
+  max-width: 360px;
+  margin: 48px auto 0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+#login .login-form h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text);
+}
+#login .login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+#login .login-form input {
+  font: inherit;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-raised-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+#login .login-form input:focus {
+  outline: 2px solid var(--color-link);
+  outline-offset: 1px;
+}
+#login .login-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-err);
+}
+#login .login-form button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+#login .login-form button:hover:enabled {
+  background: var(--color-primary-strong);
+  border-color: var(--color-primary-strong);
+}
+#login .login-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Mobile: the card spans the column with the page's 16px gutter. */
+@media (max-width: 640px) {
+  #login .login-form {
+    width: auto;
+    margin: 24px 16px 0;
+  }
+}

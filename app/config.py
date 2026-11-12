@@ -141,6 +141,12 @@ class Settings(BaseSettings):
     # hourly, so the default tolerates a missed hour plus a top-of-hour gap.
     airnow_stale_minutes: int = 120
 
+    # Auth: login sessions last this many days from login (no sliding renewal).
+    auth_session_days: int = 7
+    # Send the session cookie with the Secure attribute (HTTPS only). Leave on for
+    # the public tunnel; turn off only for plain-HTTP access such as a LAN address.
+    auth_cookie_secure: bool = True
+
     # Frontend map config (served to the browser via /api/v1/config). Standard
     # OpenStreetMap tiles need no API key (CARTO's now watermark keyless requests);
     # the OSM tile usage policy requires this attribution and a browser Referer, so

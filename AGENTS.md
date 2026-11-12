@@ -27,6 +27,10 @@ at `/` by the frontend's `home` feature):
   refresh job; also a sibling feature, not a collector (weather-on-the-map as a
   geo feed remains a separate future idea).
 
+Beside the four features sits **auth** (`/login`, `/admin`): user accounts, password login and
+server-side cookie sessions, plus an admin-only dashboard page that is empty for now. It is the
+foundation for an admin section; nothing existing is gated by it yet. See "The auth feature".
+
 ## Tech stack & why
 
 **Data store — Postgres + PostGIS + TimescaleDB** (one image: `timescale/timescaledb-ha:pg16`).
@@ -56,7 +60,7 @@ DB sessions), Pydantic integration, and first-class WebSocket support fit that m
 
 **Scheduling — APScheduler (AsyncIOScheduler).** An in-process async scheduler runs the poll loop inside
 the FastAPI event loop — one job per geo collector plus one job each for news, events, and weather
-refresh. Deliberately avoids a
+refresh, and an hourly expired-session cleanup (`app/auth/cleanup.py`). Deliberately avoids a
 separate worker + broker (Celery/Redis): at this scale a background task is simpler and has no extra
 moving parts. `app/scheduler.py` only composes jobs: `job_specs()` builds a list of `JobSpec`s,
 `build_scheduler()` registers the enabled ones in one loop with the shared options (immediate first
@@ -122,11 +126,14 @@ Dockerfile).
 The frontend lays out its source by the API's feature namespaces and adds import rules of its
 own (the backend has no matching rules): each feature owns
 `frontend/src/features/<feature>/` (`home` on `/`, `news` on `/news`, `timeseries` on `/map` — it
-owns the Leaflet map — and `events` on `/events`), composed per-route by `App.svelte`;
-feature-agnostic shell code lives in `frontend/src/lib/`. Routing is a **tiny hand-rolled path
-router** (`lib/router.svelte.ts`: reactive path + `pushState` + `popstate` — four routes don't
-justify a dependency), backed by an SPA fallback in `app/spa.py`'s static mount, which `main.py`
-mounts last (extension-less non-`/api` 404s serve `index.html` so `/map` deep-links).
+owns the Leaflet map — `events` on `/events`, `auth` on `/login` and `admin` on `/admin`),
+composed per-route by `App.svelte`; feature-agnostic shell code lives in `frontend/src/lib/`.
+Routing is a **tiny hand-rolled path router** (`lib/router.svelte.ts`: reactive path + `pushState`
++ `popstate`, plus `redirect()`, which uses `replaceState` so a guard redirect adds no history
+entry — a handful of routes don't justify a dependency), backed by an SPA fallback in
+`app/spa.py`'s static mount, which `main.py` mounts last (extension-less non-`/api` 404s serve
+`index.html` so `/map` deep-links). `/login` and `/admin` are not in the nav; `App.svelte` guards
+them by the auth feature's signed-in state (see "The auth feature").
 **Import rules:** features import from `lib/`, themselves, and other features' `index.ts` public
 surfaces only (e.g. `home` reuses the news card) — never another feature's internals; the shell
 imports only each feature's `index.ts`; `lib/` imports from no feature. Adding a frontend feature =
@@ -291,6 +298,16 @@ blocks the merge rather than drifting. Check it yourself with `uv lock --check`.
 that check and installs the lock as-is, so a dependency edit with no re-lock passes silently. Use
 `--frozen` only where you deliberately want the lock honored without consulting pyproject.
 
+**User accounts (no registration endpoint; operators create accounts):**
+```bash
+python -m app.auth create-user --email admin@example.com --admin   # omit --admin for a non-admin
+python -m app.auth set-password --email admin@example.com          # also ends all their sessions
+docker compose exec app python -m app.auth create-user --email admin@example.com --admin
+```
+The password is prompted for twice on a terminal or read from stdin's first line otherwise —
+never an argument — and must be at least 12 characters. Both commands exit non-zero on a
+refusal (duplicate or unknown email, short or mismatched password).
+
 **Frontend (source in `frontend/`, builds into gitignored `static/`):**
 ```bash
 cd frontend
@@ -308,7 +325,7 @@ pytest                                            # full suite
 pytest tests/test_ingest.py::test_state_changed_status_transition   # single test
 ```
 Most tests are pure/offline. The DB-backed tests (the DB cases in `tests/test_ingest.py`,
-`tests/test_api_timeseries.py`, `tests/test_news_db.py`, and the events DB tests in
+`tests/test_api_timeseries.py`, `tests/test_news_db.py`, `tests/test_auth.py`, and the events DB tests in
 `tests/test_events_ingest.py`, `tests/test_api_events.py`, and `tests/test_events_cityspark.py`, via
 the `db_session` / `news_db_session` / `events_db_session` fixtures in `conftest.py`) never touch
 the app's database. Each run creates a temporary `localdash_test_<epoch>_<rand>` database on the
@@ -328,7 +345,8 @@ events), compute test dates relative to now or inject a fixed "now"; never hard-
 The pipeline functions that filter, age or stamp stored data by the current time take a
 keyword-only `now` (default: the current UTC time, read once per call): `upsert_raw_events`,
 `run_sources`, `reconcile_events` and `retry_failed_geocodes` (events), `recluster` and
-`get_stories` (news), and the timeseries `ingest`. Pass a timezone-aware `now` to pin time. Vary
+`get_stories` (news), the timeseries `ingest`, and the auth session functions
+(`create_session`, `lookup_session`, `delete_expired_sessions`, and the `cleanup_sessions` cycle). Pass a timezone-aware `now` to pin time. Vary
 configuration by passing values (`blocked_tags=`, `center=`, `window_days=`) or a `Settings` built
 with `make_settings(**overrides)` from `conftest.py` (defaults plus overrides, ignoring `.env`);
 never mutate the cached `get_settings()` instance or set environment variables and clear its cache.
@@ -607,6 +625,60 @@ literal values of the credential settings (`SECRET_SETTINGS`) before any handler
 `redact()` on exception text that is persisted or returned (`sources.last_error`,
 `news_feeds.last_status`). Add new credential settings to `SECRET_SETTINGS`.
 
+### The auth feature (`app/auth/`, `app/api/auth.py`)
+Accounts, password login and server-side sessions — the foundation for an admin section. No
+existing endpoint is gated yet (the refresh endpoints are still public).
+
+- `models.py` — `users` (UUID id, `email` unique and CHECKed lowercase, argon2 `hashed_password`,
+  `is_active`, `is_superuser` — the only privilege) and `sessions` (`token_hash` PK, `user_id`
+  `ON DELETE CASCADE`, `expires_at` indexed); migration `0010`. The table is for all users, not
+  only admins.
+- `passwords.py` — `pwdlib` (argon2id). Every hash/verify runs in `asyncio.to_thread` so argon2
+  never blocks the event loop. Login saves the replacement hash `verify_and_update` returns when
+  the stored one uses outdated parameters.
+- `accounts.py` — `normalize_email` (`strip().lower()`, used on write and on login), lookup,
+  `create_user`, `set_password` (which also deletes all that user's sessions).
+- `sessions.py` — **opaque DB sessions, not JWTs**: login makes `secrets.token_urlsafe(32)`, stores
+  only its SHA-256 hex with a fixed expiry `auth_session_days` after login (no sliding renewal),
+  and puts the raw token in the cookie. Lookup joins to `users` and requires `expires_at > now`
+  and `is_active`, so logout, `set-password` and deactivation all bite on the next request.
+  These functions don't commit; the caller owns the transaction.
+- `deps.py` — **`current_user`** (any active signed-in user, else `401`) and **`require_admin`**
+  (an admin, else `403`), reading the cookie with `APIKeyCookie`. Guard a route with
+  `Depends(current_user)` / `Depends(require_admin)`; a request with no cookie does no DB lookup.
+- `app/api/auth.py` — `POST /api/v1/auth/login` (`OAuth2PasswordRequestForm`, so form-encoded
+  `username` = email + `password`; needs `python-multipart`), `POST /logout`, `GET /me`. There is
+  deliberately no registration endpoint; `__main__.py` is the operator CLI (see Commands).
+- `cleanup.py` — the hourly `auth_session_cleanup` job that deletes expired rows (they are already
+  rejected; this only bounds the table).
+
+**Cookie:** `localdash_session`, `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` = the session
+lifetime, `Secure` unless `auth_cookie_secure` is false. HttpOnly keeps the token away from page
+JavaScript; the SPA never touches it.
+
+**Security rules (don't regress):** unknown email, wrong password and inactive account return the
+same `401` and body, set no cookie and create no session, and the unknown-email path still runs a
+dummy argon2 verify so timing does not reveal which emails exist. Never store, log or return a
+plaintext password or a raw session token. **No state-changing GET**: CSRF protection is
+`SameSite=Lax` alone (no CSRF token), and Lax still sends the cookie on cross-site top-level GET
+navigations, so every endpoint that changes state must be a POST/PUT/PATCH/DELETE. There is no
+login rate limiting in the app; the README recommends a Cloudflare rule on the login path.
+
+**Frontend.** `features/auth` holds the signed-in state (`unknown` / `anonymous` / `signedIn` +
+the user), `loadUser()` (one `GET /api/v1/auth/me` per page load, called only when `/login` or
+`/admin` renders, so public pages make no auth request), `logout()` and the `/login` page.
+`features/admin` holds the `/admin` dashboard and imports only `auth`'s `index.ts`.
+`App.svelte` guards the two routes:
+
+| Route | `unknown` | `anonymous` | signed in, admin | signed in, not admin |
+|---|---|---|---|---|
+| `/admin` | "Loading…" | redirect to `/login` | dashboard | "no access" message + log out |
+| `/login` | "Loading…" | login form | redirect to `/admin` | redirect to `/` |
+
+The guard is a convenience, not a security boundary — the admin bundle is public; the boundary is
+`require_admin` on the API. The frontend has no test runner, so walk this table in a browser
+after changing it.
+
 ### Backend code organisation
 The backend (`app/`) is one application. Its packages (`app/news/`, `app/events/`,
 `app/weather/`, `app/collectors/`) and its top-level modules group code by feature to make it
@@ -631,17 +703,18 @@ not a list of forbidden imports.
 
 ### API / frontend conventions
 - The API is **versioned and feature-namespaced**: every feature owns a namespace under
-  `/api/v1/<feature>/` (`timeseries`, `news`, `events`, `weather`), and feature-agnostic app-shell
+  `/api/v1/<feature>/` (`timeseries`, `news`, `events`, `weather`, `auth`), and feature-agnostic app-shell
   endpoints (`/api/v1/config` and the `/api/v1/ws` live-update WebSocket) sit directly under
   `/api/v1`. Each feature is one `APIRouter` module in `app/api/` (`timeseries.py`, `news.py`,
-  `events.py`, `weather.py`, `root.py` for app-shell), composed in
+  `events.py`, `weather.py`, `auth.py`, `root.py` for app-shell), composed in
   `main.py` — adding a feature is a new router module + one `include_router` line (the news router
   is always mounted, `news_enabled` only gates its scheduler job; the weather router is mounted only
   when `weather_enabled`). `main.py` mounts `static/` at `/` last so `/api` always wins, through
   `app/spa.py`'s `NoCacheStaticFiles`, which owns the SPA fallback (extension-less non-`/api` misses
   serve `index.html`), the `Cache-Control: no-cache` header and site-name injection.
 - **Every JSON route declares a response model** (`response_model=`), so `/openapi.json` and
-  `/docs` show a named schema for each; a new route must declare one too. Handlers build model
+  `/docs` show a named schema for each; a new route must declare one too. The body-less `204`
+  routes (`/auth/login`, `/auth/logout`) are the exception: they return a bare `Response`. Handlers build model
   instances, not dicts. As a layout preference (packages are not boundaries, see above), the models
   live in a schemas module beside the code that produces them: `app/<pkg>/schemas.py` for news,
   events and weather, and `app/timeseries_schemas.py` for the timeseries code at the top of
@@ -669,6 +742,9 @@ not a list of forbidden imports.
 - Events routes (JSON, not GeoJSON): `GET /api/v1/events/items` (filters: `topic`, `max_miles` +
   `lat`/`lon` origin, `upcoming` [default true], `search`, `limit`; each item carries
   `distance_miles`), `GET /api/v1/events/tags`, `POST /api/v1/events/refresh`.
+- Auth routes: `POST /api/v1/auth/login` (form-encoded `username` + `password`; `204` + the session
+  cookie, or `401`), `POST /api/v1/auth/logout` (always `204`, clears the cookie), `GET
+  /api/v1/auth/me` (`id`, `email`, `is_superuser`; `401` when signed out).
 - Weather route: `GET /api/v1/weather/current` (current station observation, the leading NWS
   forecast periods, and `aqi` — null without an AirNow key; served from the in-process cache, 502
   only when NWS is unreachable with a cold cache).
@@ -688,7 +764,7 @@ token/origin, tile layer, poll intervals, the news knobs (`news_enabled`,
 `app/news/registry.py`), the events knobs (`events_*`: refresh interval, iCal feeds, tribe
 calendars, CitySpark, Meetup token, geocoder throttle and retry, ingest radius, tag blocklist), the
 weather knobs (`weather_enabled`, `weather_cache_minutes`, `airnow_api_key`,
-`airnow_stale_minutes`), and the shared center coordinate (`center_lat`/`center_lon`, exposed as
+`airnow_stale_minutes`), the auth knobs (`auth_session_days`, `auth_cookie_secure`), and the shared center coordinate (`center_lat`/`center_lon`, exposed as
 the `settings.center` tuple) used
 by the events distance origin, the CitySpark/Meetup source defaults, and the weather location.
 There is no `.env` by default; the code runs on the defaults in
