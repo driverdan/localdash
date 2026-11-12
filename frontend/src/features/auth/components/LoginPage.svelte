@@ -4,7 +4,7 @@
   // shell's guard sends the user on (admin -> /admin, anyone else -> /).
   import SiteFooter from "../../../lib/SiteFooter.svelte";
   import { login } from "../api";
-  import { invalidateUser, loadUser } from "../state.svelte";
+  import { authState, invalidateUser, loadUser } from "../state.svelte";
 
   let email = $state("");
   let password = $state("");
@@ -21,6 +21,10 @@
       password = "";
       invalidateUser();
       await loadUser();
+      // The login worked but the user could not be loaded (e.g. the request
+      // failed): say so rather than leaving the form looking untouched.
+      if (authState().status !== "signedIn")
+        error = "Could not sign in. Please try again.";
     } else if (result === "invalid") {
       // One message for every credential problem, as the backend gives no more.
       error = "Incorrect email or password";

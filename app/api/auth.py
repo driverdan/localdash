@@ -46,13 +46,15 @@ async def login(
 ) -> Response:
     """Check an email (the form's `username`) and password; on success set the session cookie."""
     user = await get_user_by_email(db, form.username)
-    if user is None:
+    if user is None or not user.is_active:
         # Spend the same argon2 work as a wrong password so timing does not
-        # reveal whether the email has an account.
+        # reveal whether the email has an account. An inactive account takes
+        # this path too: its password is never checked, so neither the response
+        # nor a hash upgrade's extra work can reveal that a guess was right.
         await passwords.dummy_verify(form.password)
         raise _login_failed()
     matches, new_hash = await passwords.verify_and_update(form.password, user.hashed_password)
-    if not matches or not user.is_active:
+    if not matches:
         raise _login_failed()
     if new_hash is not None:
         user.hashed_password = new_hash  # stored hash used outdated parameters

@@ -198,7 +198,10 @@ async def test_failed_logins_are_indistinguishable(client, db_session, monkeypat
     unknown_before = len(verifies)
     unknown = await _login(client, username="nobody@example.com")
     unknown_verifies = len(verifies) - unknown_before
+    inactive_before = len(verifies)
     inactive = await _login(client, username="off@example.com")
+    inactive_hashes = verifies[inactive_before:]
+    off_hash = await _stored_hash(db_session, "off@example.com")
 
     for response in (wrong, unknown, inactive):
         assert response.status_code == 401
@@ -207,6 +210,10 @@ async def test_failed_logins_are_indistinguishable(client, db_session, monkeypat
     assert wrong.json() == {"detail": "Incorrect email or password"}
     # The unknown-email path still spends an argon2 verification.
     assert unknown_verifies == 1
+    # An inactive account's password is never checked: one verification, against
+    # the dummy hash, even though the password given was the right one.
+    assert len(inactive_hashes) == 1
+    assert inactive_hashes[0] != off_hash
     assert await _session_count(db_session) == 0
 
 
